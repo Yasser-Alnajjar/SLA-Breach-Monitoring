@@ -103,6 +103,9 @@ importers:
 
   packages/zendesk:
     dependencies:
+      '@sla/core':
+        specifier: workspace:*
+        version: link:../core
       '@sla/db':
         specifier: workspace:*
         version: link:../db

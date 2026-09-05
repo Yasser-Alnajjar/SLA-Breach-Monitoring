@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { runZendeskBackfill, type ZendeskCredentials } from "@sla/zendesk";
+import { runZendeskBackfill, runZendeskNormalization, type ZendeskCredentials } from "@sla/zendesk";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 
@@ -22,12 +22,13 @@ export async function POST() {
   }
 
   try {
-    const result = await runZendeskBackfill(
+    const backfill = await runZendeskBackfill(
       prisma,
       integration.id,
       integration.credentials as unknown as ZendeskCredentials,
     );
-    return NextResponse.json(result);
+    const normalization = await runZendeskNormalization(prisma, integration.id);
+    return NextResponse.json({ backfill, normalization });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Backfill failed" },

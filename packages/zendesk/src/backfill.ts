@@ -26,9 +26,10 @@ export interface BackfillResult {
 
 /**
  * Pulls tickets, ticket audits, organizations, and SLA policies into
- * RawEvent. Raw ingestion only — no normalization (roadmap step 3 does
- * that). Resumable: the cursor is persisted after every page, so a crash or
- * restart continues from the last completed page rather than the start.
+ * RawEvent. Raw ingestion only — see `runZendeskNormalization` in
+ * `./normalize` for RawEvent → NormalizedEvent/Case/Customer. Resumable: the
+ * cursor is persisted after every page, so a crash or restart continues from
+ * the last completed page rather than the start.
  */
 export async function runZendeskBackfill(
   prisma: PrismaClient,

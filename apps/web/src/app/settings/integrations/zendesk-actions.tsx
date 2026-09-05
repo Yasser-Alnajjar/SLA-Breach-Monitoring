@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import type { BackfillResult } from "@sla/zendesk";
+import type { BackfillResult, NormalizationResult } from "@sla/zendesk";
+
+interface SyncResult {
+  backfill: BackfillResult;
+  normalization: NormalizationResult;
+}
 
 export function ZendeskConnectForm() {
   const [subdomain, setSubdomain] = useState("");
@@ -33,7 +38,7 @@ export function ZendeskConnectForm() {
 export function ZendeskBackfillButton() {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BackfillResult | null>(null);
+  const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
@@ -50,7 +55,7 @@ export function ZendeskBackfillButton() {
       return;
     }
 
-    setResult(body as BackfillResult);
+    setResult(body as SyncResult);
     router.refresh();
   }
 
@@ -61,10 +66,19 @@ export function ZendeskBackfillButton() {
       </button>
       {error && <p role="alert">{error}</p>}
       {result && (
-        <p>
-          {result.ticketsFetched} tickets · {result.ticketAuditsFetched} ticket events ·{" "}
-          {result.organizationsFetched} organizations · {result.slaPoliciesFetched} SLA policies.
-        </p>
+        <>
+          <p>
+            {result.backfill.ticketsFetched} tickets · {result.backfill.ticketAuditsFetched} ticket events ·{" "}
+            {result.backfill.organizationsFetched} organizations · {result.backfill.slaPoliciesFetched} SLA
+            policies.
+          </p>
+          <p>
+            {result.normalization.casesUpserted} cases · {result.normalization.customersUpserted} customers ·{" "}
+            {result.normalization.normalizedEventsWritten} normalized events.
+            {result.normalization.ticketsFailed.length > 0 &&
+              ` ${result.normalization.ticketsFailed.length} ticket(s) failed to normalize.`}
+          </p>
+        </>
       )}
     </div>
   );

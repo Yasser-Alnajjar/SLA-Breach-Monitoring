@@ -20,6 +20,8 @@ export interface ZendeskTicket {
   status: string;
   priority: string | null;
   organization_id: number | null;
+  requester_id?: number | null;
+  via?: { channel: string };
   [key: string]: unknown;
 }
 
@@ -30,12 +32,27 @@ export interface ZendeskIncrementalTicketExport {
   count: number;
 }
 
+/**
+ * One entry in an audit's `events` array. Zendesk emits many event `type`s
+ * (Comment, Notification, Rating, …) — the normalizer only reads `Change`
+ * events on the `status` field.
+ */
+export interface ZendeskAuditEvent {
+  id: number;
+  type: string;
+  field_name?: string;
+  value?: unknown;
+  previous_value?: unknown;
+  [key: string]: unknown;
+}
+
 export interface ZendeskAudit {
   id: number;
   ticket_id: number;
   created_at: string;
   author_id: number;
-  events: unknown[];
+  via?: { channel: string };
+  events: ZendeskAuditEvent[];
   [key: string]: unknown;
 }
 

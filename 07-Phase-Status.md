@@ -43,7 +43,7 @@ Legend: ✅ done · 🟡 designed/planned only, not built · ⬜ not started · 
 | Outreach message templates (4 variants)      | ✅ Done                                                                                                     | [06](06-Outreach-Kit.md)                   |
 | Interview script (8 questions)               | ✅ Done                                                                                                     | [06](06-Outreach-Kit.md)                   |
 | Target-list sourcing method + search recipes | ✅ Done                                                                                                     | [06](06-Outreach-Kit.md)                   |
-| Target-company list                          | ✅ **40 of 40 rows** (target revised down from 60), all `needs_qualification` — none verified on a call yet | [target-list.csv](target-list.csv)         |
+| Target-company list                          | ✅ **40 of 40 rows** (target revised down from 60); **37 of 40 have a named buyer** found via LinkedIn search; all still `needs_qualification` — none verified on a call yet | [target-list.csv](target-list.csv)         |
 | Call scorecard                               | 🟡 Template only, **0 calls logged**                                                                        | [call-scorecard.csv](call-scorecard.csv)   |
 | Outreach messages sent                       | ⬜ **0 of 40**                                                                                              | —                                          |
 | Interviews conducted                         | ⬜ **0 of 12–15**                                                                                           | —                                          |

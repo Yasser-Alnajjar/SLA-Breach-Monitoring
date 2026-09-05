@@ -84,10 +84,17 @@ file gets checked off and committed as each step lands.
       deduplicated via `(commitmentId, threshold)` (Phase 13.7). The only
       notification channel in v1 (Phase 10).
 
-- [ ] **9 — Dashboard UI**
+- [x] **9 — Dashboard UI**
       The one screen (Phase 17): at-risk now (sorted by remaining time),
       breached this period, escalations aging in engineering, compliance %.
       Usable without scrolling, comprehensible in under five seconds.
+      `apps/web/src/lib/dashboard-data.ts` computes the at-risk list and the
+      engineering-aging list live with `evaluateCommitment`/`deriveLegSpans`
+      (remaining time is derived, never stored); the breach count and
+      compliance % read persisted `Commitment`/`Evaluation` state over a
+      trailing 30-day window instead, since those are "already happened"
+      reporting metrics, not live ones. Step 8 (Slack notifications) is
+      still open — skipped for now at the user's request.
 
 - [ ] **10 — Case detail page**
       Header (customer, ticket, commitment, remaining/breached-by, current

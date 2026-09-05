@@ -4,6 +4,7 @@ import {
   mapChangelogHistoryToRawEvent,
   mapIssueToRawEvent,
   mapRemoteLinkToRawEvent,
+  mapStatusToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
 import type { JiraCredentials, JiraCursor, JiraSearchPage } from "./types";
@@ -14,6 +15,7 @@ export interface BackfillResult {
   issuesFetched: number;
   changelogHistoriesFetched: number;
   remoteLinksFetched: number;
+  statusesFetched: number;
 }
 
 /**
@@ -41,14 +43,22 @@ export async function runJiraBackfill(
     issuesFetched: 0,
     changelogHistoriesFetched: 0,
     remoteLinksFetched: 0,
+    statusesFetched: 0,
   };
 
+  await backfillStatuses();
   await backfillIssues();
 
   cursor.backfillCompletedAt = new Date().toISOString();
   await persistCursor();
 
   return result;
+
+  async function backfillStatuses(): Promise<void> {
+    const statuses = await client.fetchStatuses();
+    await writeRawEvents(statuses.map(mapStatusToRawEvent));
+    result.statusesFetched = statuses.length;
+  }
 
   async function backfillIssues(): Promise<void> {
     const updatedSince = cursor.issues?.updatedSince ?? defaultSince.toISOString();

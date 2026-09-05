@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { runJiraBackfill, type JiraCredentials } from "@sla/jira";
+import { runJiraBackfill, runJiraCorrelation, runJiraNormalization, type JiraCredentials } from "@sla/jira";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 
@@ -27,7 +27,9 @@ export async function POST() {
       integration.id,
       integration.credentials as unknown as JiraCredentials,
     );
-    return NextResponse.json({ backfill });
+    const correlation = await runJiraCorrelation(prisma, integration.id);
+    const normalization = await runJiraNormalization(prisma, integration.id);
+    return NextResponse.json({ backfill, correlation, normalization });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Backfill failed" },

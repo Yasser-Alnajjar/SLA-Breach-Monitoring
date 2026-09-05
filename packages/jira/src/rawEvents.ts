@@ -1,5 +1,5 @@
 import { computeSourceHash } from "./hash";
-import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink } from "./types";
+import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink, JiraStatus } from "./types";
 
 /** What gets written to one RawEvent row, minus the integrationId FK. */
 export interface RawEventInput {
@@ -42,4 +42,13 @@ export function mapRemoteLinkToRawEvent(issueKey: string, link: JiraRemoteLink):
     sourceHash,
     payload: link,
   };
+}
+
+/**
+ * A site's statuses can be renamed or recategorized, so — like issues — the
+ * hash is folded into the provider event id.
+ */
+export function mapStatusToRawEvent(status: JiraStatus): RawEventInput {
+  const sourceHash = computeSourceHash(status);
+  return { providerEventId: `status:${status.id}:${sourceHash}`, sourceHash, payload: status };
 }

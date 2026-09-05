@@ -59,6 +59,7 @@ file gets checked off and committed as each step lands.
       defines, once, permanently (`@@unique([caseId, kind])`). No business
       hours import yet — every policy is anchored to one always-open
       calendar per organization until Zendesk schedules are ingested.
+      [PR #9](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/9)
 
 - [ ] **7 — Worker: two-speed polling + evaluation**
       `apps/worker` becomes real: 5-minute active-set poll, 60-minute

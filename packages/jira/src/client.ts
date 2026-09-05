@@ -32,15 +32,19 @@ export class JiraClient {
     return (await response.json()) as T;
   }
 
-  /** https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/ */
-  searchIssues(jql: string, startAt: number): Promise<JiraSearchPage> {
+  /**
+   * https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-get
+   * The legacy /rest/api/3/search (startAt/total) was removed by Atlassian
+   * in 2025 — this is the enhanced JQL search, paginated by token.
+   */
+  searchIssues(jql: string, nextPageToken?: string): Promise<JiraSearchPage> {
     const params = new URLSearchParams({
       jql,
-      startAt: String(startAt),
       maxResults: String(SEARCH_PAGE_SIZE),
       fields: "summary,status,priority,project,created,updated,reporter,assignee",
     });
-    return this.request<JiraSearchPage>(`/rest/api/3/search?${params.toString()}`);
+    if (nextPageToken) params.set("nextPageToken", nextPageToken);
+    return this.request<JiraSearchPage>(`/rest/api/3/search/jql?${params.toString()}`);
   }
 
   /** https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-changelogs/ */

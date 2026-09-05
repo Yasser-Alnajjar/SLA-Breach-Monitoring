@@ -52,11 +52,11 @@ export async function runJiraBackfill(
 
   async function backfillIssues(): Promise<void> {
     const updatedSince = cursor.issues?.updatedSince ?? defaultSince.toISOString();
-    let startAt = cursor.issues?.startAt ?? 0;
+    let nextPageToken = cursor.issues?.nextPageToken;
     const jql = `updated >= "${formatJqlDateTime(new Date(updatedSince))}" ORDER BY updated ASC`;
 
     for (;;) {
-      const page: JiraSearchPage = await client.searchIssues(jql, startAt);
+      const page: JiraSearchPage = await client.searchIssues(jql, nextPageToken);
 
       await writeRawEvents(page.issues.map(mapIssueToRawEvent));
       result.issuesFetched += page.issues.length;
@@ -66,17 +66,17 @@ export async function runJiraBackfill(
         result.remoteLinksFetched += await backfillRemoteLinksForIssue(issue.key);
       }
 
-      startAt += page.issues.length;
-      cursor.issues = { updatedSince, startAt };
+      nextPageToken = page.nextPageToken;
+      cursor.issues = { updatedSince, nextPageToken };
       await persistCursor();
 
-      if (page.issues.length === 0 || startAt >= page.total) break;
+      if (page.isLast || !nextPageToken) break;
     }
 
     // The window just scanned is fully written; advance the watermark past it
     // so the next run's JQL doesn't re-walk it. Mirrors Zendesk's end_time
     // becoming the next start_time.
-    cursor.issues = { updatedSince: runStartedAt.toISOString(), startAt: 0 };
+    cursor.issues = { updatedSince: runStartedAt.toISOString(), nextPageToken: undefined };
     await persistCursor();
   }
 

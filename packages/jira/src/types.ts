@@ -42,11 +42,16 @@ export interface JiraIssue {
   };
 }
 
+/**
+ * Shape of GET /rest/api/3/search/jql — the enhanced JQL search endpoint.
+ * The legacy /rest/api/3/search (startAt/total pagination) was fully removed
+ * by Atlassian in 2025; this one paginates via nextPageToken/isLast instead
+ * and does not report a total count.
+ */
 export interface JiraSearchPage {
   issues: JiraIssue[];
-  startAt: number;
-  maxResults: number;
-  total: number;
+  isLast: boolean;
+  nextPageToken?: string;
 }
 
 /**
@@ -97,11 +102,13 @@ export interface JiraRemoteLink {
 /**
  * Persisted in Integration.cursor. Resumable across backfill runs, mirroring
  * ZendeskCursor: `updatedSince` is the JQL watermark for the issue stream,
- * `startAt` resumes mid-page within that watermark, and both advance only
- * after a page's issues (and their changelogs/remote links) have been
- * written as RawEvents.
+ * `nextPageToken` resumes mid-page within that watermark (the enhanced
+ * search endpoint paginates by opaque token, not offset), and both advance
+ * only after a page's issues (and their changelogs/remote links) have been
+ * written as RawEvents. Absent `nextPageToken` means "start of this
+ * watermark's result set."
  */
 export interface JiraCursor {
-  issues?: { updatedSince: string /* ISO 8601 */; startAt: number };
+  issues?: { updatedSince: string /* ISO 8601 */; nextPageToken?: string };
   backfillCompletedAt?: string; // ISO 8601
 }

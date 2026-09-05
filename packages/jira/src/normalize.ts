@@ -1,0 +1,299 @@
+import type { Prisma, PrismaClient } from "@sla/db";
+import type { Actor, NormalizedState } from "@sla/core";
+import type { JiraChangelogHistory, JiraIssue, JiraStatus } from "./types";
+
+/**
+ * Jira's true fixed vocabulary — unlike the status itself (per-workflow,
+ * per-project, unbounded), every status belongs to exactly one of these
+ * three categories.
+ */
+const CATEGORY_TO_NORMALIZED_STATE: Record<string, NormalizedState> = {
+  new: "new",
+  indeterminate: "in_progress",
+  done: "resolved",
+};
+
+export class UnknownJiraStatusCategoryError extends Error {
+  constructor(categoryKey: string) {
+    super(`Unknown Jira status category: ${categoryKey}`);
+    this.name = "UnknownJiraStatusCategoryError";
+  }
+}
+
+export function normalizeJiraStatusCategory(categoryKey: string): NormalizedState {
+  const mapped = CATEGORY_TO_NORMALIZED_STATE[categoryKey];
+  if (!mapped) throw new UnknownJiraStatusCategoryError(categoryKey);
+  return mapped;
+}
+
+export class UnknownJiraStatusError extends Error {
+  constructor(statusId: string) {
+    super(`Status id ${statusId} is not in the site's status list — cannot normalize`);
+    this.name = "UnknownJiraStatusError";
+  }
+}
+
+/**
+ * A changelog entry's `from`/`to` are status ids, not categories — this
+ * lookup (built once per run from the site-wide status list) is what makes
+ * historical transitions resolvable without guessing from a status name.
+ */
+export function buildStatusLookup(statuses: JiraStatus[]): Map<string, NormalizedState> {
+  const lookup = new Map<string, NormalizedState>();
+  for (const status of statuses) {
+    lookup.set(status.id, normalizeJiraStatusCategory(status.statusCategory.key));
+  }
+  return lookup;
+}
+
+function normalizeStatusId(statusId: string, statusById: Map<string, NormalizedState>): NormalizedState {
+  const mapped = statusById.get(statusId);
+  if (!mapped) throw new UnknownJiraStatusError(statusId);
+  return mapped;
+}
+
+/**
+ * Best-effort actor resolution, mirroring Zendesk's `resolveActor`: Jira's
+ * changelog carries no channel signal, so a null author (an automation rule
+ * acting without impersonating a user) is "system"; otherwise compare to the
+ * issue's reporter, defaulting to "agent" since most transitions on a
+ * support-linked engineering issue are engineer-side.
+ */
+export function resolveJiraActor(authorAccountId: string | null | undefined, issue: JiraIssue): Actor {
+  if (!authorAccountId) return "system";
+  if (issue.fields.reporter?.accountId === authorAccountId) return "customer";
+  return "agent";
+}
+
+type StatusChangeItem = JiraChangelogHistory["items"][number] & { from: string; to: string };
+
+function isStatusChangeItem(item: JiraChangelogHistory["items"][number]): item is StatusChangeItem {
+  return item.field === "status" && item.from !== null && item.to !== null;
+}
+
+export interface ChangelogRecord {
+  /** The RawEvent row id this history was read from — becomes NormalizedEvent.sourceRawEventId. */
+  rawEventId: string;
+  history: JiraChangelogHistory;
+}
+
+export function sortHistoriesChronologically(histories: ChangelogRecord[]): ChangelogRecord[] {
+  return [...histories].sort((a, b) => {
+    const byTime = Date.parse(a.history.created) - Date.parse(b.history.created);
+    return byTime !== 0 ? byTime : Number(a.history.id) - Number(b.history.id);
+  });
+}
+
+export interface DerivedNormalizedEvent {
+  occurredAt: string;
+  actor: Actor;
+  fromState: NormalizedState | null;
+  toState: NormalizedState;
+  sourceRawEventId: string;
+}
+
+/**
+ * `RawEvent` → `NormalizedEvent` for one Jira issue. Always emits plain
+ * `state_changed` events, never `case_created`/`case_closed` — those types
+ * mark the anchor Case's own lifecycle (the Zendesk ticket), and a Jira issue
+ * is never the anchor, only ever a linked engineering leg. Regenerated from
+ * scratch on every run, mirroring the Zendesk normalizer (roadmap step 3).
+ *
+ * The issue's initial state comes from the first status-change history's
+ * `from` id (falling back to the issue's current status when no status
+ * change was ever recorded), same approach as Zendesk's `previous_value`.
+ */
+export function deriveNormalizedEventsForIssue(
+  issue: JiraIssue,
+  historiesForIssue: ChangelogRecord[],
+  issueRawEventId: string,
+  statusById: Map<string, NormalizedState>,
+): DerivedNormalizedEvent[] {
+  const sorted = sortHistoriesChronologically(historiesForIssue);
+  const statusChanges = sorted.flatMap(({ rawEventId, history }) =>
+    history.items.filter(isStatusChangeItem).map((item) => ({ rawEventId, history, item })),
+  );
+
+  const firstChange = statusChanges[0];
+  const initialStatusId = firstChange ? firstChange.item.from : issue.fields.status.id;
+  const createdActor = firstChange
+    ? resolveJiraActor(firstChange.history.author?.accountId, issue)
+    : resolveJiraActor(issue.fields.reporter?.accountId, issue);
+
+  const events: DerivedNormalizedEvent[] = [
+    {
+      occurredAt: issue.fields.created,
+      actor: createdActor,
+      fromState: null,
+      toState: normalizeStatusId(initialStatusId, statusById),
+      sourceRawEventId: firstChange?.rawEventId ?? issueRawEventId,
+    },
+  ];
+
+  for (const { rawEventId, history, item } of statusChanges) {
+    events.push({
+      occurredAt: history.created,
+      actor: resolveJiraActor(history.author?.accountId, issue),
+      fromState: normalizeStatusId(item.from, statusById),
+      toState: normalizeStatusId(item.to, statusById),
+      sourceRawEventId: rawEventId,
+    });
+  }
+
+  return events;
+}
+
+export interface JiraNormalizationResult {
+  issuesProcessed: number;
+  normalizedEventsWritten: number;
+  issuesSkippedNoCaseLink: number;
+  issuesFailed: { issueKey: string; error: string }[];
+}
+
+function latestIssueSnapshots(
+  rows: { id: string; payload: unknown; fetchedAt: Date }[],
+): Map<string, { rawEventId: string; value: JiraIssue; fetchedAt: Date }> {
+  const byKey = new Map<string, { rawEventId: string; value: JiraIssue; fetchedAt: Date }>();
+  for (const row of rows) {
+    const value = row.payload as JiraIssue;
+    const existing = byKey.get(value.key);
+    if (!existing || row.fetchedAt >= existing.fetchedAt) {
+      byKey.set(value.key, { rawEventId: row.id, value, fetchedAt: row.fetchedAt });
+    }
+  }
+  return byKey;
+}
+
+function latestStatusSnapshots(rows: { payload: unknown; fetchedAt: Date }[]): JiraStatus[] {
+  const byId = new Map<string, { value: JiraStatus; fetchedAt: Date }>();
+  for (const row of rows) {
+    const value = row.payload as JiraStatus;
+    const existing = byId.get(value.id);
+    if (!existing || row.fetchedAt >= existing.fetchedAt) {
+      byId.set(value.id, { value, fetchedAt: row.fetchedAt });
+    }
+  }
+  return [...byId.values()].map((entry) => entry.value);
+}
+
+/** `issue_changelog:{issueKey}:{historyId}` — histories carry no issue key of their own. */
+function groupHistoriesByIssueKey(
+  rows: { id: string; providerEventId: string; payload: unknown }[],
+): Map<string, ChangelogRecord[]> {
+  const byIssueKey = new Map<string, ChangelogRecord[]>();
+  for (const row of rows) {
+    const issueKey = row.providerEventId.split(":")[1];
+    if (!issueKey) continue;
+    const record: ChangelogRecord = { rawEventId: row.id, history: row.payload as JiraChangelogHistory };
+    const group = byIssueKey.get(issueKey);
+    if (group) group.push(record);
+    else byIssueKey.set(issueKey, [record]);
+  }
+  return byIssueKey;
+}
+
+/**
+ * Projects every Jira issue linked to a Case (via a `certain` CaseLink — the
+ * correlator's job, run before this) into NormalizedEvents on that Case.
+ * Idempotent: each issue's own NormalizedEvents are replaced wholesale from a
+ * fresh derivation, scoped to that issue's own RawEvents only so a case's
+ * `issue_linked` event and any other linked issue's events are left alone.
+ *
+ * An issue with no `certain` CaseLink yet is skipped, not an error — most
+ * Jira issues are internal engineering work with no customer-facing case to
+ * attach to, and correlation coverage is expected to be partial (Phase 15).
+ */
+export async function runJiraNormalization(
+  prisma: PrismaClient,
+  integrationId: string,
+): Promise<JiraNormalizationResult> {
+  const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+  const organizationId = integration.organizationId;
+
+  const result: JiraNormalizationResult = {
+    issuesProcessed: 0,
+    normalizedEventsWritten: 0,
+    issuesSkippedNoCaseLink: 0,
+    issuesFailed: [],
+  };
+
+  const [issueRows, historyRows, statusRows, caseLinks] = await Promise.all([
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "issue:" } },
+      select: { id: true, payload: true, fetchedAt: true },
+      orderBy: { fetchedAt: "asc" },
+    }),
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "issue_changelog:" } },
+      select: { id: true, providerEventId: true, payload: true },
+    }),
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "status:" } },
+      select: { payload: true, fetchedAt: true },
+    }),
+    prisma.caseLink.findMany({
+      where: { system: "jira", confidence: "certain", case: { organizationId } },
+      select: { caseId: true, externalId: true },
+    }),
+  ]);
+
+  const statusById = buildStatusLookup(latestStatusSnapshots(statusRows));
+  const latestIssues = latestIssueSnapshots(issueRows);
+  const historiesByIssueKey = groupHistoriesByIssueKey(historyRows);
+  const caseIdByIssueKey = new Map(caseLinks.map((link) => [link.externalId, link.caseId]));
+
+  for (const { rawEventId: issueRawEventId, value: issue } of latestIssues.values()) {
+    const caseId = caseIdByIssueKey.get(issue.key);
+    if (!caseId) {
+      result.issuesSkippedNoCaseLink += 1;
+      continue;
+    }
+
+    try {
+      const derived = deriveNormalizedEventsForIssue(
+        issue,
+        historiesByIssueKey.get(issue.key) ?? [],
+        issueRawEventId,
+        statusById,
+      );
+
+      const ownRawEvents = await prisma.rawEvent.findMany({
+        where: {
+          integrationId,
+          OR: [
+            { providerEventId: { startsWith: `issue:${issue.key}:` } },
+            { providerEventId: { startsWith: `issue_changelog:${issue.key}:` } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      await prisma.$transaction([
+        prisma.normalizedEvent.deleteMany({
+          where: { caseId, sourceRawEventId: { in: ownRawEvents.map((row) => row.id) } },
+        }),
+        prisma.normalizedEvent.createMany({
+          data: derived.map((event) => ({
+            caseId,
+            sourceRawEventId: event.sourceRawEventId,
+            type: "state_changed" as const,
+            occurredAt: new Date(event.occurredAt),
+            actor: event.actor,
+            system: "jira" as const,
+            fromState: event.fromState,
+            toState: event.toState,
+          })) satisfies Prisma.NormalizedEventCreateManyInput[],
+        }),
+      ]);
+      result.issuesProcessed += 1;
+      result.normalizedEventsWritten += derived.length;
+    } catch (error) {
+      result.issuesFailed.push({
+        issueKey: issue.key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return result;
+}

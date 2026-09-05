@@ -3,8 +3,9 @@ import {
   mapChangelogHistoryToRawEvent,
   mapIssueToRawEvent,
   mapRemoteLinkToRawEvent,
+  mapStatusToRawEvent,
 } from "../src/rawEvents";
-import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink } from "../src/types";
+import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink, JiraStatus } from "../src/types";
 
 const issue: JiraIssue = {
   id: "10042",
@@ -67,5 +68,19 @@ describe("mapRemoteLinkToRawEvent", () => {
     };
     const result = mapRemoteLinkToRawEvent("SUP-42", link);
     expect(result.providerEventId).toBe(`remote_link:SUP-42:900:${result.sourceHash}`);
+  });
+});
+
+describe("mapStatusToRawEvent", () => {
+  it("keys by status id and content hash", () => {
+    const status: JiraStatus = { id: "3", name: "Done", statusCategory: { key: "done", name: "Done" } };
+    const result = mapStatusToRawEvent(status);
+    expect(result.providerEventId).toBe(`status:3:${result.sourceHash}`);
+  });
+
+  it("produces a different provider event id when the category changes", () => {
+    const before = mapStatusToRawEvent({ id: "3", name: "Done", statusCategory: { key: "done", name: "Done" } });
+    const after = mapStatusToRawEvent({ id: "3", name: "Done", statusCategory: { key: "indeterminate", name: "Done" } });
+    expect(after.providerEventId).not.toBe(before.providerEventId);
   });
 });

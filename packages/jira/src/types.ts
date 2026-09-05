@@ -83,6 +83,20 @@ export interface JiraChangelogPage {
 }
 
 /**
+ * One entry in the site-wide status list (`GET /rest/api/3/status`). Jira
+ * statuses are per-workflow, not a fixed vocabulary like Zendesk's — this is
+ * the only place `statusCategory.key` (Jira's true fixed 3-value vocabulary:
+ * `new` | `indeterminate` | `done`) is available, so the normalizer (roadmap
+ * step 5) fetches this list once per run to build its id→category lookup
+ * rather than guessing from a changelog entry's status name.
+ */
+export interface JiraStatus {
+  id: string;
+  name: string;
+  statusCategory: { key: string; name: string };
+}
+
+/**
  * Populated by the official Zendesk↔Jira integration or manually by a user.
  * `object.url` pointing at a Zendesk ticket is the deterministic correlation
  * signal the roadmap step 5 correlator reads (Phase 15).

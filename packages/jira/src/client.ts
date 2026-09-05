@@ -1,4 +1,4 @@
-import type { JiraChangelogPage, JiraCredentials, JiraRemoteLink, JiraSearchPage } from "./types";
+import type { JiraChangelogPage, JiraCredentials, JiraRemoteLink, JiraSearchPage, JiraStatus } from "./types";
 
 const SEARCH_PAGE_SIZE = 100;
 
@@ -56,6 +56,14 @@ export class JiraClient {
   /** https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-remote-links/ */
   fetchRemoteLinks(issueIdOrKey: string): Promise<JiraRemoteLink[]> {
     return this.request<JiraRemoteLink[]>(`/rest/api/3/issue/${issueIdOrKey}/remotelink`);
+  }
+
+  /**
+   * https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-workflow-statuses/#api-rest-api-3-status-get
+   * The site-wide status list — small (tens, not thousands), unpaginated.
+   */
+  fetchStatuses(): Promise<JiraStatus[]> {
+    return this.request<JiraStatus[]>("/rest/api/3/status");
   }
 }
 

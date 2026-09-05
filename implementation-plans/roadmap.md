@@ -106,11 +106,22 @@ file gets checked off and committed as each step lands.
       reporting metrics, not live ones. Built before step 8 (Slack
       notifications) at the user's request; both are done now.
 
-- [ ] **10 — Case detail page**
+- [x] **10 — Case detail page**
       Header (customer, ticket, commitment, remaining/breached-by, current
       leg), the rendered timeline with working/paused shading and leg
       boundaries, time-by-stage bar, links out to both systems, and the "how
       this was calculated" disclosure (policy version, calendar, pause rules).
+      `apps/web/src/app/cases/[caseId]/page.tsx` reuses the same pure
+      `deriveLegSpans`/`evaluateCommitment`/`computeElapsedWorkingMinutes`
+      functions the dashboard and worker already call — nothing new is
+      persisted, the whole page is a read model over existing
+      `NormalizedEvent`/`Commitment` rows. Both commitments on a case share
+      one matched `SLAPolicyVersion` (`createCommitment` always matches once
+      per case), so the working/paused overlay uses that shared
+      `pauseOnStates` rather than needing one per commitment. Zendesk/Jira
+      outbound links are built from each integration's stored credentials
+      (`subdomain` / `siteUrl`) rather than a stored URL, since neither is
+      persisted anywhere else. Dashboard rows now link to their case.
 
 - [ ] **11 — CSV export + onboarding polish**
       CSV export (the reporting floor). Streaming backfill progress view with

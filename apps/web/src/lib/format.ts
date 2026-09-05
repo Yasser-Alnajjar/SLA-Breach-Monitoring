@@ -32,3 +32,84 @@ const COMMITMENT_KIND_LABELS: Record<string, string> = {
 export function formatCommitmentKind(kind: string): string {
   return COMMITMENT_KIND_LABELS[kind] ?? kind;
 }
+
+const COMMITMENT_STATUS_LABELS: Record<string, string> = {
+  on_track: "On track",
+  at_risk: "At risk",
+  met: "Met",
+  breached: "Breached",
+  cancelled: "Cancelled",
+};
+
+export function formatCommitmentStatus(status: string): string {
+  return COMMITMENT_STATUS_LABELS[status] ?? status;
+}
+
+const NORMALIZED_STATE_LABELS: Record<string, string> = {
+  new: "New",
+  open: "Open",
+  pending_customer: "Pending customer",
+  pending_internal: "Pending internal",
+  in_progress: "In progress",
+  escalated: "Escalated",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
+export function formatNormalizedState(state: string): string {
+  return NORMALIZED_STATE_LABELS[state] ?? state;
+}
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  case_created: "Case created",
+  state_changed: "State changed",
+  issue_linked: "Issue linked",
+  issue_unlinked: "Issue unlinked",
+  case_closed: "Case closed",
+};
+
+/** One-line description of a NormalizedEvent for the case timeline. */
+export function formatEventDescription(event: {
+  type: string;
+  fromState: string | null;
+  toState: string | null;
+}): string {
+  if (event.type === "state_changed" && event.fromState && event.toState) {
+    return `${formatNormalizedState(event.fromState)} → ${formatNormalizedState(event.toState)}`;
+  }
+  if (event.type === "case_created" && event.toState) {
+    return `Opened as ${formatNormalizedState(event.toState)}`;
+  }
+  return EVENT_TYPE_LABELS[event.type] ?? event.type;
+}
+
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function formatMinuteOfDay(minute: number): string {
+  const hours = Math.floor(minute / 60);
+  const mins = minute % 60;
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+}
+
+/** e.g. "Mon 09:00–17:00" for one BusinessCalendarVersion.weekly entry. */
+export function formatWeeklyWindow(window: { day: number; openMinute: number; closeMinute: number }): string {
+  return `${DAY_LABELS[window.day] ?? window.day} ${formatMinuteOfDay(window.openMinute)}–${formatMinuteOfDay(window.closeMinute)}`;
+}
+
+const CASE_LINK_METHOD_LABELS: Record<string, string> = {
+  official_link: "Official Zendesk↔Jira link",
+  remote_link: "Jira remote link",
+  pattern: "Pattern match",
+  manual: "Manually linked",
+};
+
+export function formatCaseLinkMethod(method: string): string {
+  return CASE_LINK_METHOD_LABELS[method] ?? method;
+}

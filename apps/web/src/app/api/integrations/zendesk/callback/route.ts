@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     update: { credentials: credentials as unknown as Prisma.InputJsonValue },
   });
 
-  const response = NextResponse.redirect(new URL("/settings/integrations?connected=zendesk", request.url));
+  const response = NextResponse.redirect(new URL("/onboarding", request.url));
   response.cookies.delete(ZENDESK_STATE_COOKIE);
   return response;
 }

@@ -23,7 +23,10 @@ export default async function DashboardPage() {
     <main className="dashboard">
       <header className="dashboard-header">
         <h1>Dashboard</h1>
-        <a href="/settings/integrations">Integrations</a>
+        <div className="dashboard-header-actions">
+          <a href="/api/reports/commitments">Export CSV</a>
+          <a href="/settings/integrations">Integrations</a>
+        </div>
       </header>
 
       <div className="dashboard-grid">

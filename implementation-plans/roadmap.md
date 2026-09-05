@@ -27,16 +27,16 @@ file gets checked off and committed as each step lands.
       depends on this"). No normalization yet — raw ingestion only.
       [PR #4](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/4)
 
-- [ ] **3 — Zendesk normalizer + Case/Customer projection**
+- [x] **3 — Zendesk normalizer + Case/Customer projection**
       `RawEvent` → `NormalizedEvent` for Zendesk: ticket state transitions
       mapped to `NormalizedState`, actor resolution, `Case` opened per ticket,
       `Customer` auto-derived from Zendesk organizations (never manually
-      entered).
+      entered). [PR #5](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/5)
 
-- [ ] **4 — Jira integration: connect + ingest**
+- [x] **4 — Jira integration: connect + ingest**
       Read-only OAuth connect flow, adapter pulling issues, changelog, status
       transitions, and remote links into `RawEvent`. Mirrors step 2's shape for
-      the second provider.
+      the second provider. [PR #6](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/6)
 
 - [ ] **5 — Jira normalizer + deterministic correlator**
       `RawEvent` → `NormalizedEvent` for Jira. Correlator creates `CaseLink`

@@ -6,15 +6,40 @@ import type {
   ZendeskSlaPoliciesPage,
 } from "./types";
 
+export class ZendeskApiError extends Error {
+  readonly status: number;
+  constructor(status: number, url: string) {
+    super(`Zendesk API error ${status} for ${url}`);
+    this.name = "ZendeskApiError";
+    this.status = status;
+  }
+}
+
+export interface ZendeskClientOptions {
+  /**
+   * Called at most once per request when Zendesk responds 401. Receives the
+   * credentials that were just rejected (so the caller can tell whether
+   * another process already rotated them) and must return credentials to
+   * retry with. Throwing here (e.g. a reauth-required error) aborts the retry.
+   */
+  onUnauthorized?: (failedCredentials: ZendeskCredentials) => Promise<ZendeskCredentials>;
+}
+
 /** Thin, provider-aware fetch wrapper. Everything past this file is provider-agnostic. */
 export class ZendeskClient {
-  constructor(private readonly credentials: ZendeskCredentials) {}
+  private credentials: ZendeskCredentials;
+  private readonly onUnauthorized?: (failedCredentials: ZendeskCredentials) => Promise<ZendeskCredentials>;
+
+  constructor(credentials: ZendeskCredentials, options: ZendeskClientOptions = {}) {
+    this.credentials = credentials;
+    this.onUnauthorized = options.onUnauthorized;
+  }
 
   private baseUrl(): string {
     return `https://${this.credentials.subdomain}.zendesk.com`;
   }
 
-  private async request<T>(path: string): Promise<T> {
+  private async request<T>(path: string, hasRetriedAuth = false): Promise<T> {
     const url = path.startsWith("http") ? path : `${this.baseUrl()}${path}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${this.credentials.accessToken}` },
@@ -23,11 +48,16 @@ export class ZendeskClient {
     if (response.status === 429) {
       const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "5");
       await sleep(retryAfterSeconds * 1000);
-      return this.request<T>(path);
+      return this.request<T>(path, hasRetriedAuth);
+    }
+
+    if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
+      this.credentials = await this.onUnauthorized(this.credentials);
+      return this.request<T>(path, true);
     }
 
     if (!response.ok) {
-      throw new Error(`Zendesk API error ${response.status} for ${url}: ${await response.text()}`);
+      throw new ZendeskApiError(response.status, url);
     }
 
     return (await response.json()) as T;

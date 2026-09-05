@@ -1,5 +1,5 @@
 {
-  "name": "@sla/zendesk",
+  "name": "@sla/jira",
   "version": "0.0.0",
   "private": true,
   "type": "module",

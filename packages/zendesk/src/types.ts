@@ -7,8 +7,16 @@
 export interface ZendeskCredentials {
   subdomain: string;
   accessToken: string;
+  /** Absent for integrations connected before refresh support, or if the Zendesk OAuth client has no refresh token configured. */
+  refreshToken?: string;
   tokenType: string;
   scope: string;
+  /** Epoch ms. Absent means the access token does not expire (legacy client, or token expiration disabled on the Zendesk OAuth client). */
+  expiresAt?: number;
+  /** Epoch ms. Absent means unknown. */
+  refreshTokenExpiresAt?: number;
+  /** Set when a refresh attempt fails because the refresh token itself is invalid/expired/revoked. Cleared automatically on reconnect. */
+  reauthRequired?: boolean;
 }
 
 export interface ZendeskTicket {
@@ -20,6 +28,8 @@ export interface ZendeskTicket {
   status: string;
   priority: string | null;
   organization_id: number | null;
+  requester_id?: number | null;
+  via?: { channel: string };
   [key: string]: unknown;
 }
 
@@ -30,12 +40,27 @@ export interface ZendeskIncrementalTicketExport {
   count: number;
 }
 
+/**
+ * One entry in an audit's `events` array. Zendesk emits many event `type`s
+ * (Comment, Notification, Rating, …) — the normalizer only reads `Change`
+ * events on the `status` field.
+ */
+export interface ZendeskAuditEvent {
+  id: number;
+  type: string;
+  field_name?: string;
+  value?: unknown;
+  previous_value?: unknown;
+  [key: string]: unknown;
+}
+
 export interface ZendeskAudit {
   id: number;
   ticket_id: number;
   created_at: string;
   author_id: number;
-  events: unknown[];
+  via?: { channel: string };
+  events: ZendeskAuditEvent[];
   [key: string]: unknown;
 }
 

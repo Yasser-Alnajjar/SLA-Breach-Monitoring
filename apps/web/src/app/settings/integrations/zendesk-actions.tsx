@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import type { BackfillResult } from "@sla/zendesk";
+import type { BackfillResult, NormalizationResult } from "@sla/zendesk";
+
+interface SyncResult {
+  backfill: BackfillResult;
+  normalization: NormalizationResult;
+}
 
 export function ZendeskConnectForm() {
   const [subdomain, setSubdomain] = useState("");
@@ -30,11 +35,19 @@ export function ZendeskConnectForm() {
   );
 }
 
-export function ZendeskBackfillButton() {
+interface ZendeskBackfillButtonProps {
+  /** Needed to send the user back through /connect without retyping it. */
+  subdomain: string;
+  /** True when the stored credentials already carry `reauthRequired` (checked on the server before this renders). */
+  initialReauthRequired?: boolean;
+}
+
+export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false }: ZendeskBackfillButtonProps) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BackfillResult | null>(null);
+  const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reauthRequired, setReauthRequired] = useState(initialReauthRequired);
 
   async function handleClick() {
     setRunning(true);
@@ -46,12 +59,25 @@ export function ZendeskBackfillButton() {
     setRunning(false);
 
     if (!response.ok) {
-      setError(body.error ?? "Backfill failed");
+      if (body.reauthRequired) {
+        setReauthRequired(true);
+      } else {
+        setError(body.error ?? "Backfill failed");
+      }
       return;
     }
 
-    setResult(body as BackfillResult);
+    setResult(body as SyncResult);
     router.refresh();
+  }
+
+  if (reauthRequired) {
+    return (
+      <div role="alert" className="zendesk-reauth-banner">
+        <p>Zendesk access has expired and needs to be reconnected before backfill can continue.</p>
+        <a href={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(subdomain)}`}>Reconnect Zendesk</a>
+      </div>
+    );
   }
 
   return (
@@ -61,10 +87,19 @@ export function ZendeskBackfillButton() {
       </button>
       {error && <p role="alert">{error}</p>}
       {result && (
-        <p>
-          {result.ticketsFetched} tickets · {result.ticketAuditsFetched} ticket events ·{" "}
-          {result.organizationsFetched} organizations · {result.slaPoliciesFetched} SLA policies.
-        </p>
+        <>
+          <p>
+            {result.backfill.ticketsFetched} tickets · {result.backfill.ticketAuditsFetched} ticket events ·{" "}
+            {result.backfill.organizationsFetched} organizations · {result.backfill.slaPoliciesFetched} SLA
+            policies.
+          </p>
+          <p>
+            {result.normalization.casesUpserted} cases · {result.normalization.customersUpserted} customers ·{" "}
+            {result.normalization.normalizedEventsWritten} normalized events.
+            {result.normalization.ticketsFailed.length > 0 &&
+              ` ${result.normalization.ticketsFailed.length} ticket(s) failed to normalize.`}
+          </p>
+        </>
       )}
     </div>
   );

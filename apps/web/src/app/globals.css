@@ -539,3 +539,113 @@ main.settings-page [role="alert"] {
   color: #f87171;
   font-size: 0.9rem;
 }
+a {
+  color: #a1a1aa;
+  text-decoration: none;
+}
+
+.dashboard-header-actions {
+  display: flex;
+  gap: 1.25rem;
+}
+
+main.onboarding-page {
+  max-width: 640px;
+  margin: 4rem auto;
+  padding: 0 2rem 3rem;
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.onboarding-header a {
+  font-size: 0.9rem;
+}
+
+.onboarding-header a:hover {
+  color: #f5f5f5;
+}
+
+.onboarding-step {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.onboarding-step p {
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.onboarding-step p:last-child {
+  margin-bottom: 0;
+}
+
+.onboarding-counts {
+  font-size: 1.1rem;
+  color: #d4d4d8;
+}
+
+.onboarding-counts strong {
+  color: #f5f5f5;
+}
+
+.onboarding-jira-prompt {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #27272a;
+}
+
+.onboarding-jira-prompt p {
+  color: #a1a1aa;
+  font-size: 0.9rem;
+}
+
+main.onboarding-page [role="alert"] {
+  color: #f87171;
+  font-size: 0.9rem;
+}
+
+.onboarding-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.findings-narrative {
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.findings-accounts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.findings-accounts th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #71717a;
+  font-weight: 500;
+  padding: 0 0.5rem 0.5rem 0;
+  border-bottom: 1px solid #27272a;
+}
+
+.findings-accounts td {
+  padding: 0.55rem 0.5rem 0.55rem 0;
+  border-bottom: 1px solid #1f1f23;
+}
+
+.findings-accounts tr:last-child td {
+  border-bottom: none;
+}

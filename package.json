@@ -7,6 +7,8 @@
   },
   "scripts": {
     "build": "pnpm -r --filter=./packages/* build",
+    "web:dev": "pnpm -r --filter=./apps/web dev",
+    "web:build": "pnpm -r --filter=./apps/web build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

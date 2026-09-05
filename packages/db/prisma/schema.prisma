@@ -217,11 +217,16 @@ model SLAPolicy {
   id             String   @id @default(cuid())
   organizationId String
   name           String
+  // e.g. a Zendesk SLA policy id (optionally suffixed for a priority tier
+  // Zendesk represents as one policy with per-priority targets — see
+  // packages/zendesk/src/policies.ts). Null for policies created by hand.
+  externalId     String?
   createdAt      DateTime @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   versions     SLAPolicyVersion[]
 
+  @@unique([organizationId, externalId])
   @@map("sla_policies")
 }
 
@@ -298,7 +303,7 @@ model Commitment {
   evaluations     Evaluation[]
   notifications   Notification[]
 
-  @@index([caseId])
+  @@unique([caseId, kind])
   @@index([status])
   @@map("commitments")
 }

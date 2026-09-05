@@ -134,7 +134,7 @@ export interface NormalizationResult {
 }
 
 /** Keeps, per numeric `id` embedded in each row's JSON payload, the row with the latest fetchedAt. */
-function latestSnapshotById<T extends { id: number }>(
+export function latestSnapshotById<T extends { id: number }>(
   rows: { id: string; payload: unknown; fetchedAt: Date }[],
 ): Map<number, { rawEventId: string; value: T; fetchedAt: Date }> {
   const byId = new Map<number, { rawEventId: string; value: T; fetchedAt: Date }>();

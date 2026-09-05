@@ -1,6 +1,13 @@
-import { computeElapsedWorkingMinutes } from "./elapsed.js";
-import type { BusinessCalendarVersion, Commitment, CommitmentStatus, Evaluation, NormalizedEvent, SLAPolicyVersion } from "./types.js";
-import { stableHash } from "./util.js";
+import { computeElapsedWorkingMinutes } from "./elapsed";
+import type {
+  BusinessCalendarVersion,
+  Commitment,
+  CommitmentStatus,
+  Evaluation,
+  NormalizedEvent,
+  SLAPolicyVersion,
+} from "./types";
+import { stableHash } from "./util";
 
 /**
  * Evaluates a Commitment's current status as of `asOf`.
@@ -21,15 +28,30 @@ export function evaluateCommitment(
   calendar: BusinessCalendarVersion,
   asOf: string,
 ): Evaluation {
-  const caseEvents = events.filter((e) => e.caseId === commitment.caseId).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  const caseEvents = events
+    .filter((e) => e.caseId === commitment.caseId)
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-  const closeEvent = caseEvents.find((e) => e.type === "case_closed" && e.occurredAt <= asOf) ?? null;
-  const effectiveAsOf = closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
+  const closeEvent =
+    caseEvents.find((e) => e.type === "case_closed" && e.occurredAt <= asOf) ??
+    null;
+  const effectiveAsOf =
+    closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
 
-  const eventsUpToCutoff = caseEvents.filter((e) => e.occurredAt <= effectiveAsOf);
-  const lastEvent = eventsUpToCutoff.length > 0 ? eventsUpToCutoff[eventsUpToCutoff.length - 1]! : null;
+  const eventsUpToCutoff = caseEvents.filter(
+    (e) => e.occurredAt <= effectiveAsOf,
+  );
+  const lastEvent =
+    eventsUpToCutoff.length > 0
+      ? eventsUpToCutoff[eventsUpToCutoff.length - 1]!
+      : null;
 
-  const { elapsedWorkingMinutes } = computeElapsedWorkingMinutes(caseEvents, policyVersion.pauseOnStates, calendar, effectiveAsOf);
+  const { elapsedWorkingMinutes } = computeElapsedWorkingMinutes(
+    caseEvents,
+    policyVersion.pauseOnStates,
+    calendar,
+    effectiveAsOf,
+  );
   const remainingMinutes = commitment.targetMinutes - elapsedWorkingMinutes;
 
   let status: CommitmentStatus;
@@ -38,8 +60,11 @@ export function evaluateCommitment(
   } else if (remainingMinutes <= 0) {
     status = "breached";
   } else {
-    const percentConsumed = (elapsedWorkingMinutes / commitment.targetMinutes) * 100;
-    const highestCrossedThreshold = [...policyVersion.warnAtPercent].sort((a, b) => b - a).find((threshold) => percentConsumed >= threshold);
+    const percentConsumed =
+      (elapsedWorkingMinutes / commitment.targetMinutes) * 100;
+    const highestCrossedThreshold = [...policyVersion.warnAtPercent]
+      .sort((a, b) => b - a)
+      .find((threshold) => percentConsumed >= threshold);
     status = highestCrossedThreshold !== undefined ? "at_risk" : "on_track";
   }
 
@@ -49,7 +74,9 @@ export function evaluateCommitment(
     calendarVersionId: calendar.id,
   };
 
-  const id = stableHash(`${commitment.id}|${inputs.lastEventId}|${inputs.policyVersionId}|${inputs.calendarVersionId}|${asOf}`);
+  const id = stableHash(
+    `${commitment.id}|${inputs.lastEventId}|${inputs.policyVersionId}|${inputs.calendarVersionId}|${asOf}`,
+  );
 
   return {
     id,

@@ -1,16 +1,43 @@
 import { randomUUID } from "node:crypto";
-import { computeDeadline } from "./calendar.js";
-import type { BusinessCalendarVersion, CaseAttributes, Commitment, CommitmentKind, SLAPolicyVersion } from "./types.js";
+import { computeDeadline } from "./calendar";
+import type {
+  BusinessCalendarVersion,
+  CaseAttributes,
+  Commitment,
+  CommitmentKind,
+  SLAPolicyVersion,
+} from "./types";
 
 function specificity(match: SLAPolicyVersion["match"]): number {
-  return (match.priority?.length ? 1 : 0) + (match.customerIds?.length ? 1 : 0) + (match.tier?.length ? 1 : 0);
+  return (
+    (match.priority?.length ? 1 : 0) +
+    (match.customerIds?.length ? 1 : 0) +
+    (match.tier?.length ? 1 : 0)
+  );
 }
 
-function matches(caseAttributes: CaseAttributes, policyVersion: SLAPolicyVersion): boolean {
+function matches(
+  caseAttributes: CaseAttributes,
+  policyVersion: SLAPolicyVersion,
+): boolean {
   const { match } = policyVersion;
-  if (match.priority && (!caseAttributes.priority || !match.priority.includes(caseAttributes.priority))) return false;
-  if (match.customerIds && (!caseAttributes.customerId || !match.customerIds.includes(caseAttributes.customerId))) return false;
-  if (match.tier && (!caseAttributes.tier || !match.tier.includes(caseAttributes.tier))) return false;
+  if (
+    match.priority &&
+    (!caseAttributes.priority ||
+      !match.priority.includes(caseAttributes.priority))
+  )
+    return false;
+  if (
+    match.customerIds &&
+    (!caseAttributes.customerId ||
+      !match.customerIds.includes(caseAttributes.customerId))
+  )
+    return false;
+  if (
+    match.tier &&
+    (!caseAttributes.tier || !match.tier.includes(caseAttributes.tier))
+  )
+    return false;
   return true;
 }
 
@@ -21,8 +48,13 @@ function matches(caseAttributes: CaseAttributes, policyVersion: SLAPolicyVersion
  * are satisfied. Ties break on the higher version number, then on `id` for
  * full determinism.
  */
-export function matchPolicyVersion(caseAttributes: CaseAttributes, activePolicyVersions: SLAPolicyVersion[]): SLAPolicyVersion | null {
-  const candidates = activePolicyVersions.filter((pv) => matches(caseAttributes, pv));
+export function matchPolicyVersion(
+  caseAttributes: CaseAttributes,
+  activePolicyVersions: SLAPolicyVersion[],
+): SLAPolicyVersion | null {
+  const candidates = activePolicyVersions.filter((pv) =>
+    matches(caseAttributes, pv),
+  );
   if (candidates.length === 0) return null;
 
   candidates.sort((a, b) => {
@@ -51,7 +83,9 @@ export function createCommitment(
 ): Commitment {
   const target = policyVersion.targets.find((t) => t.kind === kind);
   if (!target) {
-    throw new Error(`Policy version ${policyVersion.id} has no target for commitment kind "${kind}"`);
+    throw new Error(
+      `Policy version ${policyVersion.id} has no target for commitment kind "${kind}"`,
+    );
   }
 
   const dueAt = computeDeadline(startedAt, target.minutes, calendarVersion);

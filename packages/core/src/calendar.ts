@@ -1,4 +1,4 @@
-import type { BusinessCalendarVersion } from "./types.js";
+import type { BusinessCalendarVersion } from "./types";
 
 const DAY_MS = 24 * 60 * 60_000;
 const MAX_DAYS_SEARCHED = 3650; // 10 years — guards against a misconfigured calendar with no open windows
@@ -52,12 +52,26 @@ function zonedParts(instant: Date, timeZone: string): ZonedParts {
  * Converges in two passes; this is not exact across a DST transition at
  * minute resolution, which is an accepted approximation for this pass.
  */
-function zonedDateToUtc(year: number, month: number, day: number, hour: number, minute: number, timeZone: string): Date {
+function zonedDateToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): Date {
   const target = Date.UTC(year, month - 1, day, hour, minute, 0);
   let guess = target;
   for (let i = 0; i < 2; i++) {
     const parts = zonedParts(new Date(guess), timeZone);
-    const guessAsIfUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0);
+    const guessAsIfUtc = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      0,
+    );
     guess -= guessAsIfUtc - target;
   }
   return new Date(guess);
@@ -68,7 +82,14 @@ function dateKey(parts: ZonedParts): string {
 }
 
 function localMidnightUtcMs(parts: ZonedParts, timeZone: string): number {
-  return zonedDateToUtc(parts.year, parts.month, parts.day, 0, 0, timeZone).getTime();
+  return zonedDateToUtc(
+    parts.year,
+    parts.month,
+    parts.day,
+    0,
+    0,
+    timeZone,
+  ).getTime();
 }
 
 /**
@@ -79,8 +100,13 @@ function localMidnightUtcMs(parts: ZonedParts, timeZone: string): number {
  * `alwaysOpen` is the 24/7 degenerate case — a single code path, not a
  * separate branch by policy type.
  */
-export function computeDeadline(startInstant: Date | string, targetMinutes: number, calendar: BusinessCalendarVersion): Date {
-  const start = typeof startInstant === "string" ? new Date(startInstant) : startInstant;
+export function computeDeadline(
+  startInstant: Date | string,
+  targetMinutes: number,
+  calendar: BusinessCalendarVersion,
+): Date {
+  const start =
+    typeof startInstant === "string" ? new Date(startInstant) : startInstant;
 
   if (calendar.alwaysOpen) {
     return new Date(start.getTime() + targetMinutes * 60_000);
@@ -96,7 +122,9 @@ export function computeDeadline(startInstant: Date | string, targetMinutes: numb
     const isHoliday = calendar.holidays.includes(dateKey(parts));
 
     if (!isHoliday) {
-      const windows = calendar.weekly.filter((w) => w.day === parts.weekday).sort((a, b) => a.openMinute - b.openMinute);
+      const windows = calendar.weekly
+        .filter((w) => w.day === parts.weekday)
+        .sort((a, b) => a.openMinute - b.openMinute);
       for (const window of windows) {
         const windowOpenMs = midnightMs + window.openMinute * 60_000;
         const windowCloseMs = midnightMs + window.closeMinute * 60_000;
@@ -114,7 +142,9 @@ export function computeDeadline(startInstant: Date | string, targetMinutes: numb
     cursor = Math.max(cursor, nextMidnightMs);
   }
 
-  throw new Error("computeDeadline: exceeded search horizon — check calendar configuration (no open windows found?)");
+  throw new Error(
+    "computeDeadline: exceeded search horizon — check calendar configuration (no open windows found?)",
+  );
 }
 
 /**
@@ -122,7 +152,11 @@ export function computeDeadline(startInstant: Date | string, targetMinutes: numb
  * The inverse companion to `computeDeadline`; `elapsed.ts` uses this to
  * intersect running intervals with working hours.
  */
-export function workingMinutesBetween(start: Date, end: Date, calendar: BusinessCalendarVersion): number {
+export function workingMinutesBetween(
+  start: Date,
+  end: Date,
+  calendar: BusinessCalendarVersion,
+): number {
   if (end <= start) return 0;
 
   if (calendar.alwaysOpen) {
@@ -133,14 +167,20 @@ export function workingMinutesBetween(start: Date, end: Date, calendar: Business
   let cursor = start.getTime();
   const endMs = end.getTime();
 
-  for (let dayOffset = 0; dayOffset < MAX_DAYS_SEARCHED && cursor < endMs; dayOffset++) {
+  for (
+    let dayOffset = 0;
+    dayOffset < MAX_DAYS_SEARCHED && cursor < endMs;
+    dayOffset++
+  ) {
     const parts = zonedParts(new Date(cursor), calendar.timezone);
     const midnightMs = localMidnightUtcMs(parts, calendar.timezone);
     const nextMidnightMs = midnightMs + DAY_MS;
     const isHoliday = calendar.holidays.includes(dateKey(parts));
 
     if (!isHoliday) {
-      for (const window of calendar.weekly.filter((w) => w.day === parts.weekday)) {
+      for (const window of calendar.weekly.filter(
+        (w) => w.day === parts.weekday,
+      )) {
         const windowOpenMs = midnightMs + window.openMinute * 60_000;
         const windowCloseMs = midnightMs + window.closeMinute * 60_000;
         const segStart = Math.max(cursor, windowOpenMs, start.getTime());

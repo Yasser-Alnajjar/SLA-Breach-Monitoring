@@ -6,13 +6,14 @@ import type { JiraCursor } from "@sla/jira";
 import { authOptions } from "@/lib/auth";
 import { ZendeskConnectForm, ZendeskBackfillButton } from "./zendesk-actions";
 import { JiraConnectButton, JiraBackfillButton } from "./jira-actions";
+import { SlackConnectButton, SlackChannelPicker, SlackChannelChangeButton } from "./slack-actions";
 
 export default async function IntegrationsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/sign-in");
 
   const prisma = getPrismaClient();
-  const [zendeskIntegration, jiraIntegration] = await Promise.all([
+  const [zendeskIntegration, jiraIntegration, slackIntegration] = await Promise.all([
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId: session.user.organizationId, provider: "zendesk" },
@@ -22,6 +23,9 @@ export default async function IntegrationsPage() {
       where: {
         organizationId_provider: { organizationId: session.user.organizationId, provider: "jira" },
       },
+    }),
+    prisma.slackIntegration.findUnique({
+      where: { organizationId: session.user.organizationId },
     }),
   ]);
   const zendeskCursor = (zendeskIntegration?.cursor as ZendeskCursor | null) ?? null;
@@ -71,6 +75,28 @@ export default async function IntegrationsPage() {
           <>
             <p>Read-only access — no issues, comments, or fields are ever written back to Jira.</p>
             <JiraConnectButton />
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2>Slack</h2>
+        {slackIntegration ? (
+          <>
+            <p>Connected to {slackIntegration.teamName} {new Date(slackIntegration.installedAt).toLocaleString()}.</p>
+            {slackIntegration.channelId ? (
+              <>
+                <p>At-risk and breach alerts post to #{slackIntegration.channelName}.</p>
+                <SlackChannelChangeButton />
+              </>
+            ) : (
+              <SlackChannelPicker />
+            )}
+          </>
+        ) : (
+          <>
+            <p>The only alert channel in v1. Posts when a commitment crosses a warning threshold or breaches.</p>
+            <SlackConnectButton />
           </>
         )}
       </section>

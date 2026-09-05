@@ -1,6 +1,12 @@
-import { runCommitmentPipeline, runEvaluationPipeline, type EvaluationScope } from "@sla/commitments";
+import {
+  runCommitmentPipeline,
+  runEvaluationPipeline,
+  type EvaluationPipelineResult,
+  type EvaluationScope,
+} from "@sla/commitments";
 import type { PrismaClient } from "@sla/db";
-import { runJiraBackfill, runJiraCorrelation, runJiraNormalization, type JiraCredentials } from "@sla/jira";
+import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
+import { runNotificationPipeline } from "@sla/notifications";
 import {
   runZendeskBackfill,
   runZendeskNormalization,
@@ -18,6 +24,7 @@ export interface CycleResult {
   commitmentsConsidered: number;
   evaluationsCreated: number;
   commitmentsFinalized: number;
+  notificationsSent: number;
   failures: { organizationId: string; stage: string; error: string }[];
 }
 
@@ -53,6 +60,7 @@ export async function runCycle(
     commitmentsConsidered: 0,
     evaluationsCreated: 0,
     commitmentsFinalized: 0,
+    notificationsSent: 0,
     failures: [],
   };
 
@@ -71,7 +79,8 @@ export async function runCycle(
           await runZendeskNormalization(prisma, integration.id);
           await runZendeskSlaPolicyImport(prisma, integration.id);
         } else {
-          await runJiraBackfill(prisma, integration.id, integration.credentials as unknown as JiraCredentials);
+          if (!config.jira) continue;
+          await runJiraBackfill(prisma, integration.id, config.jira);
           await runJiraCorrelation(prisma, integration.id);
           await runJiraNormalization(prisma, integration.id);
         }
@@ -82,9 +91,11 @@ export async function runCycle(
           error:
             error instanceof ZendeskReauthRequiredError
               ? "Zendesk needs to be reconnected"
-              : error instanceof Error
-                ? error.message
-                : String(error),
+              : error instanceof JiraReauthRequiredError
+                ? "Jira needs to be reconnected"
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
         });
       }
     }
@@ -102,15 +113,31 @@ export async function runCycle(
       });
     }
 
+    let notificationCandidates: EvaluationPipelineResult["notificationCandidates"] = [];
     try {
       const evaluations = await runEvaluationPipeline(prisma, organization.id, { scope: SCOPE_BY_KIND[kind] });
       result.commitmentsConsidered += evaluations.commitmentsConsidered;
       result.evaluationsCreated += evaluations.evaluationsCreated;
       result.commitmentsFinalized += evaluations.commitmentsFinalized;
+      notificationCandidates = evaluations.notificationCandidates;
     } catch (error) {
       result.failures.push({
         organizationId: organization.id,
         stage: "evaluation",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Runs even for organizations with no Slack workspace connected —
+    // runNotificationPipeline no-ops cheaply in that case. A commitment that
+    // fails to notify never blocks another organization's cycle.
+    try {
+      const notifications = await runNotificationPipeline(prisma, organization.id, notificationCandidates);
+      result.notificationsSent += notifications.notificationsSent;
+    } catch (error) {
+      result.failures.push({
+        organizationId: organization.id,
+        stage: "notifications",
         error: error instanceof Error ? error.message : String(error),
       });
     }

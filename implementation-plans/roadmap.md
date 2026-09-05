@@ -79,10 +79,20 @@ file gets checked off and committed as each step lands.
       change, and the final snapshot when a case closes — elapsed time stays
       derived, never accrued into a row every five minutes.
 
-- [ ] **8 — Notifications: Slack**
-      Slack OAuth + channel selection. Fires on Evaluation *transitions* only,
-      deduplicated via `(commitmentId, threshold)` (Phase 13.7). The only
-      notification channel in v1 (Phase 10).
+- [x] **8 — Notifications: Slack**
+      Slack OAuth (bot-only scopes) + channel selection in settings, backed
+      by a new `SlackIntegration` model — not an `Integration`, since it
+      neither ingests `RawEvent`s nor advances a cursor. `packages/core`'s
+      `evaluateCommitment` now reports the highest `warnAtPercent` threshold
+      crossed (or a `BREACH_NOTIFICATION_THRESHOLD` sentinel), independent of
+      the coarser `CommitmentStatus`, because a commitment can sit in
+      `at_risk` for many cycles while climbing through 50% -> 80% -> 95%
+      without its status ever changing — the evaluation pipeline now
+      surfaces every such crossing as a notification candidate, not just
+      status-changing ones. New `packages/notifications` formats and sends
+      the Slack message and is the actual dedup enforcement point via the
+      `Notification` table's `@@unique([commitmentId, threshold])`
+      constraint. The only notification channel in v1 (Phase 10).
 
 - [x] **9 — Dashboard UI**
       The one screen (Phase 17): at-risk now (sorted by remaining time),
@@ -93,8 +103,8 @@ file gets checked off and committed as each step lands.
       (remaining time is derived, never stored); the breach count and
       compliance % read persisted `Commitment`/`Evaluation` state over a
       trailing 30-day window instead, since those are "already happened"
-      reporting metrics, not live ones. Step 8 (Slack notifications) is
-      still open — skipped for now at the user's request.
+      reporting metrics, not live ones. Built before step 8 (Slack
+      notifications) at the user's request; both are done now.
 
 - [ ] **10 — Case detail page**
       Header (customer, ticket, commitment, remaining/breached-by, current

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCommitment } from "../src/evaluate.js";
+import { BREACH_NOTIFICATION_THRESHOLD, evaluateCommitment } from "../src/evaluate.js";
 import type {
   BusinessCalendarVersion,
   Commitment,
@@ -72,6 +72,7 @@ describe("evaluateCommitment", () => {
     expect(evaluation.status).toBe("on_track");
     expect(evaluation.elapsedWorkingMinutes).toBe(100);
     expect(evaluation.remainingMinutes).toBe(140);
+    expect(evaluation.warnThresholdCrossed).toBeUndefined();
   });
 
   it("transitions to at_risk once a warnAtPercent threshold is crossed", () => {
@@ -85,6 +86,22 @@ describe("evaluateCommitment", () => {
     );
     expect(evaluation.status).toBe("at_risk");
     expect(evaluation.remainingMinutes).toBe(40);
+    expect(evaluation.warnThresholdCrossed).toBe(80);
+  });
+
+  it("reports the highest threshold crossed as elapsed keeps climbing within at_risk", () => {
+    // 130/240 = 54.2% — crosses 50 but not 80. Same status as the 83.3% case
+    // above, but notifications must key off the threshold, not the status,
+    // or 80%/95% alerts would never fire while a commitment sits at at_risk.
+    const evaluation = evaluateCommitment(
+      commitment,
+      baseEvents,
+      policy,
+      alwaysOpen,
+      minutesAfterStart(130),
+    );
+    expect(evaluation.status).toBe("at_risk");
+    expect(evaluation.warnThresholdCrossed).toBe(50);
   });
 
   it("transitions to breached once elapsed exceeds the target", () => {
@@ -97,6 +114,7 @@ describe("evaluateCommitment", () => {
     );
     expect(evaluation.status).toBe("breached");
     expect(evaluation.breachedByMinutes).toBe(10);
+    expect(evaluation.warnThresholdCrossed).toBe(BREACH_NOTIFICATION_THRESHOLD);
   });
 
   it("resolves to met when closed inside the target", () => {
@@ -149,6 +167,7 @@ describe("evaluateCommitment", () => {
     );
     expect(evaluation.status).toBe("breached");
     expect(evaluation.breachedByMinutes).toBe(20);
+    expect(evaluation.warnThresholdCrossed).toBe(BREACH_NOTIFICATION_THRESHOLD);
   });
 
   it("is reproducible: identical inputs called twice produce an identical Evaluation, id included", () => {

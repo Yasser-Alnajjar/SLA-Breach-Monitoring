@@ -116,11 +116,33 @@ export function shouldPersistEvaluation(
 
 export type EvaluationScope = "active" | "all";
 
+/**
+ * A commitment whose evaluation this cycle crossed a `warnAtPercent`
+ * threshold or breached (Phase 13.7). Deliberately collected for every
+ * commitment evaluated, not only ones that get a persisted `Evaluation` row
+ * (see `shouldPersistEvaluation`): a commitment can sit in `at_risk` for many
+ * cycles while `warnThresholdCrossed` climbs 50 -> 80 -> 95 without its
+ * coarse status ever changing, and each of those crossings is a distinct,
+ * meaningful notification. Actual dedup against `(commitmentId, threshold)`
+ * happens downstream, in @sla/notifications, via the `Notification` table's
+ * unique constraint — this list is candidates, not guaranteed-new alerts.
+ */
+export interface NotificationCandidate {
+  commitmentId: string;
+  caseId: string;
+  kind: CommitmentKind;
+  status: CommitmentStatus;
+  threshold: number;
+  remainingMinutes: number;
+  breachedByMinutes?: number;
+}
+
 export interface EvaluationPipelineResult {
   commitmentsConsidered: number;
   evaluationsCreated: number;
   commitmentsFinalized: number;
   commitmentsFailed: { commitmentId: string; error: string }[];
+  notificationCandidates: NotificationCandidate[];
 }
 
 /**
@@ -147,6 +169,7 @@ export async function runEvaluationPipeline(
     evaluationsCreated: 0,
     commitmentsFinalized: 0,
     commitmentsFailed: [],
+    notificationCandidates: [],
   };
 
   const commitmentRows = await prisma.commitment.findMany({
@@ -233,6 +256,18 @@ export async function runEvaluationPipeline(
 
       const caseClosed = hasCaseClosedEvent(caseEvents, asOf);
       const terminal = isTerminalStatus(evaluation.status, caseClosed);
+
+      if (evaluation.warnThresholdCrossed !== undefined) {
+        result.notificationCandidates.push({
+          commitmentId: row.id,
+          caseId: row.caseId,
+          kind: row.kind,
+          status: evaluation.status,
+          threshold: evaluation.warnThresholdCrossed,
+          remainingMinutes: evaluation.remainingMinutes,
+          breachedByMinutes: evaluation.breachedByMinutes,
+        });
+      }
 
       if (
         shouldPersistEvaluation(

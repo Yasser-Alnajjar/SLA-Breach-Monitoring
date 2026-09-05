@@ -14,6 +14,7 @@
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",
     "@sla/jira": "workspace:*",
+    "@sla/slack": "workspace:*",
     "@sla/zendesk": "workspace:*",
     "bcryptjs": "^2.4.3",
     "next": "^14.2.15",

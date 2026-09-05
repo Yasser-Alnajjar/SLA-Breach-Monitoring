@@ -18,4 +18,5 @@ export type {
   EvaluationPipelineResult,
   EvaluationScope,
   NormalizedEventRecord,
+  NotificationCandidate,
 } from "./evaluate-pipeline";

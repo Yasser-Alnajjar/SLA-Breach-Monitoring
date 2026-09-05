@@ -10,6 +10,15 @@ import type {
 import { stableHash } from "./util";
 
 /**
+ * Sentinel `warnThresholdCrossed` value for a breach, stored as the
+ * `threshold` on a `Notification` row (Phase 13.7). Safe as a fixed 100:
+ * `warnAtPercent` values are always below 100 by construction (they gate
+ * "at_risk", which requires `remainingMinutes > 0`), so it never collides
+ * with a real warn threshold.
+ */
+export const BREACH_NOTIFICATION_THRESHOLD = 100;
+
+/**
  * Evaluates a Commitment's current status as of `asOf`.
  *
  * Pure and deterministic (Phase 13.8): the same
@@ -55,10 +64,13 @@ export function evaluateCommitment(
   const remainingMinutes = commitment.targetMinutes - elapsedWorkingMinutes;
 
   let status: CommitmentStatus;
+  let warnThresholdCrossed: number | undefined;
   if (closeEvent) {
     status = remainingMinutes >= 0 ? "met" : "breached";
+    if (status === "breached") warnThresholdCrossed = BREACH_NOTIFICATION_THRESHOLD;
   } else if (remainingMinutes <= 0) {
     status = "breached";
+    warnThresholdCrossed = BREACH_NOTIFICATION_THRESHOLD;
   } else {
     const percentConsumed =
       (elapsedWorkingMinutes / commitment.targetMinutes) * 100;
@@ -66,6 +78,7 @@ export function evaluateCommitment(
       .sort((a, b) => b - a)
       .find((threshold) => percentConsumed >= threshold);
     status = highestCrossedThreshold !== undefined ? "at_risk" : "on_track";
+    warnThresholdCrossed = highestCrossedThreshold;
   }
 
   const inputs = {
@@ -86,6 +99,7 @@ export function evaluateCommitment(
     remainingMinutes,
     status,
     breachedByMinutes: remainingMinutes < 0 ? -remainingMinutes : undefined,
+    warnThresholdCrossed,
     inputs,
   };
 }

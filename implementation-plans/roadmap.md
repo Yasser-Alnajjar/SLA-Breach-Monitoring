@@ -20,7 +20,7 @@ file gets checked off and committed as each step lands.
       10: "minimal, no roles/permissions in v1"). This unblocks everything
       UI-facing.
 
-- [ ] **2 — Zendesk integration: connect + ingest**
+- [x] **2 — Zendesk integration: connect + ingest**
       Read-only OAuth connect flow, adapter pulling tickets, audits/events,
       organizations, and SLA policy definitions into `RawEvent`. Historical
       backfill of the last 60–90 days (Phase 10: "the entire go-to-market

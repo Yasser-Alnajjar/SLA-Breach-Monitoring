@@ -57,8 +57,56 @@ body {
   margin: 0;
 }
 
-main.dashboard {
+main.dashboard,
+main.settings-page {
   max-width: 720px;
   margin: 4rem auto;
   padding: 0 2rem;
+}
+
+.zendesk-connect-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.zendesk-connect-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.zendesk-connect-form input {
+  padding: 0.5rem 0.6rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.zendesk-connect-form span {
+  margin-left: 0.4rem;
+  color: #666;
+}
+
+.zendesk-connect-form button,
+main.settings-page button {
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  cursor: pointer;
+}
+
+main.settings-page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+main.settings-page [role="alert"] {
+  color: #b00020;
+  font-size: 0.9rem;
 }

@@ -14,6 +14,9 @@ export default async function DashboardPage() {
         The at-risk list, breach counts, and compliance dashboard described in
         the roadmap land in step 9.
       </p>
+      <p>
+        <a href="/settings/integrations">Connect Zendesk</a>
+      </p>
     </main>
   );
 }

@@ -61,11 +61,23 @@ file gets checked off and committed as each step lands.
       calendar per organization until Zendesk schedules are ingested.
       [PR #9](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/9)
 
-- [ ] **7 — Worker: two-speed polling + evaluation**
+- [x] **7 — Worker: two-speed polling + evaluation**
       `apps/worker` becomes real: 5-minute active-set poll, 60-minute
       reconciliation sweep (Phase 16). Each cycle calls `evaluateCommitment`
       from `packages/core` and persists `Evaluation` rows. Idempotency via
       `(integrationId, providerEventId)`.
+      Both cycles run the same ingestion path — the provider adapters already
+      fetch from the cursor on `Integration`, so a five-minute cycle pulls
+      only what changed in those five minutes and the hourly sweep re-runs it
+      as a safety net when a cycle failed or was delayed. What separates the
+      two speeds is evaluation scope: the poll evaluates commitments that
+      aren't finalized yet, the sweep re-checks every one. Cycles are
+      serialized so they can't race on a shared cursor, and a failing
+      integration is recorded per organization rather than thrown, so one
+      broken connection never stops the rest of the cycle. `Evaluation` rows
+      record transitions, not heartbeats: the first evaluation, every status
+      change, and the final snapshot when a case closes — elapsed time stays
+      derived, never accrued into a row every five minutes.
 
 - [ ] **8 — Notifications: Slack**
       Slack OAuth + channel selection. Fires on Evaluation *transitions* only,

@@ -47,7 +47,9 @@ export default async function DashboardPage() {
                 {data.atRisk.map((row) => (
                   <tr key={row.commitmentId} className={row.status === "breached" ? "row-breached" : undefined}>
                     <td>{row.customerName ?? "—"}</td>
-                    <td>#{row.externalId}</td>
+                    <td>
+                      <a href={`/cases/${row.caseId}`}>#{row.externalId}</a>
+                    </td>
                     <td>{formatCommitmentKind(row.kind)}</td>
                     <td>
                       {row.remainingMinutes < 0
@@ -76,7 +78,8 @@ export default async function DashboardPage() {
                 <ul className="panel-list">
                   {data.breachedThisPeriod.map((row, i) => (
                     <li key={`${row.caseId}-${row.kind}-${i}`}>
-                      {row.customerName ?? "—"} · #{row.externalId} · {formatCommitmentKind(row.kind)}
+                      {row.customerName ?? "—"} · <a href={`/cases/${row.caseId}`}>#{row.externalId}</a> ·{" "}
+                      {formatCommitmentKind(row.kind)}
                     </li>
                   ))}
                 </ul>
@@ -92,7 +95,8 @@ export default async function DashboardPage() {
               <ul className="panel-list">
                 {data.agingInEngineering.map((row) => (
                   <li key={row.caseId}>
-                    {row.customerName ?? "—"} · #{row.externalId} · {formatMinutes(row.minutesInCurrentLeg)}
+                    {row.customerName ?? "—"} · <a href={`/cases/${row.caseId}`}>#{row.externalId}</a> ·{" "}
+                    {formatMinutes(row.minutesInCurrentLeg)}
                   </li>
                 ))}
               </ul>

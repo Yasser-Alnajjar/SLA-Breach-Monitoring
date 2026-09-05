@@ -211,10 +211,278 @@ main.dashboard {
   color: #f87171;
 }
 
+.panel a,
+.panel-at-risk a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #3f3f46;
+  text-underline-offset: 2px;
+}
+
+.panel a:hover,
+.panel-at-risk a:hover {
+  text-decoration-color: currentColor;
+}
+
 @media (max-width: 900px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
+}
+
+main.case-page {
+  max-width: 900px;
+  margin: 2.5rem auto;
+  padding: 0 2rem 3rem;
+}
+
+.case-page .back-link {
+  display: inline-block;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-bottom: 1.25rem;
+}
+
+.case-page .back-link:hover {
+  color: #f5f5f5;
+}
+
+.case-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.case-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.4rem;
+}
+
+.case-meta {
+  margin: 0;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+}
+
+.external-link {
+  flex-shrink: 0;
+  color: #d4d4d8;
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.external-link:hover {
+  color: #f5f5f5;
+}
+
+.case-page .panel {
+  margin-bottom: 1.25rem;
+}
+
+.commitment-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.commitment-card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-left: 3px solid #52525b;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.commitment-card.status-on_track {
+  border-left-color: #52525b;
+}
+
+.commitment-card.status-at_risk {
+  border-left-color: #facc15;
+}
+
+.commitment-card.status-met {
+  border-left-color: #4ade80;
+}
+
+.commitment-card.status-breached {
+  border-left-color: #f87171;
+}
+
+.commitment-card.status-cancelled {
+  border-left-color: #3f3f46;
+  opacity: 0.7;
+}
+
+.commitment-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.commitment-kind {
+  font-weight: 600;
+  color: #f5f5f5;
+}
+
+.commitment-status {
+  color: #a1a1aa;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.commitment-remaining {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.commitment-meta {
+  margin: 0;
+  color: #71717a;
+  font-size: 0.8rem;
+}
+
+.disclosure {
+  margin-top: 0.75rem;
+}
+
+.disclosure summary {
+  cursor: pointer;
+  color: #a1a1aa;
+  font-size: 0.8rem;
+}
+
+.disclosure dl {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.75rem;
+}
+
+.disclosure dt {
+  color: #71717a;
+}
+
+.disclosure dd {
+  margin: 0;
+  color: #d4d4d8;
+}
+
+.stage-bar,
+.timeline-bar {
+  position: relative;
+  height: 1.1rem;
+  border-radius: 4px;
+  background: #0f0f11;
+  overflow: hidden;
+}
+
+.stage-bar {
+  display: flex;
+}
+
+.timeline-bar + .timeline-bar {
+  margin-top: 0.4rem;
+}
+
+.stage-segment {
+  height: 100%;
+}
+
+.timeline-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.leg-support {
+  background: #60a5fa;
+}
+
+.leg-engineering {
+  background: #c084fc;
+}
+
+.leg-waiting {
+  background: #fbbf24;
+}
+
+.leg-unknown {
+  background: #52525b;
+}
+
+.clock-running {
+  background: #4ade80;
+}
+
+.clock-paused {
+  background: #3f3f46;
+}
+
+.stage-legend,
+.timeline-legend {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.8rem;
+  color: #d4d4d8;
+}
+
+p.timeline-legend {
+  align-items: center;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 2px;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+.event-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 0.82rem;
+}
+
+.event-list li {
+  display: grid;
+  grid-template-columns: 11rem 5rem 4.5rem 1fr;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #1f1f23;
+  color: #d4d4d8;
+}
+
+.event-list li:last-child {
+  border-bottom: none;
+}
+
+.event-list time {
+  color: #71717a;
+}
+
+.event-actor,
+.event-system {
+  text-transform: capitalize;
+  color: #a1a1aa;
 }
 
 .zendesk-connect-form {

@@ -1,0 +1,321 @@
+import type { PrismaClient } from "@sla/db";
+import {
+  computeElapsedWorkingMinutes,
+  deriveLegSpans,
+  evaluateCommitment,
+  type BusinessCalendarVersion,
+  type CommitmentKind,
+  type CommitmentStatus,
+  type Leg,
+  type LegSpan,
+  type NormalizedEvent,
+  type NormalizedEventType,
+  type NormalizedState,
+  type PausedInterval,
+  type SLAPolicyMatch,
+  type SLAPolicyVersion,
+  type WeeklyWindow,
+} from "@sla/core";
+import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
+import type { ZendeskCredentials } from "@sla/zendesk";
+import type { JiraCredentials } from "@sla/jira";
+
+// No business calendar exists yet for a case whose SLA hasn't matched any
+// policy — fall back to an always-open calendar purely for the purpose of
+// rendering the working/paused overlay (which does not actually depend on
+// working-hours math, only on the pause-state event stream).
+const FALLBACK_CALENDAR: BusinessCalendarVersion = {
+  id: "none",
+  version: 0,
+  timezone: "UTC",
+  weekly: [],
+  holidays: [],
+  alwaysOpen: true,
+};
+
+export interface CommitmentDetail {
+  id: string;
+  kind: CommitmentKind;
+  status: CommitmentStatus;
+  startedAt: string;
+  targetMinutes: number;
+  dueAt: string;
+  closedAt: string | null;
+  elapsedWorkingMinutes: number;
+  remainingMinutes: number;
+  breachedByMinutes: number | null;
+  policyVersion: {
+    id: string;
+    version: number;
+    match: SLAPolicyMatch;
+    warnAtPercent: number[];
+    pauseOnStates: NormalizedState[];
+    effectiveFrom: string;
+  };
+  calendar: {
+    id: string;
+    version: number;
+    timezone: string;
+    weekly: WeeklyWindow[];
+    holidays: string[];
+    alwaysOpen: boolean;
+  };
+}
+
+export interface CaseLinkDetail {
+  system: "zendesk" | "jira";
+  externalId: string;
+  url: string | null;
+  method: string;
+  confidence: string;
+}
+
+export interface TimelineEventDetail {
+  id: string;
+  occurredAt: string;
+  actor: string;
+  system: string;
+  type: NormalizedEventType;
+  fromState: NormalizedState | null;
+  toState: NormalizedState | null;
+}
+
+export interface LegTotal {
+  leg: Leg;
+  minutes: number;
+}
+
+export interface CaseDetailData {
+  asOf: string;
+  case: {
+    id: string;
+    externalId: string;
+    priority: string | null;
+    tier: string | null;
+    channel: string | null;
+    openedAt: string;
+    closedAt: string | null;
+    customerName: string | null;
+    zendeskUrl: string | null;
+  };
+  currentLeg: Leg;
+  commitments: CommitmentDetail[];
+  legSpans: (LegSpan & { endedAt: string })[];
+  legTotals: LegTotal[];
+  runningIntervals: { start: string; end: string }[];
+  pausedIntervals: PausedInterval[];
+  timeline: TimelineEventDetail[];
+  links: CaseLinkDetail[];
+}
+
+function complementIntervals(
+  pausedIntervals: PausedInterval[],
+  start: string,
+  end: string,
+): { start: string; end: string }[] {
+  const sorted = [...pausedIntervals].sort((a, b) => a.start.localeCompare(b.start));
+  const running: { start: string; end: string }[] = [];
+  let cursor = start;
+  for (const p of sorted) {
+    if (p.start > cursor) running.push({ start: cursor, end: p.start });
+    if (p.end > cursor) cursor = p.end;
+  }
+  if (end > cursor) running.push({ start: cursor, end });
+  return running;
+}
+
+/**
+ * Assembles everything the case detail page (roadmap step 10) needs: the
+ * header, both commitments with the policy/calendar that produced their
+ * numbers (the "how this was calculated" disclosure), the leg timeline with
+ * working/paused shading, and outbound links to both source systems.
+ *
+ * Returns null when the case doesn't exist or belongs to a different
+ * organization — the caller renders a 404 either way, so no distinction is
+ * made between the two.
+ */
+export async function getCaseDetailData(
+  prisma: PrismaClient,
+  organizationId: string,
+  caseId: string,
+  asOfDate: Date = new Date(),
+): Promise<CaseDetailData | null> {
+  const asOf = asOfDate.toISOString();
+
+  const caseRow = await prisma.case.findFirst({
+    where: { id: caseId, organizationId },
+    include: { customer: true, caseLinks: true, commitments: true },
+  });
+  if (!caseRow) return null;
+
+  const [eventRows, zendeskIntegration, jiraIntegration] = await Promise.all([
+    prisma.normalizedEvent.findMany({ where: { caseId }, orderBy: { occurredAt: "asc" } }),
+    prisma.integration.findUnique({
+      where: { organizationId_provider: { organizationId, provider: "zendesk" } },
+    }),
+    prisma.integration.findUnique({
+      where: { organizationId_provider: { organizationId, provider: "jira" } },
+    }),
+  ]);
+
+  const policyVersionIds = [...new Set(caseRow.commitments.map((c) => c.policyVersionId))];
+  const calendarVersionIds = [...new Set(caseRow.commitments.map((c) => c.calendarVersionId))];
+
+  const [policyVersionRows, calendarVersionRows] = await Promise.all([
+    policyVersionIds.length > 0
+      ? prisma.sLAPolicyVersion.findMany({ where: { id: { in: policyVersionIds } } })
+      : Promise.resolve([]),
+    calendarVersionIds.length > 0
+      ? prisma.businessCalendarVersion.findMany({ where: { id: { in: calendarVersionIds } } })
+      : Promise.resolve([]),
+  ]);
+
+  const policyVersionsById = new Map<string, SLAPolicyVersion>(
+    policyVersionRows.map((row) => [
+      row.id,
+      {
+        id: row.id,
+        policyId: row.policyId,
+        version: row.version,
+        match: row.match as SLAPolicyMatch,
+        targets: row.targets as { kind: CommitmentKind; minutes: number }[],
+        pauseOnStates: row.pauseOnStates as NormalizedState[],
+        calendarVersionId: row.calendarVersionId,
+        warnAtPercent: row.warnAtPercent,
+        effectiveFrom: row.effectiveFrom.toISOString(),
+      },
+    ]),
+  );
+
+  const calendarsById = new Map<string, BusinessCalendarVersion>(
+    calendarVersionRows.map((row) => [
+      row.id,
+      {
+        id: row.id,
+        version: row.version,
+        timezone: row.timezone,
+        weekly: row.weekly as unknown as WeeklyWindow[],
+        holidays: row.holidays,
+        alwaysOpen: row.alwaysOpen,
+      },
+    ]),
+  );
+
+  const domainEvents: NormalizedEvent[] = eventRows.map(toNormalizedEventDomain);
+
+  const commitments: CommitmentDetail[] = caseRow.commitments
+    .map((row): CommitmentDetail | null => {
+      const policyVersion = policyVersionsById.get(row.policyVersionId);
+      const calendarRow = calendarVersionRows.find((c) => c.id === row.calendarVersionId);
+      const calendar = calendarsById.get(row.calendarVersionId);
+      if (!policyVersion || !calendarRow || !calendar) return null;
+
+      const evaluation = evaluateCommitment(toCommitmentDomain(row), domainEvents, policyVersion, calendar, asOf);
+
+      return {
+        id: row.id,
+        kind: row.kind,
+        status: evaluation.status,
+        startedAt: row.startedAt.toISOString(),
+        targetMinutes: row.targetMinutes,
+        dueAt: row.dueAt.toISOString(),
+        closedAt: row.closedAt?.toISOString() ?? null,
+        elapsedWorkingMinutes: evaluation.elapsedWorkingMinutes,
+        remainingMinutes: evaluation.remainingMinutes,
+        breachedByMinutes: evaluation.breachedByMinutes ?? null,
+        policyVersion: {
+          id: policyVersion.id,
+          version: policyVersion.version,
+          match: policyVersion.match,
+          warnAtPercent: policyVersion.warnAtPercent,
+          pauseOnStates: policyVersion.pauseOnStates,
+          effectiveFrom: policyVersion.effectiveFrom,
+        },
+        calendar: {
+          id: calendar.id,
+          version: calendarRow.version,
+          timezone: calendar.timezone,
+          weekly: calendar.weekly,
+          holidays: calendar.holidays,
+          alwaysOpen: calendar.alwaysOpen,
+        },
+      };
+    })
+    .filter((c): c is CommitmentDetail => c !== null)
+    .sort((a, b) => (a.kind === "first_response" ? -1 : 1));
+
+  const endBound = caseRow.closedAt?.toISOString() ?? asOf;
+
+  const { spans } = deriveLegSpans(domainEvents, { caseOpenedAt: caseRow.openedAt.toISOString() });
+  const legSpans = spans.map((s) => ({ ...s, endedAt: s.endedAt ?? endBound }));
+  const currentLeg: Leg = legSpans[legSpans.length - 1]?.leg ?? "unknown";
+
+  const legTotalsByLeg = new Map<Leg, number>();
+  for (const s of legSpans) {
+    const minutes = (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60_000;
+    legTotalsByLeg.set(s.leg, (legTotalsByLeg.get(s.leg) ?? 0) + minutes);
+  }
+  const LEG_ORDER: Leg[] = ["support", "engineering", "waiting_customer", "unknown"];
+  const legTotals: LegTotal[] = LEG_ORDER.filter((leg) => legTotalsByLeg.has(leg)).map((leg) => ({
+    leg,
+    minutes: legTotalsByLeg.get(leg)!,
+  }));
+
+  const pauseOnStates = commitments[0]?.policyVersion.pauseOnStates ?? [];
+  const pauseCalendar = commitments[0] ? calendarsById.get(commitments[0].calendar.id)! : FALLBACK_CALENDAR;
+  const { pausedIntervals } = computeElapsedWorkingMinutes(domainEvents, pauseOnStates, pauseCalendar, endBound);
+  const runningIntervals = complementIntervals(pausedIntervals, caseRow.openedAt.toISOString(), endBound);
+
+  const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
+  const jiraCredentials = (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
+
+  const zendeskUrl = zendeskCredentials
+    ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
+    : null;
+
+  const links: CaseLinkDetail[] = caseRow.caseLinks.map((link) => ({
+    system: link.system,
+    externalId: link.externalId,
+    method: link.method,
+    confidence: link.confidence,
+    url:
+      link.system === "jira" && jiraCredentials
+        ? `${jiraCredentials.siteUrl.replace(/\/$/, "")}/browse/${link.externalId}`
+        : link.system === "zendesk" && zendeskCredentials
+          ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${link.externalId}`
+          : null,
+  }));
+
+  const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({
+    id: e.id,
+    occurredAt: e.occurredAt,
+    actor: e.actor,
+    system: e.system,
+    type: e.type,
+    fromState: e.fromState,
+    toState: e.toState,
+  }));
+
+  return {
+    asOf,
+    case: {
+      id: caseRow.id,
+      externalId: caseRow.externalId,
+      priority: caseRow.priority,
+      tier: caseRow.tier,
+      channel: caseRow.channel,
+      openedAt: caseRow.openedAt.toISOString(),
+      closedAt: caseRow.closedAt?.toISOString() ?? null,
+      customerName: caseRow.customer?.name ?? null,
+      zendeskUrl,
+    },
+    currentLeg,
+    commitments,
+    legSpans,
+    legTotals,
+    runningIntervals,
+    pausedIntervals,
+    timeline,
+    links,
+  };
+}

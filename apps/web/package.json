@@ -4,10 +4,27 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "echo \"apps/web is a scaffold — Next.js app not built out this pass\" && exit 1"
+    "dev": "dotenv -e ../../.env -- next dev",
+    "build": "dotenv -e ../../.env -- next build",
+    "start": "dotenv -e ../../.env -- next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@sla/core": "workspace:*",
-    "@sla/db": "workspace:*"
+    "@sla/db": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "next": "^14.2.15",
+    "next-auth": "^4.24.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "dotenv-cli": "^7.4.2",
+    "typescript": "^5.6.3"
   }
 }

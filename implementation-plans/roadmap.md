@@ -14,7 +14,7 @@ file gets checked off and committed as each step lands.
 - [x] **0 — Foundation**: pure SLA/OLA engine (`packages/core`), Prisma schema
       (`packages/db`), pnpm workspace scaffold. [PR #2](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/2)
 
-- [ ] **1 — Auth + org bootstrap**
+- [x] **1 — Auth + org bootstrap**
       Next.js App Router setup in `apps/web`, minimal email-based auth, sign-up
       flow that creates an `Organization` + `User`. No roles/permissions (Phase
       10: "minimal, no roles/permissions in v1"). This unblocks everything

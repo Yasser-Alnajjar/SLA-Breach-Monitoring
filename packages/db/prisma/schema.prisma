@@ -1,0 +1,357 @@
+// Prisma schema + generated client. No business logic lives here — the SLA/OLA
+// engine in packages/core is pure and knows nothing about this file.
+//
+// The one rule this schema exists to enforce: store events, never store
+// computed time. RawEvent and NormalizedEvent are append-only; elapsed time,
+// deadlines, and breach status are always derived, never persisted as a
+// mutable counter. Breach is not a table — it's an Evaluation with
+// status = "breached".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IntegrationProvider {
+  zendesk
+  jira
+}
+
+enum CaseLinkMethod {
+  official_link
+  remote_link
+  pattern
+  manual
+}
+
+enum LinkConfidence {
+  certain
+  probable
+}
+
+enum LegKind {
+  support
+  engineering
+  waiting_customer
+  unknown
+}
+
+enum LegConfidence {
+  certain
+  inferred
+  unknown
+}
+
+enum CommitmentKind {
+  first_response
+  resolution
+}
+
+enum CommitmentStatus {
+  on_track
+  at_risk
+  met
+  breached
+  cancelled
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  integrations      Integration[]
+  customers         Customer[]
+  cases             Case[]
+  slaPolicies       SLAPolicy[]
+  businessCalendars BusinessCalendar[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String   @unique
+  name           String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Integration {
+  id             String              @id @default(cuid())
+  organizationId String
+  provider       IntegrationProvider
+  // Placeholder — no live OAuth wiring this pass. Shape TBD when a real
+  // adapter is built; kept as freeform JSON so that decision isn't frozen here.
+  credentials    Json?
+  cursor         Json?
+  connectedAt    DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rawEvents    RawEvent[]
+
+  @@unique([organizationId, provider])
+  @@map("integrations")
+}
+
+/// Exactly what the provider returned, with fetch time and a source hash.
+/// Immutable, append-only. Retained for replay — never queried by the engine.
+model RawEvent {
+  id              String   @id @default(cuid())
+  integrationId   String
+  providerEventId String
+  sourceHash      String
+  payload         Json
+  fetchedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  integration      Integration       @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  normalizedEvents NormalizedEvent[]
+
+  @@unique([integrationId, providerEventId])
+  @@index([integrationId, fetchedAt])
+  @@map("raw_events")
+}
+
+/// Provider-independent fact. The SLA/OLA engine's only input. Immutable —
+/// regenerate by re-deriving from RawEvent, never by editing in place.
+model NormalizedEvent {
+  id               String              @id @default(cuid())
+  caseId           String
+  sourceRawEventId String
+  type             String // NormalizedEventType, closed set owned by packages/core
+  occurredAt       DateTime
+  actor            String // Actor: customer | agent | system
+  system           IntegrationProvider
+  fromState        String? // NormalizedState
+  toState          String? // NormalizedState
+  createdAt        DateTime            @default(now())
+
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sourceRawEvent RawEvent @relation(fields: [sourceRawEventId], references: [id])
+
+  @@index([caseId, occurredAt])
+  @@map("normalized_events")
+}
+
+/// Derived from Zendesk organizations. Never manually entered.
+model Customer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  zendeskOrgId   String?
+  tier           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cases        Case[]
+
+  @@unique([organizationId, zendeskOrgId])
+  @@map("customers")
+}
+
+/// The unit of customer commitment — one customer request, spanning systems.
+/// A mutable projection; the source of truth for its history is the
+/// NormalizedEvent stream, not this row's current field values.
+model Case {
+  id             String    @id @default(cuid())
+  organizationId String
+  customerId     String?
+  externalId     String // e.g. the Zendesk ticket id — the anchor record
+  priority       String?
+  tier           String?
+  channel        String?
+  openedAt       DateTime
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  normalizedEvents NormalizedEvent[]
+  caseLinks        CaseLink[]
+  commitments      Commitment[]
+  legSpans         LegSpan[]
+
+  @@unique([organizationId, externalId])
+  @@index([organizationId, openedAt])
+  @@map("cases")
+}
+
+/// A binding between a Case and an external record (e.g. a Jira issue).
+/// Only `confidence = certain` links contribute to a commitment's leg timing
+/// (Phase 15) — the engine in packages/core enforces this, not this table.
+model CaseLink {
+  id          String              @id @default(cuid())
+  caseId      String
+  system      IntegrationProvider
+  externalId  String // e.g. a Jira issue key
+  method      CaseLinkMethod
+  confidence  LinkConfidence
+  evidence    Json?
+  confirmedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, system, externalId])
+  @@map("case_links")
+}
+
+/// Editing creates a new version; old versions are never destroyed.
+model SLAPolicy {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions     SLAPolicyVersion[]
+
+  @@map("sla_policies")
+}
+
+model SLAPolicyVersion {
+  id                String   @id @default(cuid())
+  policyId          String
+  version           Int
+  match             Json // { priority?, customerIds?, tier? }
+  targets           Json // { kind: CommitmentKind, minutes: number }[]
+  pauseOnStates     String[] // NormalizedState[] — semantic states, never provider strings
+  calendarVersionId String
+  warnAtPercent     Int[] // e.g. [50, 80, 95]
+  effectiveFrom     DateTime
+  createdAt         DateTime @default(now())
+
+  policy          SLAPolicy               @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  calendarVersion BusinessCalendarVersion @relation(fields: [calendarVersionId], references: [id])
+  commitments     Commitment[]
+
+  @@unique([policyId, version])
+  @@map("sla_policy_versions")
+}
+
+/// Working hours, timezone, holidays. Versioned like SLAPolicy.
+model BusinessCalendar {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions     BusinessCalendarVersion[]
+
+  @@map("business_calendars")
+}
+
+model BusinessCalendarVersion {
+  id         String   @id @default(cuid())
+  calendarId String
+  version    Int
+  timezone   String // IANA name, e.g. "America/New_York"
+  weekly     Json // { day: 0-6, openMinute: number, closeMinute: number }[]
+  holidays   String[] // ISO dates, interpreted in `timezone`
+  alwaysOpen Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  calendar       BusinessCalendar   @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  policyVersions SLAPolicyVersion[]
+  commitments    Commitment[]
+
+  @@unique([calendarId, version])
+  @@map("business_calendar_versions")
+}
+
+/// One obligation on one Case. Created once, resolved once. `policyVersionId`
+/// and `calendarVersionId` are frozen at creation — the reproducibility
+/// anchor that keeps historical numbers stable when today's policy changes.
+model Commitment {
+  id                String           @id @default(cuid())
+  caseId            String
+  kind              CommitmentKind
+  policyVersionId   String
+  calendarVersionId String
+  startedAt         DateTime
+  targetMinutes     Int
+  dueAt             DateTime
+  status            CommitmentStatus @default(on_track)
+  closedAt          DateTime?
+  createdAt         DateTime         @default(now())
+
+  case            Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  policyVersion   SLAPolicyVersion        @relation(fields: [policyVersionId], references: [id])
+  calendarVersion BusinessCalendarVersion @relation(fields: [calendarVersionId], references: [id])
+  evaluations     Evaluation[]
+  notifications   Notification[]
+
+  @@index([caseId])
+  @@index([status])
+  @@map("commitments")
+}
+
+/// A contiguous period during which one leg (support | engineering |
+/// waiting_customer | unknown) held the work. Derived, recomputable from
+/// NormalizedEvents at any time — never the source of truth itself.
+model LegSpan {
+  id         String        @id @default(cuid())
+  caseId     String
+  leg        LegKind
+  confidence LegConfidence
+  startedAt  DateTime
+  endedAt    DateTime?
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, startedAt])
+  @@map("leg_spans")
+}
+
+/// A point-in-time computation of a Commitment. Immutable snapshot — a
+/// breach is not a separate entity, it is an Evaluation with
+/// status = "breached". `inputs` records exactly what produced this number,
+/// so it can be re-derived and explained months later.
+model Evaluation {
+  id                    String           @id @default(cuid())
+  commitmentId          String
+  evaluatedAt           DateTime
+  elapsedWorkingMinutes Int
+  remainingMinutes      Int
+  status                CommitmentStatus
+  breachedByMinutes     Int?
+  inputs                Json // { lastEventId, policyVersionId, calendarVersionId }
+  createdAt             DateTime         @default(now())
+
+  commitment Commitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@index([commitmentId, evaluatedAt])
+  @@map("evaluations")
+}
+
+/// What was sent, to whom, why. The dedup key on (commitmentId, threshold)
+/// means a poll that runs twice cannot alert twice.
+model Notification {
+  id           String   @id @default(cuid())
+  commitmentId String
+  threshold    Int // percent, or a sentinel value representing "breached"
+  channel      String // e.g. "slack"
+  sentAt       DateTime @default(now())
+
+  commitment Commitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@unique([commitmentId, threshold])
+  @@map("notifications")
+}

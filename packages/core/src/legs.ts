@@ -1,0 +1,173 @@
+import type { Confidence, Leg, LegDerivationResult, LegDerivationWarning, LegSpan, NormalizedEvent, NormalizedState } from "./types.js";
+
+export interface DeriveLegSpansOptions {
+  /**
+   * When the case's own open time predates the first known event, pass it
+   * here so the leading span is bounded rather than treated as a directly
+   * observed boundary (the "missing handoff event" hard case — bound by
+   * the surrounding known events and mark it inferred).
+   */
+  caseOpenedAt?: string;
+}
+
+interface Decision {
+  leg: Leg;
+  confidence: Confidence;
+  note?: string;
+}
+
+/**
+ * Derives the OLA ownership timeline from normalized events, per the
+ * two-leg-plus-waiting-customer model (Architecture Sketch Phase 14).
+ *
+ * Ownership is *observable*, not configured: `waiting_customer` when the
+ * helpdesk state indicates the customer owes a response, `engineering`
+ * when a linked issue is active and non-terminal, `support` otherwise, and
+ * `unknown` when signals are contradictory or absent — never guessed.
+ *
+ * Pure and deterministic: the same event list always produces the same
+ * spans and warnings.
+ */
+export function deriveLegSpans(events: NormalizedEvent[], options: DeriveLegSpansOptions = {}): LegDerivationResult {
+  const warnings: LegDerivationWarning[] = [];
+  const spans: LegSpan[] = [];
+  if (events.length === 0) return { spans, warnings };
+
+  const sorted = [...events].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+
+  let zendeskState: NormalizedState | null = null;
+  let jiraState: NormalizedState | null = null;
+  let linkedIssueCount = 0;
+
+  const decide = (): Decision => {
+    if (zendeskState === "pending_customer") {
+      return { leg: "waiting_customer", confidence: "certain" };
+    }
+    if (linkedIssueCount > 0) {
+      if (jiraState === "resolved" || jiraState === "closed") {
+        return { leg: "support", confidence: "certain" };
+      }
+      return linkedIssueCount > 1
+        ? { leg: "engineering", confidence: "certain", note: `${linkedIssueCount} linked issues — attributed as one engineering leg` }
+        : { leg: "engineering", confidence: "certain" };
+    }
+    if (zendeskState === null) {
+      return { leg: "unknown", confidence: "unknown", note: "no signal yet" };
+    }
+    return { leg: "support", confidence: "certain" };
+  };
+
+  const firstEventAt = sorted[0]!.occurredAt;
+  const backfillGap = options.caseOpenedAt !== undefined && options.caseOpenedAt < firstEventAt;
+  let spanStart = backfillGap ? options.caseOpenedAt! : firstEventAt;
+
+  let currentLeg: Leg | null = null;
+  let currentConfidence: Confidence = "unknown";
+  let currentNote: string | undefined;
+
+  // Only the very first decision (made while currentLeg is still null) can be
+  // downgraded by a backfill gap — every later transition is bounded by an
+  // observed event on both sides.
+  const applyBackfillDowngrade = (decision: Decision): Decision => {
+    if (!backfillGap) return decision;
+    if (decision.confidence === "unknown") return decision;
+    const note = decision.note ? `${decision.note}; handoff not observed, bounded by case open` : "handoff not observed, bounded by case open";
+    return { leg: decision.leg, confidence: "inferred", note };
+  };
+
+  const flush = (endedAt: string | null) => {
+    if (currentLeg === null) return;
+    spans.push({ leg: currentLeg, confidence: currentConfidence, startedAt: spanStart, endedAt, note: currentNote });
+  };
+
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1]!.occurredAt === sorted[i]!.occurredAt) j++;
+    const batch = sorted.slice(i, j + 1);
+    const at = sorted[i]!.occurredAt;
+
+    const hasLink = batch.some((e) => e.type === "issue_linked");
+    const hasUnlink = batch.some((e) => e.type === "issue_unlinked");
+    const ambiguousBatch = hasLink && hasUnlink;
+
+    for (const event of batch) {
+      if ((event.type === "state_changed" || event.type === "case_created") && event.toState) {
+        if (event.system === "zendesk") zendeskState = event.toState;
+        if (event.system === "jira") jiraState = event.toState;
+      }
+      if (event.type === "issue_linked") linkedIssueCount++;
+      if (event.type === "issue_unlinked") linkedIssueCount = Math.max(0, linkedIssueCount - 1);
+    }
+
+    let next: Decision;
+    if (ambiguousBatch) {
+      warnings.push({
+        kind: "ambiguous_handoff",
+        message: "Contemporaneous link and unlink events — handoff direction is unresolvable",
+        at,
+      });
+      next = { leg: "unknown", confidence: "unknown", note: "ambiguous handoff" };
+    } else {
+      const decision = decide();
+      next = currentLeg === null ? applyBackfillDowngrade(decision) : decision;
+    }
+
+    // A note-only change (e.g. a second linked issue updating the count) is
+    // an annotation refresh, not an ownership change — it must not split the
+    // span. Only leg/confidence transitions are boundaries.
+    const changed = currentLeg === null || next.leg !== currentLeg || next.confidence !== currentConfidence;
+
+    if (changed) {
+      if (currentLeg !== null) {
+        flush(at);
+        spanStart = at;
+      }
+      currentLeg = next.leg;
+    }
+    currentConfidence = next.confidence;
+    currentNote = next.note;
+
+    i = j + 1;
+  }
+
+  flush(null);
+  warnings.push(...validateLegSpans(spans));
+  return { spans, warnings };
+}
+
+/**
+ * Checks a list of leg spans for structural impossibilities — negative
+ * duration or overlap with the next span. These arise from human
+ * configuration error (e.g. a manually corrected span) rather than from
+ * `deriveLegSpans` itself, which produces a strictly ordered timeline by
+ * construction. Surfaced as a data-quality warning, never silently
+ * normalized (Phase 14's hard-cases table).
+ */
+export function validateLegSpans(spans: LegSpan[]): LegDerivationWarning[] {
+  const warnings: LegDerivationWarning[] = [];
+
+  for (const span of spans) {
+    if (span.endedAt !== null && span.endedAt < span.startedAt) {
+      warnings.push({
+        kind: "impossible_span",
+        message: `Span starting ${span.startedAt} ends at ${span.endedAt}, before it started`,
+        at: span.endedAt,
+      });
+    }
+  }
+
+  for (let i = 0; i + 1 < spans.length; i++) {
+    const current = spans[i]!;
+    const next = spans[i + 1]!;
+    if (current.endedAt !== null && current.endedAt > next.startedAt) {
+      warnings.push({
+        kind: "impossible_span",
+        message: `Span ending ${current.endedAt} overlaps the next span starting ${next.startedAt}`,
+        at: next.startedAt,
+      });
+    }
+  }
+
+  return warnings;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@sla/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"apps/worker is a scaffold — polling loop not built out this pass\" && exit 1"
+  },
+  "dependencies": {
+    "@sla/core": "workspace:*",
+    "@sla/db": "workspace:*"
+  }
+}

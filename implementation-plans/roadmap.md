@@ -38,11 +38,12 @@ file gets checked off and committed as each step lands.
       transitions, and remote links into `RawEvent`. Mirrors step 2's shape for
       the second provider. [PR #6](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/6)
 
-- [ ] **5 — Jira normalizer + deterministic correlator**
+- [x] **5 — Jira normalizer + deterministic correlator**
       `RawEvent` → `NormalizedEvent` for Jira. Correlator creates `CaseLink`
       rows using only the deterministic tier (Phase 15): the official
       Zendesk↔Jira link, Jira remote links, or an explicit external-id field.
       No fuzzy matching. Report link coverage honestly.
+      [PR #7](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/7)
 
 - [ ] **6 — SLA policy import + commitment pipeline**
       Import Zendesk SLA policies into `SLAPolicy`/`SLAPolicyVersion`. Wire

@@ -1,0 +1,13 @@
+{
+  "name": "@sla/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"apps/web is a scaffold — Next.js app not built out this pass\" && exit 1"
+  },
+  "dependencies": {
+    "@sla/core": "workspace:*",
+    "@sla/db": "workspace:*"
+  }
+}

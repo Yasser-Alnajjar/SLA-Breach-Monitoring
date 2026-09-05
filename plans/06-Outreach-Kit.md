@@ -139,7 +139,13 @@ Fill in [call-scorecard.csv](call-scorecard.csv) while it's fresh — the raw an
 
 **Note:** with the list capped at 40 rows and a send target of 40, there is no reserve for Week 1's bounces/disqualifications (the original 60-row list held 20 in reserve). Every row also still needs Jira/Linear confirmed before it's send-ready — expect the sendable count to be below 40 once qualification runs.
 
-**Buyer identification (in progress, 2026-09-05):** the 10 rows with both Zendesk and Jira independently confirmed (Prove, DataSnipper, Rentman, Aiwyn, Kojo, DEUNA, BriteCore, Dexterity, Horizon3.ai, Viewpost) now have a named buyer and title in target-list.csv, found via LinkedIn search. Exact profile URLs could not be extracted through search (Google/Bing don't surface bare linkedin.com/in/ links reliably) — each row's `notes` column says who to look up by name directly on LinkedIn before sending. The remaining 30 rows still need both their Jira/Linear signal and a named buyer before they're outreach-ready.
+**Buyer identification (2026-09-05):** 37 of 40 rows now have a named buyer, title, and (for most) an exact LinkedIn profile URL in target-list.csv. DuckDuckGo search (not Google/Bing, which don't reliably surface bare `linkedin.com/in/` links) was used to find these. Three rows — Ordway, Kota, Sembi — still have no buyer: their names collide too heavily with unrelated companies/people in search results, so they need a manual LinkedIn people-search pass.
+
+**Caveats on the buyers found:**
+- Several are the best *available* contact, not necessarily the ideal one — where no senior support/CS leader exists yet (the role is an open req), the row notes a junior IC contact or an adjacent-department exec instead, flagged explicitly in `notes`.
+- Rows marked `search_linkedin_by_name` in the `linkedin_url` column need a manual lookup — the name is confirmed but the exact profile URL wasn't extractable.
+- Findigs' buyer (VP of Customer Experience) has a confirmed URL but an unconfirmed name — the search snippet never surfaced it; open the profile directly to get it.
+- Every row's Jira/Linear signal (and, for many, the Zendesk signal too) is still unconfirmed — buyer identification does not substitute for the stack-qualification pass.
 | Replies | ≥10 |
 | Calls booked | ≥6 (Week 1), 12–15 total by end of Week 2 |
 | CSV exports obtained | ≥3 by end of Week 2, ≥5 by end of Week 3 |

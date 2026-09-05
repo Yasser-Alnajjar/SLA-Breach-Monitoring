@@ -1,0 +1,43 @@
+import { randomBytes } from "node:crypto";
+import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
+import { buildAuthorizeUrl } from "@sla/zendesk";
+import { authOptions } from "@/lib/auth";
+import { getZendeskOAuthConfig, ZENDESK_STATE_COOKIE } from "@/lib/zendesk-env";
+
+const SUBDOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/i;
+
+export async function GET(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const subdomain = new URL(request.url).searchParams.get("subdomain")?.trim() ?? "";
+  if (!SUBDOMAIN_PATTERN.test(subdomain)) {
+    return NextResponse.json({ error: "Enter a valid Zendesk subdomain" }, { status: 400 });
+  }
+
+  let config;
+  try {
+    config = getZendeskOAuthConfig();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Zendesk OAuth is not configured" },
+      { status: 500 },
+    );
+  }
+
+  const nonce = randomBytes(16).toString("hex");
+  const state = Buffer.from(
+    JSON.stringify({ nonce, subdomain, organizationId: session.user.organizationId }),
+  ).toString("base64url");
+
+  const response = NextResponse.redirect(buildAuthorizeUrl(subdomain, config, state));
+  response.cookies.set(ZENDESK_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600,
+    path: "/",
+  });
+  return response;
+}

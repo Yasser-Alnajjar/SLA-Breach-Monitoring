@@ -12,6 +12,7 @@
   "dependencies": {
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",
+    "@sla/zendesk": "workspace:*",
     "bcryptjs": "^2.4.3",
     "next": "^14.2.15",
     "next-auth": "^4.24.8",

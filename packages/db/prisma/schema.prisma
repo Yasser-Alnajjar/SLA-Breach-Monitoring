@@ -93,9 +93,10 @@ model Integration {
   id             String              @id @default(cuid())
   organizationId String
   provider       IntegrationProvider
-  // Placeholder — no live OAuth wiring this pass. Shape TBD when a real
-  // adapter is built; kept as freeform JSON so that decision isn't frozen here.
+  // Provider-specific OAuth credentials (e.g. ZendeskCredentials in
+  // @sla/zendesk). Freeform JSON since each provider's shape differs.
   credentials    Json?
+  // Provider-specific resumable backfill/poll watermark (e.g. ZendeskCursor).
   cursor         Json?
   connectedAt    DateTime            @default(now())
 

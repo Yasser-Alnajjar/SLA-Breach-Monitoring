@@ -4,10 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "echo \"apps/worker is a scaffold — polling loop not built out this pass\" && exit 1"
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "start": "dotenv -e ../../.env -- tsx src/index.ts",
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@sla/commitments": "workspace:*",
     "@sla/core": "workspace:*",
-    "@sla/db": "workspace:*"
+    "@sla/db": "workspace:*",
+    "@sla/jira": "workspace:*",
+    "@sla/zendesk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "dotenv-cli": "^7.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   }
 }

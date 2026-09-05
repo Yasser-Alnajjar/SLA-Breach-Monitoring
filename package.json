@@ -9,6 +9,9 @@
     "build": "pnpm -r --filter=./packages/* build",
     "web:dev": "pnpm -r --filter=./apps/web dev",
     "web:build": "pnpm -r --filter=./apps/web build",
+    "worker:dev": "pnpm -r --filter=./apps/worker dev",
+    "worker:start": "pnpm -r --filter=./apps/worker start",
+    "worker:build": "pnpm -r --filter=./apps/worker build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

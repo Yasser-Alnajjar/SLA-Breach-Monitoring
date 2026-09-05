@@ -75,11 +75,146 @@ main.settings-page button:hover {
   margin: 0;
 }
 
-main.dashboard,
 main.settings-page {
   max-width: 720px;
   margin: 4rem auto;
   padding: 0 2rem;
+}
+
+main.dashboard {
+  max-width: 1180px;
+  margin: 2.5rem auto;
+  padding: 0 2rem 3rem;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-header a {
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.dashboard-header a:hover {
+  color: #f5f5f5;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.dashboard-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.panel {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #d4d4d8;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.panel-empty {
+  color: #71717a;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.panel-note {
+  color: #71717a;
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0;
+}
+
+.panel-metric {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.panel-metric .trend-up {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #4ade80;
+}
+
+.panel-metric .trend-down {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #f87171;
+}
+
+.panel-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #d4d4d8;
+}
+
+.panel details summary {
+  cursor: pointer;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.panel-at-risk table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.panel-at-risk th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #71717a;
+  font-weight: 500;
+  padding: 0 0.5rem 0.5rem 0;
+  border-bottom: 1px solid #27272a;
+}
+
+.panel-at-risk td {
+  padding: 0.55rem 0.5rem 0.55rem 0;
+  border-bottom: 1px solid #1f1f23;
+}
+
+.panel-at-risk tr:last-child td {
+  border-bottom: none;
+}
+
+.panel-at-risk tr.row-breached td {
+  color: #f87171;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .zendesk-connect-form {

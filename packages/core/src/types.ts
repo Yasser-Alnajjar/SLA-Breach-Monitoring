@@ -106,6 +106,15 @@ export interface Evaluation {
   remainingMinutes: number;
   status: CommitmentStatus;
   breachedByMinutes?: number;
+  // The highest `warnAtPercent` threshold crossed this evaluation, or
+  // `BREACH_NOTIFICATION_THRESHOLD` once breached. Undefined for on_track,
+  // met, and cancelled — nothing to notify. This is what
+  // packages/commitments' evaluation pipeline reads to decide which
+  // (commitmentId, threshold) notifications are candidates for Phase 13.7 —
+  // deliberately independent of whether this Evaluation gets persisted,
+  // since a commitment can sit in "at_risk" for many cycles while climbing
+  // through 50% -> 80% -> 95% without its coarse status ever changing.
+  warnThresholdCrossed?: number;
   inputs: {
     lastEventId: string | null;
     policyVersionId: string;

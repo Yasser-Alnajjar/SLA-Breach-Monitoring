@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { runJiraBackfill, runJiraCorrelation, runJiraNormalization, type JiraCredentials } from "@sla/jira";
+import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { getJiraOAuthConfig } from "@/lib/jira-env";
 
 export const maxDuration = 300;
 
@@ -21,16 +22,25 @@ export async function POST() {
     return NextResponse.json({ error: "Jira is not connected" }, { status: 404 });
   }
 
+  let config;
   try {
-    const backfill = await runJiraBackfill(
-      prisma,
-      integration.id,
-      integration.credentials as unknown as JiraCredentials,
+    config = getJiraOAuthConfig();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Jira OAuth is not configured" },
+      { status: 500 },
     );
+  }
+
+  try {
+    const backfill = await runJiraBackfill(prisma, integration.id, config);
     const correlation = await runJiraCorrelation(prisma, integration.id);
     const normalization = await runJiraNormalization(prisma, integration.id);
     return NextResponse.json({ backfill, correlation, normalization });
   } catch (error) {
+    if (error instanceof JiraReauthRequiredError) {
+      return NextResponse.json({ error: "Jira needs to be reconnected", reauthRequired: true }, { status: 409 });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Backfill failed" },
       { status: 502 },

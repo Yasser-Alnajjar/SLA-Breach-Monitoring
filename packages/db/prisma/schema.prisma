@@ -71,6 +71,7 @@ model Organization {
   cases             Case[]
   slaPolicies       SLAPolicy[]
   businessCalendars BusinessCalendar[]
+  slackIntegration  SlackIntegration?
 
   @@map("organizations")
 }
@@ -361,4 +362,25 @@ model Notification {
 
   @@unique([commitmentId, threshold])
   @@map("notifications")
+}
+
+/// The only notification channel in v1 (Phase 10). One workspace per
+/// organization — not modelled as an `Integration` because it neither
+/// ingests `RawEvent`s nor advances a cursor, it only sends. `channelId` is
+/// nullable because the OAuth install and the channel choice are two
+/// separate steps in onboarding (Phase 11 step 8).
+model SlackIntegration {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  accessToken    String
+  teamId         String
+  teamName       String
+  botUserId      String
+  channelId      String?
+  channelName    String?
+  installedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("slack_integrations")
 }

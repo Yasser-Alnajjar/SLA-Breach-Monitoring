@@ -6,12 +6,18 @@ export {
 } from "./rawEvents";
 export type { RawEventInput } from "./rawEvents";
 export * from "./types";
-export { JiraClient } from "./client";
+export { JiraClient, JiraApiError } from "./client";
+export type { JiraClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runJiraBackfill, formatJqlDateTime } from "./backfill";
 export type { BackfillResult } from "./backfill";
 export type { JiraOAuthConfig } from "./oauth";
-export { buildAuthorizeUrl, exchangeCodeForToken } from "./oauth";
+export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, JiraOAuthError } from "./oauth";
+export {
+  loadFreshJiraCredentials,
+  refreshAfterUnauthorized,
+  JiraReauthRequiredError,
+} from "./tokenLifecycle";
 export {
   normalizeJiraStatusCategory,
   buildStatusLookup,

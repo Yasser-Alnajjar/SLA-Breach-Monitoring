@@ -29,6 +29,9 @@ importers:
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
+      '@sla/slack':
+        specifier: workspace:*
+        version: link:../../packages/slack
       '@sla/zendesk':
         specifier: workspace:*
         version: link:../../packages/zendesk
@@ -84,6 +87,9 @@ importers:
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
+      '@sla/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@sla/zendesk':
         specifier: workspace:*
         version: link:../../packages/zendesk
@@ -156,6 +162,43 @@ importers:
       '@sla/db':
         specifier: workspace:*
         version: link:../db
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/notifications:
+    dependencies:
+      '@sla/commitments':
+        specifier: workspace:*
+        version: link:../commitments
+      '@sla/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sla/db':
+        specifier: workspace:*
+        version: link:../db
+      '@sla/slack':
+        specifier: workspace:*
+        version: link:../slack
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/slack:
     devDependencies:
       '@types/node':
         specifier: ^22.7.5

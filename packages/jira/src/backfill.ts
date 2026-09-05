@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import { JiraClient } from "./client";
+import type { JiraOAuthConfig } from "./oauth";
 import {
   mapChangelogHistoryToRawEvent,
   mapIssueToRawEvent,
@@ -7,7 +8,8 @@ import {
   mapStatusToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
-import type { JiraCredentials, JiraCursor, JiraSearchPage } from "./types";
+import { loadFreshJiraCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
+import type { JiraCursor, JiraSearchPage } from "./types";
 
 const DEFAULT_BACKFILL_DAYS = 90;
 
@@ -27,14 +29,17 @@ export interface BackfillResult {
 export async function runJiraBackfill(
   prisma: PrismaClient,
   integrationId: string,
-  credentials: JiraCredentials,
+  config: JiraOAuthConfig,
   options: { sinceDays?: number } = {},
 ): Promise<BackfillResult> {
   const integration = await prisma.integration.findUniqueOrThrow({
     where: { id: integrationId },
   });
   const cursor = ((integration.cursor as JiraCursor | null) ?? {}) as JiraCursor;
-  const client = new JiraClient(credentials);
+  const credentials = await loadFreshJiraCredentials(prisma, integrationId, config);
+  const client = new JiraClient(credentials, {
+    onUnauthorized: (failed) => refreshAfterUnauthorized(prisma, integrationId, config, failed),
+  });
   const sinceDays = options.sinceDays ?? DEFAULT_BACKFILL_DAYS;
   const defaultSince = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
   const runStartedAt = new Date();

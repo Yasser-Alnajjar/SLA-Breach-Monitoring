@@ -13,9 +13,14 @@ export interface JiraCredentials {
   cloudId: string;
   siteUrl: string;
   accessToken: string;
-  refreshToken: string;
+  /** Absent for integrations connected before refresh support, though `offline_access` normally guarantees one. */
+  refreshToken?: string;
   tokenType: string;
   scope: string;
+  /** Epoch ms. Atlassian access tokens expire roughly hourly. */
+  expiresAt?: number;
+  /** Set when a refresh attempt fails because the refresh token itself is invalid/expired/revoked. Cleared automatically on reconnect. */
+  reauthRequired?: boolean;
 }
 
 export interface JiraAccessibleResource {

@@ -83,9 +83,43 @@ export interface ZendeskIncrementalOrganizationExport {
   count: number;
 }
 
+/**
+ * One condition in an SLA policy's `filter`. `field` covers Zendesk's full
+ * condition vocabulary (priority, group_id, tags, form_id, ...); the
+ * importer (roadmap step 6) only understands a subset — see
+ * `SUPPORTED_CONDITION_FIELDS` in ./policies.
+ */
+export interface ZendeskSlaPolicyCondition {
+  field: string;
+  operator: string;
+  value: string | number | null;
+}
+
+export interface ZendeskSlaPolicyFilter {
+  all?: ZendeskSlaPolicyCondition[];
+  any?: ZendeskSlaPolicyCondition[];
+}
+
+/**
+ * One (priority, metric) target row. Zendesk lets a single policy define
+ * different targets per ticket priority — `priority: null` means the target
+ * applies regardless of priority. `metric` is Zendesk's full metric
+ * vocabulary (first_reply_time, next_reply_time, requester_wait_time,
+ * agent_work_time, periodic_update_time, resolution_time); only
+ * `first_reply_time`/`resolution_time` map to a `CommitmentKind` we track.
+ */
+export interface ZendeskSlaPolicyMetric {
+  priority: string | null;
+  metric: string;
+  target: number; // minutes
+  business_hours: boolean;
+}
+
 export interface ZendeskSlaPolicy {
   id: number;
   title: string;
+  filter?: ZendeskSlaPolicyFilter;
+  policy_metrics?: ZendeskSlaPolicyMetric[];
   [key: string]: unknown;
 }
 

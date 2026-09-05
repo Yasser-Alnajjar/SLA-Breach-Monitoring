@@ -45,11 +45,20 @@ file gets checked off and committed as each step lands.
       No fuzzy matching. Report link coverage honestly.
       [PR #7](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/7)
 
-- [ ] **6 — SLA policy import + commitment pipeline**
-      Import Zendesk SLA policies into `SLAPolicy`/`SLAPolicyVersion`. Wire
-      `packages/core`'s `matchPolicyVersion`/`createCommitment` into real
-      `Case` data so every case gets its first-response and resolution
-      commitments on ingestion.
+- [x] **6 — SLA policy import + commitment pipeline**
+      `RawEvent` (sla_policy snapshots) → `SLAPolicy`/`SLAPolicyVersion`.
+      Zendesk lets one policy define different first-reply/resolution
+      targets per ticket priority, so each priority tier becomes its own
+      versioned `SLAPolicy` identity; `filter` conditions on priority and
+      organization translate to `match.priority`/`match.customerIds`,
+      anything else is dropped and counted rather than guessed at.
+      Idempotent — a re-run only creates a new version when a policy's
+      match or targets actually changed. New `packages/commitments` wires
+      `matchPolicyVersion`/`createCommitment` into real `Case` data: every
+      case gets whichever of first-response/resolution its matched policy
+      defines, once, permanently (`@@unique([caseId, kind])`). No business
+      hours import yet — every policy is anchored to one always-open
+      calendar per organization until Zendesk schedules are ingested.
 
 - [ ] **7 — Worker: two-speed polling + evaluation**
       `apps/worker` becomes real: 5-minute active-set poll, 60-minute

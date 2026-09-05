@@ -1,6 +1,12 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { runZendeskBackfill, runZendeskNormalization, ZendeskReauthRequiredError } from "@sla/zendesk";
+import {
+  runZendeskBackfill,
+  runZendeskNormalization,
+  runZendeskSlaPolicyImport,
+  ZendeskReauthRequiredError,
+} from "@sla/zendesk";
+import { runCommitmentPipeline } from "@sla/commitments";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getZendeskOAuthConfig } from "@/lib/zendesk-env";
@@ -35,7 +41,9 @@ export async function POST() {
   try {
     const backfill = await runZendeskBackfill(prisma, integration.id, config);
     const normalization = await runZendeskNormalization(prisma, integration.id);
-    return NextResponse.json({ backfill, normalization });
+    const slaPolicyImport = await runZendeskSlaPolicyImport(prisma, integration.id);
+    const commitments = await runCommitmentPipeline(prisma, session.user.organizationId);
+    return NextResponse.json({ backfill, normalization, slaPolicyImport, commitments });
   } catch (error) {
     if (error instanceof ZendeskReauthRequiredError) {
       return NextResponse.json(

@@ -1,5 +1,6 @@
 export {
   deriveNormalizedEventsForTicket,
+  latestSnapshotById,
   normalizeZendeskStatus,
   resolveActor,
   runZendeskNormalization,
@@ -17,6 +18,22 @@ export type {
   DerivedNormalizedEvent,
   NormalizationResult,
 } from "./normalize";
+export {
+  DEFAULT_CALENDAR_NAME,
+  ensureDefaultCalendarVersion,
+  extractMatchFromFilter,
+  groupPolicyMetricsByPriority,
+  PAUSE_ON_STATES,
+  policyVersionContentEquals,
+  runZendeskSlaPolicyImport,
+  WARN_AT_PERCENT,
+} from "./policies";
+export type {
+  ExtractedMatch,
+  GroupedPolicyMetrics,
+  PolicyTargetGroup,
+  SlaPolicyImportResult,
+} from "./policies";
 export * from "./types";
 export { ZendeskClient, ZendeskApiError } from "./client";
 export type { ZendeskClientOptions } from "./client";

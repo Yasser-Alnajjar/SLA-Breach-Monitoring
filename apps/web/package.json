@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sla/commitments": "workspace:*",
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",
     "@sla/jira": "workspace:*",

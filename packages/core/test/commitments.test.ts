@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createCommitment, matchPolicyVersion } from "../src/commitments.js";
-import type { BusinessCalendarVersion, CaseAttributes, SLAPolicyVersion } from "../src/types.js";
+import type {
+  BusinessCalendarVersion,
+  CaseAttributes,
+  SLAPolicyVersion,
+} from "../src/types";
 
 const calendar: BusinessCalendarVersion = {
   id: "cal-24-7",
@@ -49,14 +53,30 @@ const p1Tier1Policy: SLAPolicyVersion = {
 
 describe("matchPolicyVersion", () => {
   it("matches the most specific policy first", () => {
-    const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier1" };
-    const match = matchPolicyVersion(caseAttributes, [genericPolicy, p1Policy, p1Tier1Policy]);
+    const caseAttributes: CaseAttributes = {
+      caseId: "case-1",
+      priority: "P1",
+      tier: "tier1",
+    };
+    const match = matchPolicyVersion(caseAttributes, [
+      genericPolicy,
+      p1Policy,
+      p1Tier1Policy,
+    ]);
     expect(match?.id).toBe("policy-p1-tier1");
   });
 
   it("falls back to a less specific policy when the most specific doesn't match", () => {
-    const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier2" };
-    const match = matchPolicyVersion(caseAttributes, [genericPolicy, p1Policy, p1Tier1Policy]);
+    const caseAttributes: CaseAttributes = {
+      caseId: "case-1",
+      priority: "P1",
+      tier: "tier2",
+    };
+    const match = matchPolicyVersion(caseAttributes, [
+      genericPolicy,
+      p1Policy,
+      p1Tier1Policy,
+    ]);
     expect(match?.id).toBe("policy-p1");
   });
 
@@ -69,7 +89,13 @@ describe("matchPolicyVersion", () => {
 
 describe("createCommitment", () => {
   it("freezes the policy and calendar version ids onto the commitment", () => {
-    const commitment = createCommitment("case-1", "resolution", "2026-09-07T09:00:00.000Z", p1Policy, calendar);
+    const commitment = createCommitment(
+      "case-1",
+      "resolution",
+      "2026-09-07T09:00:00.000Z",
+      p1Policy,
+      calendar,
+    );
     expect(commitment.policyVersionId).toBe(p1Policy.id);
     expect(commitment.calendarVersionId).toBe(calendar.id);
     expect(commitment.targetMinutes).toBe(240);
@@ -78,6 +104,14 @@ describe("createCommitment", () => {
   });
 
   it("throws when the policy has no target for the requested kind", () => {
-    expect(() => createCommitment("case-1", "first_response", "2026-09-07T09:00:00.000Z", p1Policy, calendar)).toThrow();
+    expect(() =>
+      createCommitment(
+        "case-1",
+        "first_response",
+        "2026-09-07T09:00:00.000Z",
+        p1Policy,
+        calendar,
+      ),
+    ).toThrow();
   });
 });

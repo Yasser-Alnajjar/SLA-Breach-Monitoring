@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeElapsedWorkingMinutes } from "../src/elapsed.js";
-import type { BusinessCalendarVersion, NormalizedEvent } from "../src/types.js";
+import { computeElapsedWorkingMinutes } from "../src/elapsed";
+import type { BusinessCalendarVersion, NormalizedEvent } from "../src/types";
 
 const businessHours: BusinessCalendarVersion = {
   id: "cal-v1",

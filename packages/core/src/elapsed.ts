@@ -1,5 +1,11 @@
-import { workingMinutesBetween } from "./calendar.js";
-import type { BusinessCalendarVersion, ElapsedResult, NormalizedEvent, NormalizedState, PausedInterval } from "./types.js";
+import { workingMinutesBetween } from "./calendar";
+import type {
+  BusinessCalendarVersion,
+  ElapsedResult,
+  NormalizedEvent,
+  NormalizedState,
+  PausedInterval,
+} from "./types";
 
 /**
  * Folds the ordered normalized-event stream into alternating running/paused
@@ -28,8 +34,14 @@ export function computeElapsedWorkingMinutes(
   }
 
   const pauseSet = new Set(pauseOnStates);
-  const sorted = [...events].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-  const cutoff = asOf ? (typeof asOf === "string" ? new Date(asOf) : asOf) : new Date(sorted[sorted.length - 1]!.occurredAt);
+  const sorted = [...events].sort((a, b) =>
+    a.occurredAt.localeCompare(b.occurredAt),
+  );
+  const cutoff = asOf
+    ? typeof asOf === "string"
+      ? new Date(asOf)
+      : asOf
+    : new Date(sorted[sorted.length - 1]!.occurredAt);
 
   const runningIntervals: { start: Date; end: Date }[] = [];
   const pausedIntervals: PausedInterval[] = [];
@@ -41,7 +53,11 @@ export function computeElapsedWorkingMinutes(
   const closeSegment = (end: Date) => {
     if (end <= segmentStart) return;
     if (currentlyPaused) {
-      pausedIntervals.push({ start: segmentStart.toISOString(), end: end.toISOString(), cause: pauseCause! });
+      pausedIntervals.push({
+        start: segmentStart.toISOString(),
+        end: end.toISOString(),
+        cause: pauseCause!,
+      });
     } else {
       runningIntervals.push({ start: segmentStart, end });
     }
@@ -50,7 +66,8 @@ export function computeElapsedWorkingMinutes(
   for (const event of sorted) {
     const occurredAt = new Date(event.occurredAt);
     if (occurredAt > cutoff) break;
-    if (event.type !== "state_changed" && event.type !== "case_created") continue;
+    if (event.type !== "state_changed" && event.type !== "case_created")
+      continue;
     if (!event.toState) continue;
 
     const shouldBePaused = pauseSet.has(event.toState);
@@ -64,7 +81,11 @@ export function computeElapsedWorkingMinutes(
 
   closeSegment(cutoff);
 
-  const elapsedWorkingMinutes = runningIntervals.reduce((sum, interval) => sum + workingMinutesBetween(interval.start, interval.end, calendar), 0);
+  const elapsedWorkingMinutes = runningIntervals.reduce(
+    (sum, interval) =>
+      sum + workingMinutesBetween(interval.start, interval.end, calendar),
+    0,
+  );
 
   return { elapsedWorkingMinutes, pausedIntervals };
 }

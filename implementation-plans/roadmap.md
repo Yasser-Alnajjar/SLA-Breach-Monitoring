@@ -36,7 +36,7 @@ file gets checked off and committed as each step lands.
 - [x] **4 — Jira integration: connect + ingest**
       Read-only OAuth connect flow, adapter pulling issues, changelog, status
       transitions, and remote links into `RawEvent`. Mirrors step 2's shape for
-      the second provider.
+      the second provider. [PR #6](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/6)
 
 - [ ] **5 — Jira normalizer + deterministic correlator**
       `RawEvent` → `NormalizedEvent` for Jira. Correlator creates `CaseLink`

@@ -11,8 +11,8 @@ file gets checked off and committed as each step lands.
 
 ## Status
 
-- [x] **0 — Foundation**: pure SLA/OLA engine (`packages/core`), Prisma schema
-      (`packages/db`), pnpm workspace scaffold. [PR #2](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/2)
+- [✅] **0 — Foundation**: pure SLA/OLA engine (`packages/core`), Prisma schema
+  (`packages/db`), pnpm workspace scaffold. [PR #2](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/2)
 
 - [✅] **1 — Auth + org bootstrap**
   Next.js App Router setup in `apps/web`, minimal email-based auth, sign-up

@@ -18,10 +18,16 @@ export type {
   NormalizationResult,
 } from "./normalize";
 export * from "./types";
-export { ZendeskClient } from "./client";
+export { ZendeskClient, ZendeskApiError } from "./client";
+export type { ZendeskClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runZendeskBackfill } from "./backfill";
 export type { BackfillResult } from "./backfill";
 export type { RawEventInput } from "./rawEvents";
 export type { ZendeskOAuthConfig } from "./oauth";
-export { buildAuthorizeUrl, exchangeCodeForToken } from "./oauth";
+export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, ZendeskOAuthError } from "./oauth";
+export {
+  loadFreshZendeskCredentials,
+  refreshAfterUnauthorized,
+  ZendeskReauthRequiredError,
+} from "./tokenLifecycle";

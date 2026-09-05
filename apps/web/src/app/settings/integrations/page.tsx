@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getPrismaClient } from "@sla/db";
-import type { ZendeskCursor } from "@sla/zendesk";
+import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCursor } from "@sla/jira";
 import { authOptions } from "@/lib/auth";
 import { ZendeskConnectForm, ZendeskBackfillButton } from "./zendesk-actions";
@@ -25,6 +25,7 @@ export default async function IntegrationsPage() {
     }),
   ]);
   const zendeskCursor = (zendeskIntegration?.cursor as ZendeskCursor | null) ?? null;
+  const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
   const jiraCursor = (jiraIntegration?.cursor as JiraCursor | null) ?? null;
 
   return (
@@ -33,7 +34,7 @@ export default async function IntegrationsPage() {
 
       <section>
         <h2>Zendesk</h2>
-        {zendeskIntegration ? (
+        {zendeskIntegration && zendeskCredentials ? (
           <>
             <p>
               Connected {new Date(zendeskIntegration.connectedAt).toLocaleString()}
@@ -41,7 +42,10 @@ export default async function IntegrationsPage() {
                 ? ` — 90-day backfill complete as of ${new Date(zendeskCursor.backfillCompletedAt).toLocaleString()}.`
                 : " — no backfill run yet."}
             </p>
-            <ZendeskBackfillButton />
+            <ZendeskBackfillButton
+              subdomain={zendeskCredentials.subdomain}
+              initialReauthRequired={zendeskCredentials.reauthRequired === true}
+            />
           </>
         ) : (
           <>

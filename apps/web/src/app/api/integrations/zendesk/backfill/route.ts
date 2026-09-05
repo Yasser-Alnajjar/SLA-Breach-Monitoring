@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { runZendeskBackfill, runZendeskNormalization, type ZendeskCredentials } from "@sla/zendesk";
+import { runZendeskBackfill, runZendeskNormalization, ZendeskReauthRequiredError } from "@sla/zendesk";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { getZendeskOAuthConfig } from "@/lib/zendesk-env";
 
 export const maxDuration = 300;
 
@@ -21,15 +22,27 @@ export async function POST() {
     return NextResponse.json({ error: "Zendesk is not connected" }, { status: 404 });
   }
 
+  let config;
   try {
-    const backfill = await runZendeskBackfill(
-      prisma,
-      integration.id,
-      integration.credentials as unknown as ZendeskCredentials,
+    config = getZendeskOAuthConfig();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Zendesk OAuth is not configured" },
+      { status: 500 },
     );
+  }
+
+  try {
+    const backfill = await runZendeskBackfill(prisma, integration.id, config);
     const normalization = await runZendeskNormalization(prisma, integration.id);
     return NextResponse.json({ backfill, normalization });
   } catch (error) {
+    if (error instanceof ZendeskReauthRequiredError) {
+      return NextResponse.json(
+        { error: "Zendesk needs to be reconnected", reauthRequired: true },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Backfill failed" },
       { status: 502 },

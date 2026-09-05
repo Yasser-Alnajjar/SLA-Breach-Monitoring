@@ -7,8 +7,16 @@
 export interface ZendeskCredentials {
   subdomain: string;
   accessToken: string;
+  /** Absent for integrations connected before refresh support, or if the Zendesk OAuth client has no refresh token configured. */
+  refreshToken?: string;
   tokenType: string;
   scope: string;
+  /** Epoch ms. Absent means the access token does not expire (legacy client, or token expiration disabled on the Zendesk OAuth client). */
+  expiresAt?: number;
+  /** Epoch ms. Absent means unknown. */
+  refreshTokenExpiresAt?: number;
+  /** Set when a refresh attempt fails because the refresh token itself is invalid/expired/revoked. Cleared automatically on reconnect. */
+  reauthRequired?: boolean;
 }
 
 export interface ZendeskTicket {

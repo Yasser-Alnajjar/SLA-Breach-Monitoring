@@ -35,11 +35,19 @@ export function ZendeskConnectForm() {
   );
 }
 
-export function ZendeskBackfillButton() {
+interface ZendeskBackfillButtonProps {
+  /** Needed to send the user back through /connect without retyping it. */
+  subdomain: string;
+  /** True when the stored credentials already carry `reauthRequired` (checked on the server before this renders). */
+  initialReauthRequired?: boolean;
+}
+
+export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false }: ZendeskBackfillButtonProps) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reauthRequired, setReauthRequired] = useState(initialReauthRequired);
 
   async function handleClick() {
     setRunning(true);
@@ -51,12 +59,25 @@ export function ZendeskBackfillButton() {
     setRunning(false);
 
     if (!response.ok) {
-      setError(body.error ?? "Backfill failed");
+      if (body.reauthRequired) {
+        setReauthRequired(true);
+      } else {
+        setError(body.error ?? "Backfill failed");
+      }
       return;
     }
 
     setResult(body as SyncResult);
     router.refresh();
+  }
+
+  if (reauthRequired) {
+    return (
+      <div role="alert" className="zendesk-reauth-banner">
+        <p>Zendesk access has expired and needs to be reconnected before backfill can continue.</p>
+        <a href={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(subdomain)}`}>Reconnect Zendesk</a>
+      </div>
+    );
   }
 
   return (

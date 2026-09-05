@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import { ZendeskClient } from "./client";
+import type { ZendeskOAuthConfig } from "./oauth";
 import {
   mapAuditToRawEvent,
   mapOrganizationToRawEvent,
@@ -7,8 +8,8 @@ import {
   mapTicketToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
+import { loadFreshZendeskCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
 import type {
-  ZendeskCredentials,
   ZendeskCursor,
   ZendeskIncrementalOrganizationExport,
   ZendeskIncrementalTicketExport,
@@ -34,14 +35,17 @@ export interface BackfillResult {
 export async function runZendeskBackfill(
   prisma: PrismaClient,
   integrationId: string,
-  credentials: ZendeskCredentials,
+  config: ZendeskOAuthConfig,
   options: { sinceDays?: number } = {},
 ): Promise<BackfillResult> {
   const integration = await prisma.integration.findUniqueOrThrow({
     where: { id: integrationId },
   });
   const cursor = ((integration.cursor as ZendeskCursor | null) ?? {}) as ZendeskCursor;
-  const client = new ZendeskClient(credentials);
+  const credentials = await loadFreshZendeskCredentials(prisma, integrationId, config);
+  const client = new ZendeskClient(credentials, {
+    onUnauthorized: (failed) => refreshAfterUnauthorized(prisma, integrationId, config, failed),
+  });
   const sinceDays = options.sinceDays ?? DEFAULT_BACKFILL_DAYS;
   const defaultStartTime = Math.floor(Date.now() / 1000) - sinceDays * 24 * 60 * 60;
 

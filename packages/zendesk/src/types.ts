@@ -120,11 +120,55 @@ export interface ZendeskSlaPolicy {
   title: string;
   filter?: ZendeskSlaPolicyFilter;
   policy_metrics?: ZendeskSlaPolicyMetric[];
+  /**
+   * The business hours schedule this policy's `business_hours` metrics are
+   * measured against (Zendesk's Multiple Schedules feature). Null/absent
+   * means the account's metrics run on calendar time, or on a single
+   * account-wide schedule that isn't independently selectable per policy —
+   * either way there's no specific schedule to import a calendar for.
+   */
+  schedule_id?: number | null;
   [key: string]: unknown;
 }
 
 export interface ZendeskSlaPoliciesPage {
   sla_policies: ZendeskSlaPolicy[];
+  next_page: string | null;
+}
+
+/**
+ * One open window, expressed as minutes since Sunday 00:00 in the
+ * schedule's own timezone — a flat weekly offset rather than a per-day
+ * (day, openMinute, closeMinute) triple. Assumed to fall within a single
+ * day; Zendesk does not emit an interval spanning midnight.
+ */
+export interface ZendeskBusinessHoursInterval {
+  start_time: number;
+  end_time: number;
+}
+
+export interface ZendeskBusinessHoursSchedule {
+  id: number;
+  name: string;
+  time_zone: string;
+  intervals: ZendeskBusinessHoursInterval[];
+  [key: string]: unknown;
+}
+
+export interface ZendeskBusinessHoursSchedulesPage {
+  schedules: ZendeskBusinessHoursSchedule[];
+}
+
+/** `start_date`/`end_date` are "YYYY-MM-DD", inclusive of both endpoints. */
+export interface ZendeskScheduleHoliday {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
+export interface ZendeskScheduleHolidaysPage {
+  holidays: ZendeskScheduleHoliday[];
   next_page: string | null;
 }
 

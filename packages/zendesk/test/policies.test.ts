@@ -3,8 +3,9 @@ import {
   extractMatchFromFilter,
   groupPolicyMetricsByPriority,
   policyVersionContentEquals,
+  resolvePolicyCalendarVersion,
 } from "../src/policies";
-import type { ZendeskSlaPolicyMetric } from "../src/types";
+import type { ZendeskSlaPolicy, ZendeskSlaPolicyMetric } from "../src/types";
 
 describe("extractMatchFromFilter", () => {
   it("maps a single priority condition to match.priority", () => {
@@ -148,5 +149,28 @@ describe("policyVersionContentEquals", () => {
 
   it("is false when the calendar version changed", () => {
     expect(policyVersionContentEquals(base, { ...base, calendarVersionId: "cal_2" })).toBe(false);
+  });
+});
+
+describe("resolvePolicyCalendarVersion", () => {
+  function policy(overrides: Partial<ZendeskSlaPolicy>): ZendeskSlaPolicy {
+    return { id: 1, title: "Policy", ...overrides };
+  }
+  const defaultCalendar = { id: "cal_default" };
+
+  it("uses the default calendar when the policy has no schedule_id", () => {
+    const result = resolvePolicyCalendarVersion(policy({ schedule_id: null }), new Map(), defaultCalendar);
+    expect(result).toEqual({ calendarVersionId: "cal_default", scheduleUnresolved: false });
+  });
+
+  it("uses the imported schedule's calendar when it resolves", () => {
+    const byScheduleId = new Map([[42, { id: "cal_42" }]]);
+    const result = resolvePolicyCalendarVersion(policy({ schedule_id: 42 }), byScheduleId, defaultCalendar);
+    expect(result).toEqual({ calendarVersionId: "cal_42", scheduleUnresolved: false });
+  });
+
+  it("falls back to the default and reports unresolved when the schedule isn't imported yet", () => {
+    const result = resolvePolicyCalendarVersion(policy({ schedule_id: 99 }), new Map(), defaultCalendar);
+    expect(result).toEqual({ calendarVersionId: "cal_default", scheduleUnresolved: true });
   });
 });

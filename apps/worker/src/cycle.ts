@@ -9,6 +9,7 @@ import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNo
 import { runNotificationPipeline } from "@sla/notifications";
 import {
   runZendeskBackfill,
+  runZendeskBusinessCalendarImport,
   runZendeskNormalization,
   runZendeskSlaPolicyImport,
   ZendeskReauthRequiredError,
@@ -77,6 +78,7 @@ export async function runCycle(
           if (!config.zendesk) continue;
           await runZendeskBackfill(prisma, integration.id, config.zendesk);
           await runZendeskNormalization(prisma, integration.id);
+          await runZendeskBusinessCalendarImport(prisma, integration.id);
           await runZendeskSlaPolicyImport(prisma, integration.id);
         } else {
           if (!config.jira) continue;

@@ -1,9 +1,10 @@
-import { GitBranch, MessageSquare, Ticket } from "lucide-react";
+import { GitBranch, MessageSquare, Ticket, Workflow } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getPrismaClient } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCursor } from "@sla/jira";
+import type { LinearCursor } from "@sla/linear";
 import { AppShell } from "@/components/layout/app-shell";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { ZendeskConnectForm, ZendeskBackfillButton } from "./zendesk-actions";
 import { JiraConnectButton, JiraBackfillButton } from "./jira-actions";
+import { LinearConnectButton, LinearBackfillButton } from "./linear-actions";
 import { SlackConnectButton, SlackChannelPicker, SlackChannelChangeButton } from "./slack-actions";
 
 export default async function IntegrationsPage() {
@@ -18,7 +20,7 @@ export default async function IntegrationsPage() {
   if (!session) redirect("/sign-in");
 
   const prisma = getPrismaClient();
-  const [zendeskIntegration, jiraIntegration, slackIntegration] = await Promise.all([
+  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration] = await Promise.all([
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId: session.user.organizationId, provider: "zendesk" },
@@ -29,6 +31,11 @@ export default async function IntegrationsPage() {
         organizationId_provider: { organizationId: session.user.organizationId, provider: "jira" },
       },
     }),
+    prisma.integration.findUnique({
+      where: {
+        organizationId_provider: { organizationId: session.user.organizationId, provider: "linear" },
+      },
+    }),
     prisma.slackIntegration.findUnique({
       where: { organizationId: session.user.organizationId },
     }),
@@ -36,6 +43,7 @@ export default async function IntegrationsPage() {
   const zendeskCursor = (zendeskIntegration?.cursor as ZendeskCursor | null) ?? null;
   const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
   const jiraCursor = (jiraIntegration?.cursor as JiraCursor | null) ?? null;
+  const linearCursor = (linearIntegration?.cursor as LinearCursor | null) ?? null;
 
   return (
     <AppShell title="Integrations">
@@ -112,6 +120,41 @@ export default async function IntegrationsPage() {
         </Reveal>
 
         <Reveal delay={0.1}>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-md bg-interactive text-muted-foreground">
+                  <Workflow className="size-4" />
+                </span>
+                <CardTitle>Linear</CardTitle>
+              </div>
+              {linearIntegration && <Badge variant="success">Connected</Badge>}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {linearIntegration ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connected {new Date(linearIntegration.connectedAt).toLocaleString()}
+                    {linearCursor?.backfillCompletedAt
+                      ? ` — 90-day backfill complete as of ${new Date(linearCursor.backfillCompletedAt).toLocaleString()}.`
+                      : " — no backfill run yet."}
+                  </p>
+                  <LinearBackfillButton />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Read-only access — no issues, comments, or fields are ever written back to Linear. An
+                    alternative engineering-leg source alongside Jira, not a replacement.
+                  </p>
+                  <LinearConnectButton />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={0.15}>
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div className="flex items-center gap-2.5">

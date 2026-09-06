@@ -325,6 +325,7 @@ model SlackIntegration {
 enum IntegrationProvider {
   zendesk
   jira
+  linear
 }
 
 enum CaseLinkMethod {

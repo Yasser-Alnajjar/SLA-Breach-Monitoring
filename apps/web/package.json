@@ -23,6 +23,7 @@
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",
     "@sla/jira": "workspace:*",
+    "@sla/linear": "workspace:*",
     "@sla/slack": "workspace:*",
     "@sla/zendesk": "workspace:*",
     "bcryptjs": "^3.0.3",

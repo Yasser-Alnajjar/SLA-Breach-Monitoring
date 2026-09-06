@@ -158,12 +158,17 @@ file gets checked off and committed as each step lands.
       at creation time — only new commitments pick up real hours.
       Per-customer calendars stay a SHOULD, not a MUST.
 
-- [ ] **14 — Linear integration: connect + ingest**
+- [x] **14 — Linear integration: connect + ingest**
       First SHOULD HAVE item (`plans/03-Product-and-MVP.md`). New
       `packages/linear`, mirroring step 4's Jira shape: read-only OAuth
       connect flow, adapter pulling issues, status transitions, and linked
       resources into `RawEvent`. Ships as an alternative engineering-leg
-      source alongside Jira, not a replacement.
+      source alongside Jira, not a replacement. Linear's GraphQL API embeds
+      each workflow state's fixed-vocabulary `type` directly on every issue
+      and history entry, so — unlike Jira — there's no separate site-wide
+      status lookup to backfill. Linear's OAuth tokens also carry no refresh
+      token (they don't expire), so `tokenLifecycle.ts` only ever needs to
+      mark `reauthRequired` on a 401, never refresh.
 
 - [ ] **15 — Linear normalizer + correlator extension**
       `RawEvent` → `NormalizedEvent` for Linear, mirroring step 5's Jira

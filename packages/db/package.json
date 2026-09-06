@@ -11,11 +11,14 @@
     "migrate:dev": "prisma migrate dev"
   },
   "dependencies": {
-    "@prisma/client": "^5.20.0"
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "dotenv": "^17.4.2",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.7.5",
-    "prisma": "^5.20.0",
-    "typescript": "^5.6.3"
+    "@types/node": "^26.4.1",
+    "prisma": "^7.10.0",
+    "typescript": "^7.0.2"
   }
 }

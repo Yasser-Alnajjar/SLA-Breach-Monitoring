@@ -1,14 +1,18 @@
 "use client";
 
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { SlackChannel } from "@sla/slack";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function SlackConnectButton() {
   return (
-    <button type="button" onClick={() => (window.location.href = "/api/integrations/slack/connect")}>
+    <Button type="button" size="sm" onClick={() => (window.location.href = "/api/integrations/slack/connect")}>
       Connect Slack
-    </button>
+    </Button>
   );
 }
 
@@ -62,31 +66,45 @@ export function SlackChannelPicker() {
 
   if (channels === null) {
     return (
-      <div>
-        <button type="button" onClick={loadChannels} disabled={loading}>
+      <div className="space-y-3">
+        <Button type="button" size="sm" variant="outline" onClick={loadChannels} disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
           {loading ? "Loading channels…" : "Choose a channel"}
-        </button>
-        {error && <p role="alert">{error}</p>}
+        </Button>
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   }
 
   return (
-    <div>
-      <select value={selected} onChange={(event) => setSelected(event.target.value)}>
-        <option value="" disabled>
-          Select a channel
-        </option>
-        {channels.map((channel) => (
-          <option key={channel.id} value={channel.id}>
-            #{channel.name}
-          </option>
-        ))}
-      </select>
-      <button type="button" onClick={handleSave} disabled={!selected || saving}>
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={selected} onValueChange={setSelected}>
+        <SelectTrigger className="w-56">
+          <SelectValue placeholder="Select a channel" />
+        </SelectTrigger>
+        <SelectContent>
+          {channels.map((channel) => (
+            <SelectItem key={channel.id} value={channel.id}>
+              #{channel.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="button" size="sm" onClick={handleSave} disabled={!selected || saving}>
+        {saving && <Loader2 className="animate-spin" />}
         {saving ? "Saving…" : "Save channel"}
-      </button>
-      {error && <p role="alert">{error}</p>}
+      </Button>
+      {error && (
+        <Alert variant="destructive" className="w-full">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
@@ -95,8 +113,8 @@ export function SlackChannelChangeButton() {
   const [changing, setChanging] = useState(false);
   if (changing) return <SlackChannelPicker />;
   return (
-    <button type="button" onClick={() => setChanging(true)}>
+    <Button type="button" size="sm" variant="outline" onClick={() => setChanging(true)}>
       Change channel
-    </button>
+    </Button>
   );
 }

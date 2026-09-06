@@ -1,8 +1,14 @@
 "use client";
 
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { BackfillResult, NormalizationResult } from "@sla/zendesk";
+import { ReauthBanner } from "@/components/shared/reauth-banner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SyncResult {
   backfill: BackfillResult;
@@ -18,19 +24,25 @@ export function ZendeskConnectForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="zendesk-connect-form">
-      <label>
-        Zendesk subdomain
-        <input
-          value={subdomain}
-          onChange={(event) => setSubdomain(event.target.value)}
-          placeholder="acme"
-          pattern="[a-zA-Z0-9][a-zA-Z0-9\-]*"
-          required
-        />
-        <span>.zendesk.com</span>
-      </label>
-      <button type="submit">Connect Zendesk</button>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="zendesk-subdomain">Zendesk subdomain</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="zendesk-subdomain"
+            value={subdomain}
+            onChange={(event) => setSubdomain(event.target.value)}
+            placeholder="acme"
+            pattern="[a-zA-Z0-9][a-zA-Z0-9\-]*"
+            required
+            className="max-w-40"
+          />
+          <span className="text-sm text-muted-foreground">.zendesk.com</span>
+        </div>
+      </div>
+      <Button type="submit" size="sm">
+        Connect Zendesk
+      </Button>
     </form>
   );
 }
@@ -72,22 +84,23 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
   }
 
   if (reauthRequired) {
-    return (
-      <div role="alert" className="zendesk-reauth-banner">
-        <p>Zendesk access has expired and needs to be reconnected before backfill can continue.</p>
-        <a href={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(subdomain)}`}>Reconnect Zendesk</a>
-      </div>
-    );
+    return <ReauthBanner subdomain={subdomain} />;
   }
 
   return (
-    <div>
-      <button type="button" onClick={handleClick} disabled={running}>
+    <div className="space-y-3">
+      <Button type="button" size="sm" variant="outline" onClick={handleClick} disabled={running}>
+        {running && <Loader2 className="animate-spin" />}
         {running ? "Running backfill…" : "Run backfill"}
-      </button>
-      {error && <p role="alert">{error}</p>}
+      </Button>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {result && (
-        <>
+        <div className="space-y-1 text-sm text-muted-foreground">
           <p>
             {result.backfill.ticketsFetched} tickets · {result.backfill.ticketAuditsFetched} ticket events ·{" "}
             {result.backfill.organizationsFetched} organizations · {result.backfill.slaPoliciesFetched} SLA
@@ -99,7 +112,7 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
             {result.normalization.ticketsFailed.length > 0 &&
               ` ${result.normalization.ticketsFailed.length} ticket(s) failed to normalize.`}
           </p>
-        </>
+        </div>
       )}
     </div>
   );

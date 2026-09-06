@@ -1,8 +1,13 @@
+import { GitBranch, MessageSquare, Ticket } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getPrismaClient } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCursor } from "@sla/jira";
+import { AppShell } from "@/components/layout/app-shell";
+import { Reveal } from "@/components/shared/reveal";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { ZendeskConnectForm, ZendeskBackfillButton } from "./zendesk-actions";
 import { JiraConnectButton, JiraBackfillButton } from "./jira-actions";
@@ -33,73 +38,119 @@ export default async function IntegrationsPage() {
   const jiraCursor = (jiraIntegration?.cursor as JiraCursor | null) ?? null;
 
   return (
-    <main className="settings-page">
-      <h1>Integrations</h1>
+    <AppShell title="Integrations">
+      <div className="flex max-w-2xl flex-col gap-4">
+        <Reveal delay={0}>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-md bg-interactive text-muted-foreground">
+                  <Ticket className="size-4" />
+                </span>
+                <CardTitle>Zendesk</CardTitle>
+              </div>
+              {zendeskIntegration && zendeskCredentials && <Badge variant="success">Connected</Badge>}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {zendeskIntegration && zendeskCredentials ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connected {new Date(zendeskIntegration.connectedAt).toLocaleString()}
+                    {zendeskCursor?.backfillCompletedAt
+                      ? ` — 90-day backfill complete as of ${new Date(zendeskCursor.backfillCompletedAt).toLocaleString()}.`
+                      : " — no backfill run yet."}
+                  </p>
+                  <ZendeskBackfillButton
+                    subdomain={zendeskCredentials.subdomain}
+                    initialReauthRequired={zendeskCredentials.reauthRequired === true}
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Read-only access — no tickets, comments, or fields are ever written back to Zendesk.
+                  </p>
+                  <ZendeskConnectForm />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
 
-      <section>
-        <h2>Zendesk</h2>
-        {zendeskIntegration && zendeskCredentials ? (
-          <>
-            <p>
-              Connected {new Date(zendeskIntegration.connectedAt).toLocaleString()}
-              {zendeskCursor?.backfillCompletedAt
-                ? ` — 90-day backfill complete as of ${new Date(zendeskCursor.backfillCompletedAt).toLocaleString()}.`
-                : " — no backfill run yet."}
-            </p>
-            <ZendeskBackfillButton
-              subdomain={zendeskCredentials.subdomain}
-              initialReauthRequired={zendeskCredentials.reauthRequired === true}
-            />
-          </>
-        ) : (
-          <>
-            <p>Read-only access — no tickets, comments, or fields are ever written back to Zendesk.</p>
-            <ZendeskConnectForm />
-          </>
-        )}
-      </section>
+        <Reveal delay={0.05}>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-md bg-interactive text-muted-foreground">
+                  <GitBranch className="size-4" />
+                </span>
+                <CardTitle>Jira</CardTitle>
+              </div>
+              {jiraIntegration && <Badge variant="success">Connected</Badge>}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {jiraIntegration ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connected {new Date(jiraIntegration.connectedAt).toLocaleString()}
+                    {jiraCursor?.backfillCompletedAt
+                      ? ` — 90-day backfill complete as of ${new Date(jiraCursor.backfillCompletedAt).toLocaleString()}.`
+                      : " — no backfill run yet."}
+                  </p>
+                  <JiraBackfillButton />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Read-only access — no issues, comments, or fields are ever written back to Jira.
+                  </p>
+                  <JiraConnectButton />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
 
-      <section>
-        <h2>Jira</h2>
-        {jiraIntegration ? (
-          <>
-            <p>
-              Connected {new Date(jiraIntegration.connectedAt).toLocaleString()}
-              {jiraCursor?.backfillCompletedAt
-                ? ` — 90-day backfill complete as of ${new Date(jiraCursor.backfillCompletedAt).toLocaleString()}.`
-                : " — no backfill run yet."}
-            </p>
-            <JiraBackfillButton />
-          </>
-        ) : (
-          <>
-            <p>Read-only access — no issues, comments, or fields are ever written back to Jira.</p>
-            <JiraConnectButton />
-          </>
-        )}
-      </section>
-
-      <section>
-        <h2>Slack</h2>
-        {slackIntegration ? (
-          <>
-            <p>Connected to {slackIntegration.teamName} {new Date(slackIntegration.installedAt).toLocaleString()}.</p>
-            {slackIntegration.channelId ? (
-              <>
-                <p>At-risk and breach alerts post to #{slackIntegration.channelName}.</p>
-                <SlackChannelChangeButton />
-              </>
-            ) : (
-              <SlackChannelPicker />
-            )}
-          </>
-        ) : (
-          <>
-            <p>The only alert channel in v1. Posts when a commitment crosses a warning threshold or breaches.</p>
-            <SlackConnectButton />
-          </>
-        )}
-      </section>
-    </main>
+        <Reveal delay={0.1}>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-md bg-interactive text-muted-foreground">
+                  <MessageSquare className="size-4" />
+                </span>
+                <CardTitle>Slack</CardTitle>
+              </div>
+              {slackIntegration && <Badge variant="success">Connected</Badge>}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {slackIntegration ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connected to {slackIntegration.teamName} {new Date(slackIntegration.installedAt).toLocaleString()}.
+                  </p>
+                  {slackIntegration.channelId ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        At-risk and breach alerts post to #{slackIntegration.channelName}.
+                      </p>
+                      <SlackChannelChangeButton />
+                    </>
+                  ) : (
+                    <SlackChannelPicker />
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    The only alert channel in v1. Posts when a commitment crosses a warning threshold or breaches.
+                  </p>
+                  <SlackConnectButton />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
+      </div>
+    </AppShell>
   );
 }

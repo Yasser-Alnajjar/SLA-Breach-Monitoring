@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getPrismaClient } from "@sla/db";
 import type { ZendeskCredentials } from "@sla/zendesk";
+import { OnboardingShell } from "@/components/shared/onboarding-shell";
 import { authOptions } from "@/lib/auth";
 import { getOnboardingStatus } from "@/lib/onboarding-data";
 import { OnboardingFlow } from "./onboarding-flow";
@@ -22,12 +23,8 @@ export default async function OnboardingPage() {
   const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
 
   return (
-    <main className="onboarding-page">
-      <header className="onboarding-header">
-        <h1>Getting started</h1>
-        <a href="/dashboard">Skip to dashboard</a>
-      </header>
+    <OnboardingShell title="Getting started" description="Connect your tools — findings show up automatically.">
       <OnboardingFlow initialStatus={status} zendeskSubdomain={zendeskCredentials?.subdomain ?? null} />
-    </main>
+    </OnboardingShell>
   );
 }

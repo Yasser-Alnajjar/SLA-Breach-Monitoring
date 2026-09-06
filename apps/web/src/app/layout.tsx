@@ -25,7 +25,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable}`}>
+    <html
+      lang="en"
+      className={`${fontSans.variable} ${fontDisplay.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         <MotionProvider>{children}</MotionProvider>
       </body>

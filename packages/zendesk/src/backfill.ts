@@ -3,7 +3,9 @@ import { ZendeskClient } from "./client";
 import type { ZendeskOAuthConfig } from "./oauth";
 import {
   mapAuditToRawEvent,
+  mapBusinessHoursScheduleToRawEvent,
   mapOrganizationToRawEvent,
+  mapScheduleHolidaysToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
   type RawEventInput,
@@ -13,6 +15,7 @@ import type {
   ZendeskCursor,
   ZendeskIncrementalOrganizationExport,
   ZendeskIncrementalTicketExport,
+  ZendeskScheduleHoliday,
 } from "./types";
 
 const DEFAULT_BACKFILL_DAYS = 90;
@@ -23,6 +26,7 @@ export interface BackfillResult {
   ticketAuditsFetched: number;
   organizationsFetched: number;
   slaPoliciesFetched: number;
+  businessHoursSchedulesFetched: number;
 }
 
 /**
@@ -54,11 +58,13 @@ export async function runZendeskBackfill(
     ticketAuditsFetched: 0,
     organizationsFetched: 0,
     slaPoliciesFetched: 0,
+    businessHoursSchedulesFetched: 0,
   };
 
   await backfillTickets();
   await backfillOrganizations();
   await backfillSlaPolicies();
+  await backfillBusinessHoursSchedules();
 
   if (cursor.tickets && cursor.organizations) {
     cursor.backfillCompletedAt = new Date().toISOString();
@@ -141,6 +147,34 @@ export async function runZendeskBackfill(
       if (!page.next_page) break;
       nextPageUrl = page.next_page;
     }
+  }
+
+  /**
+   * Schedules and their holidays are small, full snapshots re-fetched every
+   * run (like SLA policies) rather than paginated/cursor-tracked — accounts
+   * have few business hours schedules.
+   */
+  async function backfillBusinessHoursSchedules(): Promise<void> {
+    const { schedules } = await client.fetchBusinessHoursSchedules();
+    await writeRawEvents(schedules.map(mapBusinessHoursScheduleToRawEvent));
+    result.businessHoursSchedulesFetched += schedules.length;
+
+    for (const schedule of schedules) {
+      const holidays = await fetchAllHolidays(schedule.id);
+      await writeRawEvents([mapScheduleHolidaysToRawEvent({ scheduleId: schedule.id, holidays })]);
+    }
+  }
+
+  async function fetchAllHolidays(scheduleId: number): Promise<ZendeskScheduleHoliday[]> {
+    const holidays: ZendeskScheduleHoliday[] = [];
+    let nextPageUrl: string | undefined;
+    for (;;) {
+      const page = await client.fetchScheduleHolidaysPage(scheduleId, nextPageUrl);
+      holidays.push(...page.holidays);
+      if (!page.next_page) break;
+      nextPageUrl = page.next_page;
+    }
+    return holidays;
   }
 
   async function writeRawEvents(inputs: RawEventInput[]): Promise<void> {

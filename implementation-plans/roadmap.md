@@ -142,19 +142,21 @@ file gets checked off and committed as each step lands.
       TypeScript 7, next-auth 4.24.15), including the `middleware.ts` →
       `proxy.ts` rename Next 16 requires.
 
-- [ ] **13 — Zendesk business-hours import**
+- [x] **13 — Zendesk business-hours import**
       The last open item on Phase 10's MUST HAVE list: "SLA engine: ...
-      business hours, holidays, pause states." Every org today is anchored to
-      an always-open 24/7 `BusinessCalendar` (`packages/zendesk/src/policies.ts`'s
-      `ensureDefaultCalendarVersion`) because Zendesk's real schedules were
-      never ingested (Architecture Sketch Phase 13.5, line 110: "Imported from
-      Zendesk schedules where available"). Pull Zendesk's business hours
-      schedules (working days/hours, timezone, holidays) via `RawEvent`, map
-      each to a versioned `BusinessCalendarVersion`, and match commitments to
-      the calendar their SLA policy's schedule actually points to instead of
-      the default. Existing commitments keep the calendar version bound at
-      creation time (append-only versioning) — only new commitments pick up
-      real hours. Per-customer calendars stay a SHOULD, not a MUST.
+      business hours, holidays, pause states." `packages/zendesk/src/backfill.ts`
+      now pulls `/business_hours/schedules.json` and each schedule's holidays
+      into `RawEvent`; `runZendeskBusinessCalendarImport`
+      (`packages/zendesk/src/calendars.ts`) maps them to a versioned
+      `BusinessCalendarVersion` per schedule (`BusinessCalendar.externalId` =
+      Zendesk schedule id — same append-only, name-plus-version shape as
+      `SLAPolicy`/`SLAPolicyVersion`). `runZendeskSlaPolicyImport` resolves
+      each policy's `schedule_id` to that calendar via
+      `resolvePolicyCalendarVersion`, falling back to the always-open default
+      (and counting it, never guessing) when a policy points at a schedule
+      not yet imported. Existing commitments keep the calendar version bound
+      at creation time — only new commitments pick up real hours.
+      Per-customer calendars stay a SHOULD, not a MUST.
 
 - [ ] **14 — Linear integration: connect + ingest**
       First SHOULD HAVE item (`plans/03-Product-and-MVP.md`). New

@@ -1,8 +1,10 @@
 import type {
   ZendeskAuditsPage,
+  ZendeskBusinessHoursSchedulesPage,
   ZendeskCredentials,
   ZendeskIncrementalOrganizationExport,
   ZendeskIncrementalTicketExport,
+  ZendeskScheduleHolidaysPage,
   ZendeskSlaPoliciesPage,
 } from "./types";
 
@@ -90,6 +92,17 @@ export class ZendeskClient {
 
   fetchTicketAuditsPage(ticketId: number, nextPageUrl?: string): Promise<ZendeskAuditsPage> {
     return this.request<ZendeskAuditsPage>(nextPageUrl ?? `/api/v2/tickets/${ticketId}/audits.json`);
+  }
+
+  /** https://developer.zendesk.com/api-reference/ticketing/business-hours/schedules/ — accounts have few schedules, so Zendesk returns them unpaginated. */
+  fetchBusinessHoursSchedules(): Promise<ZendeskBusinessHoursSchedulesPage> {
+    return this.request<ZendeskBusinessHoursSchedulesPage>("/api/v2/business_hours/schedules.json");
+  }
+
+  fetchScheduleHolidaysPage(scheduleId: number, nextPageUrl?: string): Promise<ZendeskScheduleHolidaysPage> {
+    return this.request<ZendeskScheduleHolidaysPage>(
+      nextPageUrl ?? `/api/v2/business_hours/schedules/${scheduleId}/holidays.json`,
+    );
   }
 }
 

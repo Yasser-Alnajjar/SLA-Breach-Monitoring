@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import type { CommitmentKind, NormalizedState, SLAPolicyMatch } from "@sla/core";
+import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
 import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilter, ZendeskSlaPolicyMetric } from "./types";
 
@@ -156,6 +157,30 @@ export async function ensureDefaultCalendarVersion(
   return created.versions[0]!;
 }
 
+/**
+ * Which `BusinessCalendarVersion` a policy's commitments should anchor to.
+ * A policy with `schedule_id` set points at a specific Zendesk business
+ * hours schedule; if that schedule has been imported (roadmap step 13) its
+ * calendar is used, otherwise the policy falls back to the always-open
+ * default and the gap is counted, never guessed at. A policy with no
+ * `schedule_id` (calendar-time metrics, or an account with no selectable
+ * schedule) also uses the default.
+ */
+export function resolvePolicyCalendarVersion(
+  policy: ZendeskSlaPolicy,
+  calendarVersionsByScheduleId: ReadonlyMap<number, { id: string }>,
+  defaultCalendarVersion: { id: string },
+): { calendarVersionId: string; scheduleUnresolved: boolean } {
+  if (policy.schedule_id == null) {
+    return { calendarVersionId: defaultCalendarVersion.id, scheduleUnresolved: false };
+  }
+  const resolved = calendarVersionsByScheduleId.get(policy.schedule_id);
+  if (resolved) {
+    return { calendarVersionId: resolved.id, scheduleUnresolved: false };
+  }
+  return { calendarVersionId: defaultCalendarVersion.id, scheduleUnresolved: true };
+}
+
 async function upsertPolicyVersion(
   prisma: PrismaClient,
   organizationId: string,
@@ -209,6 +234,8 @@ export interface SlaPolicyImportResult {
   unsupportedConditions: number;
   unsupportedMetrics: number;
   policiesWithNoUsableTargets: number;
+  /** Policies whose `schedule_id` points at a schedule not (yet) imported as a BusinessCalendar — fell back to the always-open default. */
+  policiesWithUnresolvedSchedule: number;
 }
 
 /**
@@ -232,6 +259,7 @@ export async function runZendeskSlaPolicyImport(
     unsupportedConditions: 0,
     unsupportedMetrics: 0,
     policiesWithNoUsableTargets: 0,
+    policiesWithUnresolvedSchedule: 0,
   };
 
   const rows = await prisma.rawEvent.findMany({
@@ -248,7 +276,8 @@ export async function runZendeskSlaPolicyImport(
   });
   const customerIdsByZendeskOrgId = new Map(customers.map((c) => [c.zendeskOrgId as string, c.id]));
 
-  const calendarVersion = await ensureDefaultCalendarVersion(prisma, organizationId);
+  const defaultCalendarVersion = await ensureDefaultCalendarVersion(prisma, organizationId);
+  const calendarVersionsByScheduleId = await latestCalendarVersionsByZendeskScheduleId(prisma, organizationId);
 
   for (const { value: policy } of latestPolicies.values()) {
     result.policiesEvaluated += 1;
@@ -267,6 +296,13 @@ export async function runZendeskSlaPolicyImport(
       continue;
     }
 
+    const { calendarVersionId, scheduleUnresolved } = resolvePolicyCalendarVersion(
+      policy,
+      calendarVersionsByScheduleId,
+      defaultCalendarVersion,
+    );
+    if (scheduleUnresolved) result.policiesWithUnresolvedSchedule += 1;
+
     for (const group of groups) {
       const externalId = `${policy.id}:${group.priority ?? "any"}`;
       const match: SLAPolicyMatch = { ...filterMatch };
@@ -275,7 +311,7 @@ export async function runZendeskSlaPolicyImport(
       const created = await upsertPolicyVersion(prisma, organizationId, externalId, policy.title, {
         match,
         targets: group.targets,
-        calendarVersionId: calendarVersion.id,
+        calendarVersionId,
       });
       if (created) result.policyVersionsCreated += 1;
     }

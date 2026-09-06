@@ -1,7 +1,9 @@
 import { computeSourceHash } from "./hash";
 import type {
   ZendeskAudit,
+  ZendeskBusinessHoursSchedule,
   ZendeskOrganization,
+  ZendeskScheduleHoliday,
   ZendeskSlaPolicy,
   ZendeskTicket,
 } from "./types";
@@ -51,5 +53,29 @@ export function mapSlaPolicyToRawEvent(policy: ZendeskSlaPolicy): RawEventInput 
     providerEventId: `sla_policy:${policy.id}:${sourceHash}`,
     sourceHash,
     payload: policy,
+  };
+}
+
+export function mapBusinessHoursScheduleToRawEvent(schedule: ZendeskBusinessHoursSchedule): RawEventInput {
+  const sourceHash = computeSourceHash(schedule);
+  return {
+    providerEventId: `business_hours_schedule:${schedule.id}:${sourceHash}`,
+    sourceHash,
+    payload: schedule,
+  };
+}
+
+/** One snapshot per schedule bundling its full holiday list, mirroring how tickets/policies snapshot rather than diff. */
+export interface ScheduleHolidaysSnapshot {
+  scheduleId: number;
+  holidays: ZendeskScheduleHoliday[];
+}
+
+export function mapScheduleHolidaysToRawEvent(snapshot: ScheduleHolidaysSnapshot): RawEventInput {
+  const sourceHash = computeSourceHash(snapshot);
+  return {
+    providerEventId: `schedule_holidays:${snapshot.scheduleId}:${sourceHash}`,
+    sourceHash,
+    payload: snapshot,
   };
 }

@@ -9,7 +9,9 @@ export {
 } from "./normalize";
 export {
   mapAuditToRawEvent,
+  mapBusinessHoursScheduleToRawEvent,
   mapOrganizationToRawEvent,
+  mapScheduleHolidaysToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
 } from "./rawEvents";
@@ -25,6 +27,7 @@ export {
   groupPolicyMetricsByPriority,
   PAUSE_ON_STATES,
   policyVersionContentEquals,
+  resolvePolicyCalendarVersion,
   runZendeskSlaPolicyImport,
   WARN_AT_PERCENT,
 } from "./policies";
@@ -34,13 +37,21 @@ export type {
   PolicyTargetGroup,
   SlaPolicyImportResult,
 } from "./policies";
+export {
+  calendarVersionContentEquals,
+  expandHolidayDates,
+  intervalsToWeeklyWindows,
+  latestCalendarVersionsByZendeskScheduleId,
+  runZendeskBusinessCalendarImport,
+} from "./calendars";
+export type { BusinessCalendarImportResult } from "./calendars";
 export * from "./types";
 export { ZendeskClient, ZendeskApiError } from "./client";
 export type { ZendeskClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runZendeskBackfill } from "./backfill";
 export type { BackfillResult } from "./backfill";
-export type { RawEventInput } from "./rawEvents";
+export type { RawEventInput, ScheduleHolidaysSnapshot } from "./rawEvents";
 export type { ZendeskOAuthConfig } from "./oauth";
 export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, ZendeskOAuthError } from "./oauth";
 export {

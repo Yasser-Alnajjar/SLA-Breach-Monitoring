@@ -123,10 +123,119 @@ file gets checked off and committed as each step lands.
       (`subdomain` / `siteUrl`) rather than a stored URL, since neither is
       persisted anywhere else. Dashboard rows now link to their case.
 
-- [ ] **11 — CSV export + onboarding polish**
-      CSV export (the reporting floor). Streaming backfill progress view with
-      live counts, zero-input findings screen, time-to-value target under 15
-      minutes unattended (Phase 11).
+- [x] **11 — CSV export + onboarding polish**
+      `/api/reports/commitments` streams every commitment (open and closed) as
+      CSV — the reporting floor (Phase 11). `/onboarding` replaces the manual
+      "run backfill twice" flow with automatic backfill + live progress
+      polling (`RawEvent`/`Case`/`CaseLink` counts every 2.5s); Jira stays
+      optional and never blocks the handoff. `/onboarding/findings` computes a
+      zero-input findings screen live from existing data, no worker cycle
+      needed.
+
+- [x] **12 — Visual redesign**
+      Rebuilt every page (auth, onboarding, dashboard, case detail, settings)
+      on a Tailwind v4 + shadcn-style component system (obsidian / electric
+      lime / warm sand theme), shared app shell/navigation, and Framer Motion
+      micro-interactions — no changes to data-fetching or business logic.
+      Paired with a full dependency upgrade to latest stable across the
+      monorepo (Next 16, React 19, Prisma 7 driver-adapter architecture,
+      TypeScript 7, next-auth 4.24.15), including the `middleware.ts` →
+      `proxy.ts` rename Next 16 requires.
+
+- [ ] **13 — Zendesk business-hours import**
+      The last open item on Phase 10's MUST HAVE list: "SLA engine: ...
+      business hours, holidays, pause states." Every org today is anchored to
+      an always-open 24/7 `BusinessCalendar` (`packages/zendesk/src/policies.ts`'s
+      `ensureDefaultCalendarVersion`) because Zendesk's real schedules were
+      never ingested (Architecture Sketch Phase 13.5, line 110: "Imported from
+      Zendesk schedules where available"). Pull Zendesk's business hours
+      schedules (working days/hours, timezone, holidays) via `RawEvent`, map
+      each to a versioned `BusinessCalendarVersion`, and match commitments to
+      the calendar their SLA policy's schedule actually points to instead of
+      the default. Existing commitments keep the calendar version bound at
+      creation time (append-only versioning) — only new commitments pick up
+      real hours. Per-customer calendars stay a SHOULD, not a MUST.
+
+- [ ] **14 — Linear integration: connect + ingest**
+      First SHOULD HAVE item (`plans/03-Product-and-MVP.md`). New
+      `packages/linear`, mirroring step 4's Jira shape: read-only OAuth
+      connect flow, adapter pulling issues, status transitions, and linked
+      resources into `RawEvent`. Ships as an alternative engineering-leg
+      source alongside Jira, not a replacement.
+
+- [ ] **15 — Linear normalizer + correlator extension**
+      `RawEvent` → `NormalizedEvent` for Linear, mirroring step 5's Jira
+      normalizer. Extends the deterministic correlator (`packages/core`) to
+      produce `CaseLink` rows from Zendesk↔Linear links on the same
+      deterministic-tier basis as Zendesk↔Jira — no fuzzy matching here
+      either.
+
+- [ ] **16 — Optional per-team leg targets**
+      The OLA configuration surface stays deliberately tiny per Phase 10's
+      scope reduction: one optional target duration per engineering leg, not
+      a policy builder. Settings UI to set/clear a target on a team; when set,
+      `evaluateCommitment` reports at-risk/breach on the engineering leg the
+      same way it already does for SLA commitments.
+
+- [ ] **17 — Email notifications**
+      Second notification channel in `packages/notifications`, alongside
+      Slack (step 8). Same dedup enforcement point (`Notification` table's
+      `@@unique([commitmentId, threshold])`) and the same threshold-crossing
+      evaluation output — only the formatter and transport are new.
+
+- [ ] **18 — SLA policy override UI**
+      Manual override of a matched policy's targets, surfaced in
+      `apps/web/src/app/settings/integrations`. An override creates a new
+      `SLAPolicyVersion` through the existing versioning path (step 6) rather
+      than a side channel, so overridden commitments stay just as
+      reproducible and auditable as imported ones.
+
+- [ ] **19 — Webhooks for real-time freshness**
+      Zendesk/Jira webhook receivers that push events into the same
+      `RawEvent` ingestion path the two-speed poller (step 7) already writes
+      to, closing the gap between an event happening and the next 5-minute
+      poll. The poll/sweep cycles stay in place as the reconciliation safety
+      net for missed or out-of-order webhook deliveries.
+
+- [ ] **20 — Intercom integration (first NICE TO HAVE source)**
+      Only if pulled by customers (`plans/03-Product-and-MVP.md`). New
+      `packages/intercom` as a third read-only ticket source, mirroring the
+      Zendesk ingest/normalize shape (steps 2–3). Picked first among
+      Intercom/Freshdesk/Pylon per whichever integration actual prospects
+      ask for.
+
+- [ ] **21 — GitHub integration**
+      Engineering-leg source alongside Jira/Linear: PR and commit events
+      correlated to a `Case` via the same deterministic-link tier, giving a
+      third option for teams that track engineering work in GitHub Issues/PRs
+      rather than a dedicated tracker.
+
+- [ ] **22 — Custom business calendars per customer**
+      Extends step 13's calendar engine: today one `BusinessCalendar` covers
+      an entire organization. This lets a customer with contractually
+      different hours (e.g. 24/7 enterprise tier vs. standard business hours)
+      get its own calendar version, matched via `Commitment.calendarVersionId`
+      same as today, just resolved per-customer instead of per-org.
+
+- [ ] **23 — Public API**
+      Read-only API exposing dashboard and case-detail data
+      (`apps/web/src/lib/dashboard-data.ts`, `case-detail-data.ts`) for
+      customers wiring their own BI tools or internal dashboards to it.
+      API-key auth, not OAuth — this is machine-to-machine, not a new user
+      surface.
+
+- [ ] **24 — SSO/SAML**
+      Enterprise auth requirement once deals need it. Layers onto the
+      existing minimal email/OAuth auth (step 1) rather than replacing it;
+      Phase 10 explicitly kept auth minimal for v1, so this only gets built
+      when a specific deal is blocked on it.
+
+- [ ] **25 — Anomaly detection on cycle times**
+      Statistical (not AI/LLM — Phase 10's DO NOT BUILD list rules that out)
+      detection of unusual cycle-time patterns across `Evaluation` history,
+      surfaced as a dashboard callout. Lowest-priority NICE TO HAVE item;
+      only worth building once there's enough historical `Evaluation` volume
+      per customer for a baseline to mean anything.
 
 ## Explicitly deferred past v1
 

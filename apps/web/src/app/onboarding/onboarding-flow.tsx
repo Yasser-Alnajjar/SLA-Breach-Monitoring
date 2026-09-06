@@ -1,7 +1,13 @@
 "use client";
 
+import { AlertCircle, ArrowRight, CircleDot, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Reveal } from "@/components/shared/reveal";
+import { ReauthBanner } from "@/components/shared/reauth-banner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import type { OnboardingStatus } from "@/lib/onboarding-data";
 import { JiraConnectButton } from "../settings/integrations/jira-actions";
 import { ZendeskConnectForm } from "../settings/integrations/zendesk-actions";
@@ -68,52 +74,89 @@ export function OnboardingFlow({ initialStatus, zendeskSubdomain }: OnboardingFl
 
   if (!status.zendesk.connected) {
     return (
-      <div className="onboarding-step">
-        <p>Connect Zendesk to pull your last 90 days of tickets, SLA policies, and organizations — read-only, one click.</p>
-        <ZendeskConnectForm />
-      </div>
+      <Reveal>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-sm text-muted-foreground">
+              Connect Zendesk to pull your last 90 days of tickets, SLA policies, and organizations —
+              read-only, one click.
+            </p>
+            <div className="mt-4">
+              <ZendeskConnectForm />
+            </div>
+          </CardContent>
+        </Card>
+      </Reveal>
     );
   }
 
   if (status.zendesk.reauthRequired) {
     return (
-      <div role="alert" className="zendesk-reauth-banner">
-        <p>Zendesk access has expired and needs to be reconnected before backfill can continue.</p>
-        <a href={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(zendeskSubdomain ?? "")}`}>
-          Reconnect Zendesk
-        </a>
-      </div>
+      <Reveal>
+        <ReauthBanner subdomain={zendeskSubdomain ?? ""} />
+      </Reveal>
     );
   }
 
   return (
-    <div className="onboarding-step">
-      {zendeskRunning ? (
-        <p>Pulling your last 90 days from Zendesk…</p>
-      ) : (
-        <p>Zendesk backfill complete{jiraRunning ? " — Jira is still catching up in the background." : "."}</p>
-      )}
+    <Reveal>
+      <Card>
+        <CardContent className="space-y-5 pt-5">
+          <div className="flex items-center gap-2.5 text-sm">
+            {zendeskRunning ? (
+              <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+            ) : (
+              <CircleDot className="size-4 shrink-0 text-success" />
+            )}
+            <p className="text-foreground">
+              {zendeskRunning
+                ? "Pulling your last 90 days from Zendesk…"
+                : `Zendesk backfill complete${jiraRunning ? " — Jira is still catching up in the background." : "."}`}
+            </p>
+          </div>
 
-      <p className="onboarding-counts">
-        <strong>{status.ticketsFetched.toLocaleString()}</strong> tickets ·{" "}
-        <strong>{status.escalatedCases.toLocaleString()}</strong> escalations ·{" "}
-        <strong>{status.linkedIssues.toLocaleString()}</strong> linked issues
-      </p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Tickets", value: status.ticketsFetched },
+              { label: "Escalations", value: status.escalatedCases },
+              { label: "Linked issues", value: status.linkedIssues },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-lg border border-border bg-interactive/30 px-3 py-2.5">
+                <p className="font-display text-xl font-medium tracking-tight">{stat.value.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+            ))}
+          </div>
 
-      {!status.jira.connected && (
-        <div className="onboarding-jira-prompt">
-          <p>Connecting Jira adds engineering-leg timing — optional, and can be done later without losing progress.</p>
-          <JiraConnectButton />
-        </div>
-      )}
+          {!status.jira.connected && (
+            <div className="rounded-lg border border-dashed border-border p-3.5">
+              <p className="text-sm text-muted-foreground">
+                Connecting Jira adds engineering-leg timing — optional, and can be done later without
+                losing progress.
+              </p>
+              <div className="mt-3">
+                <JiraConnectButton />
+              </div>
+            </div>
+          )}
 
-      {error && <p role="alert">{error}</p>}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      {status.zendesk.backfillComplete && (
-        <p>
-          <a href="/onboarding/findings">Findings are ready →</a>
-        </p>
-      )}
-    </div>
+          {status.zendesk.backfillComplete && (
+            <Button asChild>
+              <a href="/onboarding/findings">
+                Findings are ready
+                <ArrowRight />
+              </a>
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </Reveal>
   );
 }

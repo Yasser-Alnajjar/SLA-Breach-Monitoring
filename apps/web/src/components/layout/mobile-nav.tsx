@@ -1,0 +1,31 @@
+"use client";
+
+import { Menu } from "lucide-react";
+import { useState } from "react";
+import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { BrandMark } from "@/components/shared/brand-mark";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+
+export function MobileNav() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="lg:hidden">
+          <Menu />
+          <span className="sr-only">Open navigation</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-72">
+        <SheetHeader className="mb-6">
+          <SheetTitle asChild>
+            <BrandMark />
+          </SheetTitle>
+        </SheetHeader>
+        <SidebarNav onNavigate={() => setOpen(false)} />
+      </SheetContent>
+    </Sheet>
+  );
+}

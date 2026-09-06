@@ -1,14 +1,17 @@
 "use client";
 
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BackfillResult } from "@sla/jira";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 export function JiraConnectButton() {
   return (
-    <button type="button" onClick={() => (window.location.href = "/api/integrations/jira/connect")}>
+    <Button type="button" size="sm" onClick={() => (window.location.href = "/api/integrations/jira/connect")}>
       Connect Jira
-    </button>
+    </Button>
   );
 }
 
@@ -37,13 +40,19 @@ export function JiraBackfillButton() {
   }
 
   return (
-    <div>
-      <button type="button" onClick={handleClick} disabled={running}>
+    <div className="space-y-3">
+      <Button type="button" size="sm" variant="outline" onClick={handleClick} disabled={running}>
+        {running && <Loader2 className="animate-spin" />}
         {running ? "Running backfill…" : "Run backfill"}
-      </button>
-      {error && <p role="alert">{error}</p>}
+      </Button>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {result && (
-        <p>
+        <p className="text-sm text-muted-foreground">
           {result.issuesFetched} issues · {result.changelogHistoriesFetched} changelog events ·{" "}
           {result.remoteLinksFetched} remote links.
         </p>

@@ -273,18 +273,23 @@ export async function getCaseDetailData(
     ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
     : null;
 
-  const links: CaseLinkDetail[] = caseRow.caseLinks.map((link) => ({
-    system: link.system,
-    externalId: link.externalId,
-    method: link.method,
-    confidence: link.confidence,
-    url:
-      link.system === "jira" && jiraCredentials
-        ? `${jiraCredentials.siteUrl.replace(/\/$/, "")}/browse/${link.externalId}`
-        : link.system === "zendesk" && zendeskCredentials
-          ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${link.externalId}`
-          : null,
-  }));
+  // Linear has no correlator yet (roadmap step 15), so a CaseLink never has
+  // system "linear" today — this filter just keeps the type honest about
+  // which systems this page knows how to build an outbound link for.
+  const links: CaseLinkDetail[] = caseRow.caseLinks
+    .filter((link): link is typeof link & { system: "jira" | "zendesk" } => link.system === "jira" || link.system === "zendesk")
+    .map((link) => ({
+      system: link.system,
+      externalId: link.externalId,
+      method: link.method,
+      confidence: link.confidence,
+      url:
+        link.system === "jira" && jiraCredentials
+          ? `${jiraCredentials.siteUrl.replace(/\/$/, "")}/browse/${link.externalId}`
+          : link.system === "zendesk" && zendeskCredentials
+            ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${link.externalId}`
+            : null,
+    }));
 
   const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({
     id: e.id,

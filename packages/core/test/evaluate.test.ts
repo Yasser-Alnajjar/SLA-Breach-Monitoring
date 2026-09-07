@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BREACH_NOTIFICATION_THRESHOLD, evaluateCommitment } from "../src/evaluate.js";
+import { BREACH_NOTIFICATION_THRESHOLD, evaluateCommitment, findCaseCloseEvent } from "../src/evaluate.js";
 import type {
   BusinessCalendarVersion,
   Commitment,
@@ -202,5 +202,137 @@ describe("evaluateCommitment", () => {
       policyVersionId: policy.id,
       calendarVersionId: alwaysOpen.id,
     });
+  });
+
+  it("is not affected by a linked Jira issue reaching Done — only Zendesk closes a case", () => {
+    // Zendesk ticket is still open; a linked Jira issue's own status
+    // separately reached its "done" category (normalizes to "resolved"),
+    // but Jira is never the anchor for the case's lifecycle.
+    const events = [
+      ...baseEvents,
+      {
+        id: "evt-jira-done",
+        caseId: "case-1",
+        type: "state_changed" as const,
+        occurredAt: minutesAfterStart(50),
+        actor: "agent" as const,
+        system: "jira" as const,
+        fromState: "in_progress" as const,
+        toState: "resolved" as const,
+        sourceRawEventId: "raw-jira",
+      },
+    ];
+    const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(250));
+    expect(evaluation.status).toBe("breached");
+  });
+
+  it("resumes live evaluation once a solved-then-reopened Zendesk ticket is active again", () => {
+    const events = [
+      ...baseEvents,
+      {
+        id: "evt-solved",
+        caseId: "case-1",
+        type: "case_closed" as const,
+        occurredAt: minutesAfterStart(50),
+        actor: "agent" as const,
+        system: "zendesk" as const,
+        fromState: "open" as const,
+        toState: "resolved" as const,
+        sourceRawEventId: "raw-solved",
+      },
+      {
+        id: "evt-reopened",
+        caseId: "case-1",
+        type: "state_changed" as const,
+        occurredAt: minutesAfterStart(60),
+        actor: "customer" as const,
+        system: "zendesk" as const,
+        fromState: "resolved" as const,
+        toState: "open" as const,
+        sourceRawEventId: "raw-reopened",
+      },
+    ];
+    // Elapsed since start (never actually paused) exceeds the 240-minute
+    // target — since the ticket is open again, this must read live as
+    // breached, not frozen at the stale "met" snapshot from the solve.
+    const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(250));
+    expect(evaluation.status).toBe("breached");
+  });
+});
+
+describe("findCaseCloseEvent", () => {
+  it("returns null when the case has never closed", () => {
+    expect(findCaseCloseEvent(baseEvents, minutesAfterStart(100))).toBeNull();
+  });
+
+  it("returns the case_closed event once the case has closed", () => {
+    const closeEvent = {
+      id: "evt-close",
+      caseId: "case-1",
+      type: "case_closed" as const,
+      occurredAt: minutesAfterStart(50),
+      actor: "agent" as const,
+      system: "zendesk" as const,
+      fromState: "open" as const,
+      toState: "resolved" as const,
+      sourceRawEventId: "raw-close",
+    };
+    expect(findCaseCloseEvent([...baseEvents, closeEvent], minutesAfterStart(100))).toEqual(closeEvent);
+  });
+
+  it("ignores a case_closed event that happens after asOf", () => {
+    const closeEvent = {
+      id: "evt-close",
+      caseId: "case-1",
+      type: "case_closed" as const,
+      occurredAt: minutesAfterStart(200),
+      actor: "agent" as const,
+      system: "zendesk" as const,
+      fromState: "open" as const,
+      toState: "resolved" as const,
+      sourceRawEventId: "raw-close",
+    };
+    expect(findCaseCloseEvent([...baseEvents, closeEvent], minutesAfterStart(100))).toBeNull();
+  });
+
+  it("ignores a Jira issue reaching a resolved/done category", () => {
+    const jiraDone = {
+      id: "evt-jira-done",
+      caseId: "case-1",
+      type: "state_changed" as const,
+      occurredAt: minutesAfterStart(50),
+      actor: "agent" as const,
+      system: "jira" as const,
+      fromState: "in_progress" as const,
+      toState: "resolved" as const,
+      sourceRawEventId: "raw-jira",
+    };
+    expect(findCaseCloseEvent([...baseEvents, jiraDone], minutesAfterStart(100))).toBeNull();
+  });
+
+  it("returns null once a solved Zendesk ticket has been reopened", () => {
+    const solved = {
+      id: "evt-solved",
+      caseId: "case-1",
+      type: "case_closed" as const,
+      occurredAt: minutesAfterStart(50),
+      actor: "agent" as const,
+      system: "zendesk" as const,
+      fromState: "open" as const,
+      toState: "resolved" as const,
+      sourceRawEventId: "raw-solved",
+    };
+    const reopened = {
+      id: "evt-reopened",
+      caseId: "case-1",
+      type: "state_changed" as const,
+      occurredAt: minutesAfterStart(60),
+      actor: "customer" as const,
+      system: "zendesk" as const,
+      fromState: "resolved" as const,
+      toState: "open" as const,
+      sourceRawEventId: "raw-reopened",
+    };
+    expect(findCaseCloseEvent([...baseEvents, solved, reopened], minutesAfterStart(100))).toBeNull();
   });
 });

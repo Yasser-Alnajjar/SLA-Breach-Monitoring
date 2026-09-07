@@ -60,7 +60,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ cas
                 "No priority/tier/channel"}
               {" · "}Opened {formatDateTime(data.case.openedAt)}
               {data.case.closedAt
-                ? ` · Closed ${formatDateTime(data.case.closedAt)}`
+                ? ` · Resolved ${formatDateTime(data.case.closedAt)}`
                 : ` · Currently in ${formatLeg(data.currentLeg)}`}
             </p>
           </div>

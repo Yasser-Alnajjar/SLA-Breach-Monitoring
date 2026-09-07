@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@sla/db";
-import { ZendeskClient } from "./client";
+import { ZendeskApiError, ZendeskClient } from "./client";
 import type { ZendeskOAuthConfig } from "./oauth";
 import {
   mapAuditToRawEvent,
@@ -104,7 +104,20 @@ export async function runZendeskBackfill(
     let count = 0;
 
     for (;;) {
-      const page = await client.fetchTicketAuditsPage(ticketId, nextPageUrl);
+      let page;
+      try {
+        page = await client.fetchTicketAuditsPage(ticketId, nextPageUrl);
+      } catch (error) {
+        // The incremental ticket export can list a ticket that is gone (permanently
+        // deleted, merged away, or otherwise inaccessible) by the time we fetch its
+        // audits — Zendesk returns 404 for that case. Skip this ticket's audits
+        // rather than aborting the whole backfill run over one unreachable ticket.
+        if (error instanceof ZendeskApiError && error.status === 404) {
+          console.warn(`Zendesk backfill: ticket ${ticketId} audits not found (404), skipping`);
+          return count;
+        }
+        throw error;
+      }
       await writeRawEvents(page.audits.map(mapAuditToRawEvent));
       count += page.audits.length;
 

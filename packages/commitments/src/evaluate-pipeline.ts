@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import {
   evaluateCommitment,
+  findCaseCloseEvent,
   type BusinessCalendarVersion,
   type Commitment,
   type CommitmentKind,
@@ -70,14 +71,15 @@ export function toNormalizedEventDomain(row: NormalizedEventRecord): NormalizedE
 }
 
 /**
- * Whether a `case_closed` event has occurred at or before `asOf` — mirrors
- * the cutoff `evaluateCommitment` itself applies (packages/core/evaluate.ts)
- * so the pipeline can tell a truly final evaluation (the case closed) apart
- * from a commitment that merely reads as "breached" right now because time
- * ran out on an still-open case.
+ * Whether the case is closed as of `asOf` — delegates to the same
+ * `findCaseCloseEvent` lookup `evaluateCommitment` uses internally
+ * (packages/core/evaluate.ts), so the pipeline can tell a truly final
+ * evaluation (the case closed, and hasn't since been reopened) apart from a
+ * commitment that merely reads as "breached" right now because time ran out
+ * on a still-open case.
  */
-export function hasCaseClosedEvent(events: { type: string; occurredAt: string }[], asOf: string): boolean {
-  return events.some((e) => e.type === "case_closed" && e.occurredAt <= asOf);
+export function hasCaseClosedEvent(events: NormalizedEvent[], asOf: string): boolean {
+  return findCaseCloseEvent(events, asOf) !== null;
 }
 
 /**

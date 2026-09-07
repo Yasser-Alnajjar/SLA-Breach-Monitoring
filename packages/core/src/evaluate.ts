@@ -18,6 +18,46 @@ import { stableHash } from "./util";
  */
 export const BREACH_NOTIFICATION_THRESHOLD = 100;
 
+/** Event types that carry Zendesk's own view of the case's lifecycle state. */
+const ZENDESK_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
+  "case_created",
+  "state_changed",
+  "case_closed",
+]);
+
+/**
+ * The event that determines whether a case is open or closed as of `asOf`:
+ * the most recent Zendesk-origin lifecycle event, if any, or null if none
+ * has happened yet or the case is currently open.
+ *
+ * Only Zendesk ever anchors a case's lifecycle — a linked Jira issue is
+ * never the anchor, and its normalizer never emits `case_created`/
+ * `case_closed` (packages/jira/src/normalize.ts) — so a Jira transition
+ * (e.g. reaching its own "done" category) can never close or reopen a case
+ * here, regardless of when it lands relative to Zendesk's own events.
+ *
+ * Looking at the *most recent* lifecycle event, not merely "did a
+ * case_closed ever happen", is what lets a Zendesk ticket that was solved
+ * and later reopened correctly resume SLA tracking instead of staying
+ * permanently resolved.
+ */
+export function findCaseCloseEvent(
+  events: NormalizedEvent[],
+  asOf: string,
+): NormalizedEvent | null {
+  const lifecycleEvents = events
+    .filter(
+      (e) =>
+        e.system === "zendesk" &&
+        ZENDESK_LIFECYCLE_EVENT_TYPES.has(e.type) &&
+        e.occurredAt <= asOf,
+    )
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+
+  const last = lifecycleEvents[lifecycleEvents.length - 1];
+  return last && last.type === "case_closed" ? last : null;
+}
+
 /**
  * Evaluates a Commitment's current status as of `asOf`.
  *
@@ -41,9 +81,7 @@ export function evaluateCommitment(
     .filter((e) => e.caseId === commitment.caseId)
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-  const closeEvent =
-    caseEvents.find((e) => e.type === "case_closed" && e.occurredAt <= asOf) ??
-    null;
+  const closeEvent = findCaseCloseEvent(caseEvents, asOf);
   const effectiveAsOf =
     closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
 

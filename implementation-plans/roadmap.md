@@ -193,6 +193,7 @@ file gets checked off and committed as each step lands.
       CaseLink's `evidence` at link time instead. Onboarding's progress
       tracking stays Jira-only for now — a deliberate scope cut, not an
       oversight, since Linear was never part of that flow's design.
+      [PR #18](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/18)
 
 - [ ] **16 — Optional per-team leg targets**
       The OLA configuration surface stays deliberately tiny per Phase 10's

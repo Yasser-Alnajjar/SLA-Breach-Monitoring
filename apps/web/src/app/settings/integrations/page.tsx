@@ -1,4 +1,4 @@
-import { GitBranch, MessageSquare, Ticket, Workflow } from "lucide-react";
+import { GitBranch, MessageSquare, Ticket, Timer, Workflow } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getPrismaClient } from "@sla/db";
@@ -14,13 +14,14 @@ import { ZendeskConnectForm, ZendeskBackfillButton } from "./zendesk-actions";
 import { JiraConnectButton, JiraBackfillButton } from "./jira-actions";
 import { LinearConnectButton, LinearBackfillButton } from "./linear-actions";
 import { SlackConnectButton, SlackChannelPicker, SlackChannelChangeButton } from "./slack-actions";
+import { EngineeringTargetForm } from "./engineering-target-actions";
 
 export default async function IntegrationsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/sign-in");
 
   const prisma = getPrismaClient();
-  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration] = await Promise.all([
+  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration, organization] = await Promise.all([
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId: session.user.organizationId, provider: "zendesk" },
@@ -38,6 +39,10 @@ export default async function IntegrationsPage() {
     }),
     prisma.slackIntegration.findUnique({
       where: { organizationId: session.user.organizationId },
+    }),
+    prisma.organization.findUnique({
+      where: { id: session.user.organizationId },
+      select: { engineeringLegTargetMinutes: true },
     }),
   ]);
   const zendeskCursor = (zendeskIntegration?.cursor as ZendeskCursor | null) ?? null;
@@ -190,6 +195,24 @@ export default async function IntegrationsPage() {
                   <SlackConnectButton />
                 </>
               )}
+            </CardContent>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={0.2}>
+          <Card>
+            <CardHeader className="flex-row items-center gap-2.5 space-y-0">
+              <span className="flex size-9 items-center justify-center rounded-md bg-interactive text-muted-foreground">
+                <Timer className="size-4" />
+              </span>
+              <CardTitle>Engineering leg target</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Optional. When set, a case sitting in the engineering leg past this duration shows as at-risk or
+                breached — not a policy builder, just one target for the whole team.
+              </p>
+              <EngineeringTargetForm initialTargetMinutes={organization?.engineeringLegTargetMinutes ?? null} />
             </CardContent>
           </Card>
         </Reveal>

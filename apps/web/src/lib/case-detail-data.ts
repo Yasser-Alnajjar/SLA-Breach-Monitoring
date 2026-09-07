@@ -3,9 +3,12 @@ import {
   computeElapsedWorkingMinutes,
   deriveLegSpans,
   evaluateCommitment,
+  evaluateEngineeringLegTarget,
+  sumLegMinutes,
   type BusinessCalendarVersion,
   type CommitmentKind,
   type CommitmentStatus,
+  type EngineeringLegEvaluation,
   type Leg,
   type LegSpan,
   type NormalizedEvent,
@@ -102,6 +105,7 @@ export interface CaseDetailData {
   commitments: CommitmentDetail[];
   legSpans: (LegSpan & { endedAt: string })[];
   legTotals: LegTotal[];
+  engineeringLegTarget: EngineeringLegEvaluation | null;
   runningIntervals: { start: string; end: string }[];
   pausedIntervals: PausedInterval[];
   timeline: TimelineEventDetail[];
@@ -148,13 +152,17 @@ export async function getCaseDetailData(
   });
   if (!caseRow) return null;
 
-  const [eventRows, zendeskIntegration, jiraIntegration] = await Promise.all([
+  const [eventRows, zendeskIntegration, jiraIntegration, organization] = await Promise.all([
     prisma.normalizedEvent.findMany({ where: { caseId }, orderBy: { occurredAt: "asc" } }),
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "zendesk" } },
     }),
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "jira" } },
+    }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { engineeringLegTargetMinutes: true },
     }),
   ]);
 
@@ -261,6 +269,16 @@ export async function getCaseDetailData(
     minutes: legTotalsByLeg.get(leg)!,
   }));
 
+  const engineeringLegTargetMinutes = organization?.engineeringLegTargetMinutes ?? null;
+  const engineeringLegTarget: EngineeringLegEvaluation | null =
+    engineeringLegTargetMinutes !== null
+      ? evaluateEngineeringLegTarget(
+          sumLegMinutes(spans, "engineering", endBound),
+          engineeringLegTargetMinutes,
+          currentLeg === "engineering",
+        )
+      : null;
+
   const pauseOnStates = commitments[0]?.policyVersion.pauseOnStates ?? [];
   const pauseCalendar = commitments[0] ? calendarsById.get(commitments[0].calendar.id)! : FALLBACK_CALENDAR;
   const { pausedIntervals } = computeElapsedWorkingMinutes(domainEvents, pauseOnStates, pauseCalendar, endBound);
@@ -326,6 +344,7 @@ export async function getCaseDetailData(
     commitments,
     legSpans,
     legTotals,
+    engineeringLegTarget,
     runningIntervals,
     pausedIntervals,
     timeline,

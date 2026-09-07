@@ -2,9 +2,12 @@ import type { PrismaClient } from "@sla/db";
 import {
   deriveLegSpans,
   evaluateCommitment,
+  evaluateEngineeringLegTarget,
+  sumLegMinutes,
   type BusinessCalendarVersion,
   type CommitmentKind,
   type CommitmentStatus,
+  type EngineeringLegEvaluation,
   type Leg,
   type LegSpan,
   type NormalizedEvent,
@@ -41,6 +44,7 @@ export interface AgingEscalationRow {
   externalId: string;
   customerName: string | null;
   minutesInCurrentLeg: number;
+  legTarget: EngineeringLegEvaluation | null;
 }
 
 export interface BreachedCaseRow {
@@ -90,7 +94,7 @@ export async function getDashboardData(
   const periodStart = new Date(asOfDate.getTime() - PERIOD_DAYS * 86_400_000);
   const previousPeriodStart = new Date(periodStart.getTime() - PERIOD_DAYS * 86_400_000);
 
-  const [openCommitmentRows, breachedEvaluationRows, currentPeriodClosedRows, previousPeriodClosedRows] =
+  const [openCommitmentRows, breachedEvaluationRows, currentPeriodClosedRows, previousPeriodClosedRows, organization] =
     await Promise.all([
       prisma.commitment.findMany({
         where: { case: { organizationId }, closedAt: null },
@@ -117,7 +121,13 @@ export async function getDashboardData(
         },
         select: { status: true },
       }),
+      prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { engineeringLegTargetMinutes: true },
+      }),
     ]);
+
+  const engineeringLegTargetMinutes = organization?.engineeringLegTargetMinutes ?? null;
 
   const policyVersionIds = [...new Set(openCommitmentRows.map((c) => c.policyVersionId))];
   const calendarVersionIds = [...new Set(openCommitmentRows.map((c) => c.calendarVersionId))];
@@ -222,11 +232,20 @@ export async function getDashboardData(
     if (!casesSeenForAging.has(row.caseId)) {
       casesSeenForAging.add(row.caseId);
       if (currentLeg === "engineering") {
+        const legTarget: EngineeringLegEvaluation | null =
+          engineeringLegTargetMinutes !== null
+            ? evaluateEngineeringLegTarget(
+                sumLegMinutes(spans, "engineering", asOf),
+                engineeringLegTargetMinutes,
+                true,
+              )
+            : null;
         agingInEngineering.push({
           caseId: row.caseId,
           externalId: row.case.externalId,
           customerName: row.case.customer?.name ?? null,
           minutesInCurrentLeg,
+          legTarget,
         });
       }
     }

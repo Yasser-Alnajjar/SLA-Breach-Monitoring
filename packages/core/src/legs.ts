@@ -182,6 +182,24 @@ export function deriveLegSpans(
 }
 
 /**
+ * Sums wall-clock minutes spent in `leg` across every one of its spans for a
+ * case — closed spans and, if still open, the current one bounded by `asOf`.
+ * Cumulative rather than "current span only" (roadmap step 16): a case that
+ * bounced in and out of engineering should have the whole engineering time
+ * count against its leg target, not just the most recent stretch.
+ */
+export function sumLegMinutes(spans: LegSpan[], leg: Leg, asOf: string): number {
+  const asOfMs = new Date(asOf).getTime();
+  return spans
+    .filter((span) => span.leg === leg)
+    .reduce((sum, span) => {
+      const start = new Date(span.startedAt).getTime();
+      const end = span.endedAt ? new Date(span.endedAt).getTime() : asOfMs;
+      return sum + Math.max(0, Math.round((end - start) / 60000));
+    }, 0);
+}
+
+/**
  * Checks a list of leg spans for structural impossibilities — negative
  * duration or overlap with the next span. These arise from human
  * configuration error (e.g. a manually corrected span) rather than from

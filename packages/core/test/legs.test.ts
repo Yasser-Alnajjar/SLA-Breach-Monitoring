@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveLegSpans, validateLegSpans } from "../src/legs.js";
+import { deriveLegSpans, sumLegMinutes, validateLegSpans } from "../src/legs.js";
 import type { LegSpan, NormalizedEvent } from "../src/types";
 
 let seq = 0;
@@ -283,5 +283,67 @@ describe("validateLegSpans", () => {
       },
     ];
     expect(validateLegSpans(spans)).toHaveLength(0);
+  });
+});
+
+describe("sumLegMinutes", () => {
+  it("sums a single closed span", () => {
+    const spans: LegSpan[] = [
+      {
+        leg: "engineering",
+        confidence: "certain",
+        startedAt: "2026-09-07T09:00:00.000Z",
+        endedAt: "2026-09-07T11:00:00.000Z",
+      },
+    ];
+    expect(sumLegMinutes(spans, "engineering", "2026-09-07T12:00:00.000Z")).toBe(120);
+  });
+
+  it("bounds a still-open span by asOf", () => {
+    const spans: LegSpan[] = [
+      {
+        leg: "engineering",
+        confidence: "certain",
+        startedAt: "2026-09-07T09:00:00.000Z",
+        endedAt: null,
+      },
+    ];
+    expect(sumLegMinutes(spans, "engineering", "2026-09-07T09:30:00.000Z")).toBe(30);
+  });
+
+  it("accumulates across multiple non-contiguous spans of the same leg", () => {
+    const spans: LegSpan[] = [
+      {
+        leg: "engineering",
+        confidence: "certain",
+        startedAt: "2026-09-07T09:00:00.000Z",
+        endedAt: "2026-09-07T10:00:00.000Z",
+      },
+      {
+        leg: "support",
+        confidence: "certain",
+        startedAt: "2026-09-07T10:00:00.000Z",
+        endedAt: "2026-09-07T10:30:00.000Z",
+      },
+      {
+        leg: "engineering",
+        confidence: "certain",
+        startedAt: "2026-09-07T10:30:00.000Z",
+        endedAt: null,
+      },
+    ];
+    expect(sumLegMinutes(spans, "engineering", "2026-09-07T11:00:00.000Z")).toBe(90);
+  });
+
+  it("returns 0 when the leg never occurs", () => {
+    const spans: LegSpan[] = [
+      {
+        leg: "support",
+        confidence: "certain",
+        startedAt: "2026-09-07T09:00:00.000Z",
+        endedAt: null,
+      },
+    ];
+    expect(sumLegMinutes(spans, "engineering", "2026-09-07T12:00:00.000Z")).toBe(0);
   });
 });

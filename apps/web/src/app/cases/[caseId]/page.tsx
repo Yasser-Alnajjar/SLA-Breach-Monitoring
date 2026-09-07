@@ -113,6 +113,17 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ cas
                     <li key={t.leg} className="flex items-center gap-1.5">
                       <span className={`size-2 rounded-full ${LEG_BG_CLASS[t.leg]}`} />
                       {formatLeg(t.leg)} — {formatMinutes(t.minutes)}
+                      {t.leg === "engineering" && data.engineeringLegTarget && (
+                        <>
+                          <StatusBadge status={data.engineeringLegTarget.status} />
+                          <span className="text-xs">
+                            target {formatMinutes(data.engineeringLegTarget.targetMinutes)}
+                            {data.engineeringLegTarget.remainingMinutes < 0
+                              ? ` · over by ${formatMinutes(data.engineeringLegTarget.breachedByMinutes ?? 0)}`
+                              : ` · ${formatMinutes(data.engineeringLegTarget.remainingMinutes)} left`}
+                          </span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

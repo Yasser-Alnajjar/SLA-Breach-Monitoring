@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BREACH_NOTIFICATION_THRESHOLD, evaluateCommitment, findCaseCloseEvent } from "../src/evaluate.js";
+import {
+  BREACH_NOTIFICATION_THRESHOLD,
+  evaluateCommitment,
+  evaluateEngineeringLegTarget,
+  findCaseCloseEvent,
+} from "../src/evaluate.js";
 import type {
   BusinessCalendarVersion,
   Commitment,
@@ -257,6 +262,44 @@ describe("evaluateCommitment", () => {
     // breached, not frozen at the stale "met" snapshot from the solve.
     const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(250));
     expect(evaluation.status).toBe("breached");
+  });
+});
+
+describe("evaluateEngineeringLegTarget", () => {
+  it("is on_track well below the target while the leg is still open", () => {
+    const evaluation = evaluateEngineeringLegTarget(60, 240, true);
+    expect(evaluation.status).toBe("on_track");
+    expect(evaluation.remainingMinutes).toBe(180);
+    expect(evaluation.breachedByMinutes).toBeUndefined();
+  });
+
+  it("transitions to at_risk once the fixed 80% warn threshold is crossed while still open", () => {
+    // 200/240 = 83.3%
+    const evaluation = evaluateEngineeringLegTarget(200, 240, true);
+    expect(evaluation.status).toBe("at_risk");
+    expect(evaluation.remainingMinutes).toBe(40);
+  });
+
+  it("is breached once elapsed exceeds the target, even while the leg is still open", () => {
+    const evaluation = evaluateEngineeringLegTarget(250, 240, true);
+    expect(evaluation.status).toBe("breached");
+    expect(evaluation.breachedByMinutes).toBe(10);
+  });
+
+  it("resolves to met once the leg has closed under target", () => {
+    const evaluation = evaluateEngineeringLegTarget(100, 240, false);
+    expect(evaluation.status).toBe("met");
+  });
+
+  it("stays breached once the leg has closed over target", () => {
+    const evaluation = evaluateEngineeringLegTarget(300, 240, false);
+    expect(evaluation.status).toBe("breached");
+    expect(evaluation.breachedByMinutes).toBe(60);
+  });
+
+  it("never reports met while the leg is still open, regardless of elapsed time", () => {
+    const evaluation = evaluateEngineeringLegTarget(10, 240, true);
+    expect(evaluation.status).not.toBe("met");
   });
 });
 

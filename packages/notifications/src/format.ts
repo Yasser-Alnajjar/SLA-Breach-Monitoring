@@ -6,6 +6,12 @@ export interface NotificationContext {
   customerName: string | null;
 }
 
+/** Recipients are resolved by the dispatcher, not the formatter — mirrors `formatSlackMessage` not knowing the channel. */
+export interface EmailContent {
+  subject: string;
+  text: string;
+}
+
 const KIND_LABEL: Record<NotificationCandidate["kind"], string> = {
   first_response: "First response",
   resolution: "Resolution",
@@ -38,4 +44,29 @@ export function formatSlackMessage(candidate: NotificationCandidate, context: No
 
   const remaining = formatMinutes(candidate.remainingMinutes);
   return `:warning: *${kindLabel} SLA at risk* — ${ticket}${who}, ${candidate.threshold}% of target used, ${remaining} remaining.`;
+}
+
+/**
+ * Plain-text email subject/body for one notification candidate — same
+ * inputs and the same pure, side-effect-free shape as `formatSlackMessage`
+ * so it can be unit tested without an SMTP server.
+ */
+export function formatEmailMessage(candidate: NotificationCandidate, context: NotificationContext): EmailContent {
+  const kindLabel = KIND_LABEL[candidate.kind];
+  const who = context.customerName ? ` (${context.customerName})` : "";
+  const ticket = `#${context.externalId}`;
+
+  if (candidate.threshold === BREACH_NOTIFICATION_THRESHOLD) {
+    const over = formatMinutes(candidate.breachedByMinutes ?? 0);
+    return {
+      subject: `SLA breached: ${kindLabel} on ${ticket}${who}`,
+      text: `${kindLabel} SLA breached on ticket ${ticket}${who}.\n\nOver target by ${over}.`,
+    };
+  }
+
+  const remaining = formatMinutes(candidate.remainingMinutes);
+  return {
+    subject: `SLA at risk: ${kindLabel} on ${ticket}${who}`,
+    text: `${kindLabel} SLA at risk on ticket ${ticket}${who}.\n\n${candidate.threshold}% of target used, ${remaining} remaining.`,
+  };
 }

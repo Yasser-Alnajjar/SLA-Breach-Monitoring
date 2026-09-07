@@ -153,6 +153,9 @@ importers:
       '@sla/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@sla/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
@@ -235,6 +238,25 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/email:
+    dependencies:
+      nodemailer:
+        specifier: ^10.0.1
+        version: 10.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      '@types/nodemailer':
+        specifier: ^8.0.1
+        version: 8.0.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@26.4.1)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+
   packages/jira:
     dependencies:
       '@sla/core':
@@ -284,6 +306,9 @@ importers:
       '@sla/db':
         specifier: workspace:*
         version: link:../db
+      '@sla/email':
+        specifier: workspace:*
+        version: link:../email
       '@sla/slack':
         specifier: workspace:*
         version: link:../slack
@@ -1852,6 +1877,9 @@ packages:
   '@types/node@26.4.1':
     resolution: {integrity: sha512-k97ENvZWtvA6yqz5/FS6a7duDgOPEeOQOc2iKS/nY6mX6qJUKtLnWzQS+Xj6tXweyj6ZcTAK2Qecetnvi9nCLA==}
 
+  '@types/nodemailer@8.0.1':
+    resolution: {integrity: sha512-PxpaInm8V1JQDd4j0ds5HfvWQk8JupS1C0Picb96QJsrrRDjBH+DlK7L4ZdNSqNULhiZRQHc40nLVShaGxXAMw==}
+
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
@@ -2560,6 +2588,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  nodemailer@10.0.1:
+    resolution: {integrity: sha512-c+gU9cL9HLDax3vjxL88kW+6NOgdtEUWaZ+AUtxdJR6LLhf0kGdCLExof7yiKW7zdO9EfXCSIgmhGyFmUM0mYQ==}
+    engines: {node: '>=20.0.0'}
 
   oauth@0.9.15:
     resolution: {integrity: sha512-a5ERWK1kh38ExDEfoO6qUHJb32rd7aYmPHuyCu3Fta/cnICvYmgd2uhuKXvPD+PXB+gCEYYEaQdIRAjCOwAKNA==}
@@ -4405,6 +4437,10 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
+  '@types/nodemailer@8.0.1':
+    dependencies:
+      '@types/node': 26.4.1
+
   '@types/pg@8.23.1':
     dependencies:
       '@types/node': 26.4.1
@@ -5027,6 +5063,8 @@ snapshots:
       - '@babel/core'
       - '@types/node'
       - babel-plugin-macros
+
+  nodemailer@10.0.1: {}
 
   oauth@0.9.15: {}
 

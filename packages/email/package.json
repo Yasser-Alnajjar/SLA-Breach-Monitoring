@@ -1,5 +1,5 @@
 {
-  "name": "@sla/notifications",
+  "name": "@sla/email",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,14 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sla/commitments": "workspace:*",
-    "@sla/core": "workspace:*",
-    "@sla/db": "workspace:*",
-    "@sla/email": "workspace:*",
-    "@sla/slack": "workspace:*"
+    "nodemailer": "^10.0.1"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "@types/nodemailer": "^8.0.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

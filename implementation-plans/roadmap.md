@@ -264,11 +264,36 @@ file gets checked off and committed as each step lands.
       displaying the connected account/workspace name are new product
       surface, not lifecycle management.
 
-- [ ] **18 — Email notifications**
+- [x] **18 — Email notifications**
       Second notification channel in `packages/notifications`, alongside
-      Slack (step 8). Same dedup enforcement point (`Notification` table's
-      `@@unique([commitmentId, threshold])`) and the same threshold-crossing
-      evaluation output — only the formatter and transport are new.
+      Slack (step 8), over SMTP rather than a transactional-email REST API
+      (user preference) — the one deliberate deviation from this repo's
+      zero-dependency `fetch`-client convention (`@sla/slack`), since SMTP is
+      a stateful protocol `fetch` cannot speak; new `packages/email` wraps
+      `nodemailer`, its only dependency. Unlike Slack, email needs no
+      connect/settings step: `User.email` is the only per-org identity that
+      already exists (roadmap step 1 — "no roles/permissions in v1" means
+      exactly one `User` row per org today), so recipients are just every
+      `User.email` in the organization, and the transport is a single
+      ops-level SMTP credential (`SMTP_HOST`/`PORT`/`SECURE`/`USER`/
+      `PASSWORD`, `EMAIL_FROM`) loaded in `apps/worker/src/config.ts`
+      exactly like the nullable `zendesk`/`jira` OAuth configs — missing
+      credentials mean the channel is skipped, not a crash.
+      `packages/notifications/src/dispatch.ts` sends to *both* configured
+      channels per candidate before writing a `Notification` row, rather
+      than one row per channel: the `@@unique([commitmentId, threshold])`
+      constraint dedups "was this alert dispatched at all", not per-channel,
+      so if a second channel's send were deferred until after the first
+      channel's row existed, it would read that row as "already sent" and
+      silently skip itself. `channel` now records which channels actually
+      delivered (`"slack"`, `"email"`, or `"slack,email"`) instead of always
+      `"slack"`. `formatEmailMessage` mirrors `formatSlackMessage`'s pure,
+      side-effect-free shape (same `NotificationCandidate`/
+      `NotificationContext` inputs) for the same reason — testable without
+      an SMTP server. No settings UI: unlike Slack's channel picker, there
+      is nothing per-org to configure beyond the ops-level SMTP credential,
+      so `apps/web/settings/integrations` is untouched — a deliberate scope
+      cut, not an oversight.
 
 - [ ] **19 — SLA policy override UI**
       Manual override of a matched policy's targets, surfaced in

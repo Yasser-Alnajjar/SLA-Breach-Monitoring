@@ -1,6 +1,6 @@
 import { BREACH_NOTIFICATION_THRESHOLD } from "@sla/core";
 import { describe, expect, it } from "vitest";
-import { formatSlackMessage } from "../src/format";
+import { formatEmailMessage, formatSlackMessage } from "../src/format";
 
 const baseCandidate = {
   commitmentId: "cmt_1",
@@ -41,6 +41,42 @@ describe("formatSlackMessage", () => {
       { externalId: "4821", customerName: "Acme Co." },
     );
     expect(text).toContain("breached");
+    expect(text).toContain("2h 10m");
+    expect(text).not.toContain("%");
+  });
+});
+
+describe("formatEmailMessage", () => {
+  it("names the customer and ticket for an at-risk warning", () => {
+    const { subject, text } = formatEmailMessage(baseCandidate, { externalId: "4821", customerName: "Acme Co." });
+    expect(subject).toContain("at risk");
+    expect(subject).toContain("#4821");
+    expect(text).toContain("#4821");
+    expect(text).toContain("Acme Co.");
+    expect(text).toContain("80%");
+    expect(text).toContain("45m");
+  });
+
+  it("omits the customer clause when there is none", () => {
+    const { subject, text } = formatEmailMessage(baseCandidate, { externalId: "4821", customerName: null });
+    expect(subject).not.toContain("(");
+    expect(text).toContain("#4821");
+  });
+
+  it("distinguishes first_response from resolution", () => {
+    const { subject } = formatEmailMessage({ ...baseCandidate, kind: "first_response" }, {
+      externalId: "1",
+      customerName: null,
+    });
+    expect(subject).toContain("First response");
+  });
+
+  it("reports a breach with elapsed-over time, not remaining time", () => {
+    const { subject, text } = formatEmailMessage(
+      { ...baseCandidate, status: "breached", threshold: BREACH_NOTIFICATION_THRESHOLD, breachedByMinutes: 130 },
+      { externalId: "4821", customerName: "Acme Co." },
+    );
+    expect(subject).toContain("breached");
     expect(text).toContain("2h 10m");
     expect(text).not.toContain("%");
   });

@@ -158,11 +158,12 @@ export async function runCycle(
       });
     }
 
-    // Runs even for organizations with no Slack workspace connected —
-    // runNotificationPipeline no-ops cheaply in that case. A commitment that
-    // fails to notify never blocks another organization's cycle.
+    // Runs even for organizations with no Slack workspace connected and no
+    // SMTP configured — runNotificationPipeline no-ops cheaply in that case.
+    // A commitment that fails to notify never blocks another organization's
+    // cycle.
     try {
-      const notifications = await runNotificationPipeline(prisma, organization.id, notificationCandidates);
+      const notifications = await runNotificationPipeline(prisma, organization.id, notificationCandidates, config.email);
       result.notificationsSent += notifications.notificationsSent;
     } catch (error) {
       result.failures.push({

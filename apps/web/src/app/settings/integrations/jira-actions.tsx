@@ -4,6 +4,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BackfillResult } from "@sla/jira";
+import { ReauthBanner } from "@/components/shared/reauth-banner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -15,11 +16,12 @@ export function JiraConnectButton() {
   );
 }
 
-export function JiraBackfillButton() {
+export function JiraBackfillButton({ initialReauthRequired = false }: { initialReauthRequired?: boolean }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BackfillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reauthRequired, setReauthRequired] = useState(initialReauthRequired);
 
   async function handleClick() {
     setRunning(true);
@@ -31,12 +33,20 @@ export function JiraBackfillButton() {
     setRunning(false);
 
     if (!response.ok) {
-      setError(body.error ?? "Backfill failed");
+      if (body.reauthRequired) {
+        setReauthRequired(true);
+      } else {
+        setError(body.error ?? "Backfill failed");
+      }
       return;
     }
 
     setResult(body.backfill as BackfillResult);
     router.refresh();
+  }
+
+  if (reauthRequired) {
+    return <ReauthBanner provider="Jira" reconnectHref="/api/integrations/jira/connect" />;
   }
 
   return (

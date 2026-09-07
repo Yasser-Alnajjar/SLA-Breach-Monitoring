@@ -84,7 +84,12 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
   }
 
   if (reauthRequired) {
-    return <ReauthBanner subdomain={subdomain} />;
+    return (
+      <ReauthBanner
+        provider="Zendesk"
+        reconnectHref={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(subdomain)}`}
+      />
+    );
   }
 
   return (

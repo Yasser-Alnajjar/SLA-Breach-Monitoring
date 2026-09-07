@@ -67,13 +67,25 @@ export async function runCycle(
   };
 
   const organizations = await prisma.organization.findMany({
-    select: { id: true, integrations: { select: { id: true, provider: true, credentials: true } } },
+    select: {
+      id: true,
+      // Disconnected integrations keep their row (never deleted — see the
+      // Integration model's doc comment) but have no credentials left to
+      // ingest with, so the cycle must not touch them.
+      integrations: {
+        where: { status: { not: "disconnected" } },
+        select: { id: true, provider: true, credentials: true },
+      },
+    },
   });
 
   for (const organization of organizations) {
     result.organizationsProcessed += 1;
 
     for (const integration of organization.integrations) {
+      let syncError: string | null = null;
+      let reauthRequired = false;
+
       try {
         if (integration.provider === "zendesk") {
           if (!config.zendesk) continue;
@@ -94,21 +106,28 @@ export async function runCycle(
           await runLinearNormalization(prisma, integration.id);
         }
       } catch (error) {
-        result.failures.push({
-          organizationId: organization.id,
-          stage: `ingest:${integration.provider}`,
-          error:
-            error instanceof ZendeskReauthRequiredError
-              ? "Zendesk needs to be reconnected"
-              : error instanceof JiraReauthRequiredError
-                ? "Jira needs to be reconnected"
-                : error instanceof LinearReauthRequiredError
-                  ? "Linear needs to be reconnected"
-                  : error instanceof Error
-                    ? error.message
-                    : String(error),
-        });
+        reauthRequired =
+          error instanceof ZendeskReauthRequiredError ||
+          error instanceof JiraReauthRequiredError ||
+          error instanceof LinearReauthRequiredError;
+        syncError = reauthRequired
+          ? `${integration.provider[0]!.toUpperCase()}${integration.provider.slice(1)} needs to be reconnected`
+          : error instanceof Error
+            ? error.message
+            : String(error);
+        result.failures.push({ organizationId: organization.id, stage: `ingest:${integration.provider}`, error: syncError });
       }
+
+      // Every attempted cycle (success or failure) updates sync health, so the
+      // settings page reflects real state instead of only stdout logs.
+      await prisma.integration.update({
+        where: { id: integration.id },
+        data: {
+          lastSyncAt: new Date(),
+          lastSyncError: syncError,
+          ...(reauthRequired ? { status: "reauth_required" as const } : {}),
+        },
+      });
     }
 
     // Evaluation runs even when ingestion failed: time keeps passing, so a

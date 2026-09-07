@@ -41,7 +41,14 @@ export async function GET(request: Request) {
       provider: "jira",
       credentials: credentials as unknown as Prisma.InputJsonValue,
     },
-    update: { credentials: credentials as unknown as Prisma.InputJsonValue },
+    // Reconnecting always clears any prior disconnected/reauth_required state
+    // and stale sync error, whether this is a first connect or a reconnect.
+    update: {
+      credentials: credentials as unknown as Prisma.InputJsonValue,
+      status: "connected",
+      disconnectedAt: null,
+      lastSyncError: null,
+    },
   });
 
   const response = NextResponse.redirect(new URL("/onboarding", request.url));

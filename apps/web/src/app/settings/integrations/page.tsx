@@ -1,10 +1,10 @@
 import { GitBranch, MessageSquare, Ticket, Timer, Workflow } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { getPrismaClient } from "@sla/db";
+import { getPrismaClient, type Integration } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
-import type { JiraCursor } from "@sla/jira";
-import type { LinearCursor } from "@sla/linear";
+import type { JiraCredentials, JiraCursor } from "@sla/jira";
+import type { LinearCredentials, LinearCursor } from "@sla/linear";
 import { AppShell } from "@/components/layout/app-shell";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,22 @@ import { JiraConnectButton, JiraBackfillButton } from "./jira-actions";
 import { LinearConnectButton, LinearBackfillButton } from "./linear-actions";
 import { SlackConnectButton, SlackChannelPicker, SlackChannelChangeButton } from "./slack-actions";
 import { EngineeringTargetForm } from "./engineering-target-actions";
+import { DisconnectButton } from "./disconnect-button";
+
+/** Sync-health line shown under a connected provider's status text (roadmap step 17). */
+function SyncHealth({ integration }: { integration: Pick<Integration, "lastSyncAt" | "lastSyncError"> }) {
+  if (!integration.lastSyncAt) return null;
+  return (
+    <p className="text-sm text-muted-foreground">
+      Last sync attempt {new Date(integration.lastSyncAt).toLocaleString()}
+      {integration.lastSyncError ? (
+        <span className="text-destructive"> — {integration.lastSyncError}</span>
+      ) : (
+        " — succeeded."
+      )}
+    </p>
+  );
+}
 
 export default async function IntegrationsPage() {
   const session = await getServerSession(authOptions);
@@ -48,7 +64,9 @@ export default async function IntegrationsPage() {
   const zendeskCursor = (zendeskIntegration?.cursor as ZendeskCursor | null) ?? null;
   const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
   const jiraCursor = (jiraIntegration?.cursor as JiraCursor | null) ?? null;
+  const jiraCredentials = (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
   const linearCursor = (linearIntegration?.cursor as LinearCursor | null) ?? null;
+  const linearCredentials = (linearIntegration?.credentials as LinearCredentials | null) ?? null;
 
   return (
     <AppShell title="Integrations">
@@ -62,7 +80,15 @@ export default async function IntegrationsPage() {
                 </span>
                 <CardTitle>Zendesk</CardTitle>
               </div>
-              {zendeskIntegration && zendeskCredentials && <Badge variant="success">Connected</Badge>}
+              {zendeskIntegration && zendeskCredentials ? (
+                zendeskIntegration.status === "reauth_required" ? (
+                  <Badge variant="warning">Needs reconnect</Badge>
+                ) : (
+                  <Badge variant="success">Connected</Badge>
+                )
+              ) : (
+                zendeskIntegration?.status === "disconnected" && <Badge variant="outline">Disconnected</Badge>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {zendeskIntegration && zendeskCredentials ? (
@@ -73,15 +99,19 @@ export default async function IntegrationsPage() {
                       ? ` — 90-day backfill complete as of ${new Date(zendeskCursor.backfillCompletedAt).toLocaleString()}.`
                       : " — no backfill run yet."}
                   </p>
+                  <SyncHealth integration={zendeskIntegration} />
                   <ZendeskBackfillButton
                     subdomain={zendeskCredentials.subdomain}
                     initialReauthRequired={zendeskCredentials.reauthRequired === true}
                   />
+                  <DisconnectButton provider="zendesk" providerLabel="Zendesk" />
                 </>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
                     Read-only access — no tickets, comments, or fields are ever written back to Zendesk.
+                    {zendeskIntegration?.disconnectedAt &&
+                      ` Disconnected ${new Date(zendeskIntegration.disconnectedAt).toLocaleString()}.`}
                   </p>
                   <ZendeskConnectForm />
                 </>
@@ -99,10 +129,18 @@ export default async function IntegrationsPage() {
                 </span>
                 <CardTitle>Jira</CardTitle>
               </div>
-              {jiraIntegration && <Badge variant="success">Connected</Badge>}
+              {jiraIntegration && jiraCredentials ? (
+                jiraIntegration.status === "reauth_required" ? (
+                  <Badge variant="warning">Needs reconnect</Badge>
+                ) : (
+                  <Badge variant="success">Connected</Badge>
+                )
+              ) : (
+                jiraIntegration?.status === "disconnected" && <Badge variant="outline">Disconnected</Badge>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
-              {jiraIntegration ? (
+              {jiraIntegration && jiraCredentials ? (
                 <>
                   <p className="text-sm text-muted-foreground">
                     Connected {new Date(jiraIntegration.connectedAt).toLocaleString()}
@@ -110,12 +148,16 @@ export default async function IntegrationsPage() {
                       ? ` — 90-day backfill complete as of ${new Date(jiraCursor.backfillCompletedAt).toLocaleString()}.`
                       : " — no backfill run yet."}
                   </p>
-                  <JiraBackfillButton />
+                  <SyncHealth integration={jiraIntegration} />
+                  <JiraBackfillButton initialReauthRequired={jiraCredentials.reauthRequired === true} />
+                  <DisconnectButton provider="jira" providerLabel="Jira" />
                 </>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
                     Read-only access — no issues, comments, or fields are ever written back to Jira.
+                    {jiraIntegration?.disconnectedAt &&
+                      ` Disconnected ${new Date(jiraIntegration.disconnectedAt).toLocaleString()}.`}
                   </p>
                   <JiraConnectButton />
                 </>
@@ -133,10 +175,18 @@ export default async function IntegrationsPage() {
                 </span>
                 <CardTitle>Linear</CardTitle>
               </div>
-              {linearIntegration && <Badge variant="success">Connected</Badge>}
+              {linearIntegration && linearCredentials ? (
+                linearIntegration.status === "reauth_required" ? (
+                  <Badge variant="warning">Needs reconnect</Badge>
+                ) : (
+                  <Badge variant="success">Connected</Badge>
+                )
+              ) : (
+                linearIntegration?.status === "disconnected" && <Badge variant="outline">Disconnected</Badge>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
-              {linearIntegration ? (
+              {linearIntegration && linearCredentials ? (
                 <>
                   <p className="text-sm text-muted-foreground">
                     Connected {new Date(linearIntegration.connectedAt).toLocaleString()}
@@ -144,13 +194,17 @@ export default async function IntegrationsPage() {
                       ? ` — 90-day backfill complete as of ${new Date(linearCursor.backfillCompletedAt).toLocaleString()}.`
                       : " — no backfill run yet."}
                   </p>
-                  <LinearBackfillButton />
+                  <SyncHealth integration={linearIntegration} />
+                  <LinearBackfillButton initialReauthRequired={linearCredentials.reauthRequired === true} />
+                  <DisconnectButton provider="linear" providerLabel="Linear" />
                 </>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
                     Read-only access — no issues, comments, or fields are ever written back to Linear. An
                     alternative engineering-leg source alongside Jira, not a replacement.
+                    {linearIntegration?.disconnectedAt &&
+                      ` Disconnected ${new Date(linearIntegration.disconnectedAt).toLocaleString()}.`}
                   </p>
                   <LinearConnectButton />
                 </>

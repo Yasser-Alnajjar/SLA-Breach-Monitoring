@@ -216,39 +216,53 @@ file gets checked off and committed as each step lands.
       the Slack channel picker's set/clear pattern exactly.
       [PR #19](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/19)
 
-- [ ] **17 — Integration lifecycle management: disconnect, reconnect, health**
-      Prioritized ahead of the rest of this list — an audit of the current
-      settings UI → API routes → `Integration` schema → each package's
-      `tokenLifecycle.ts` → worker cycle found that a connected provider can
-      only ever be connected, never disconnected, disabled, or shown as
-      unhealthy: no `DELETE`/disconnect route exists for any provider, the
-      `Integration` model has no `status`/`enabled` field, and worker cycle
-      failures are logged only to stdout (`apps/worker/src/index.ts`), never
-      persisted anywhere the UI can read. `Integration` gains `status`
-      (`connected | disconnected | reauth_required`), `disconnectedAt`,
-      `lastSyncAt`, `lastSyncError`. Disconnect is always a soft state
-      change — credentials cleared, row kept, never
-      `prisma.integration.delete` — since `RawEvent.integrationId` cascades on
-      delete and would destroy the immutable replay log the architecture
-      depends on, whereas `Case`/`Commitment`/`Evaluation` are never FK'd to
-      `Integration` and so already survive disconnect untouched today; this
-      step makes that existing guarantee correct and visible rather than
-      accidental, matching the product requirement that historical
-      dashboards and cases remain available after disconnect. New
-      `POST /api/integrations/{provider}/disconnect` per provider stops that
-      provider's worker polling and, where the vendor supports it, revokes
-      the stored token rather than just discarding it locally. The worker
-      persists `lastSyncAt`/`lastSyncError` every cycle instead of only
-      console-logging them, and the settings page renders it. The
-      Zendesk-only `ReauthBanner`
-      (`apps/web/src/components/shared/reauth-banner.tsx`) and its
-      `reauthRequired` check generalize to Jira and Linear, whose backfill
-      routes already return `reauthRequired: true` today but whose buttons
-      (`jira-actions.tsx`, `linear-actions.tsx`) currently ignore it. Explicit
-      non-goals: per-provider settings (project/team allowlists, sync scope)
-      and displaying the connected account/workspace name (Linear stores none
-      today) are new product surface, not lifecycle management — scope
-      separately if requested.
+- [x] **17 — Integration lifecycle management: disconnect, reconnect, health**
+      Prioritized ahead of the rest of this list — an audit of the settings
+      UI → API routes → `Integration` schema → each package's
+      `tokenLifecycle.ts` → worker cycle found that a connected provider
+      could only ever be connected, never disconnected, disabled, or shown as
+      unhealthy: no disconnect route existed for any provider, the
+      `Integration` model had no `status` field, and worker cycle failures
+      were logged only to stdout, never persisted anywhere the UI could read.
+      `Integration` gains a `status` enum (`connected | disconnected |
+      reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
+      Disconnect is always a soft state change — credentials cleared to
+      `Prisma.JsonNull`, row kept, never `prisma.integration.delete` — since
+      `RawEvent.integrationId` cascades on delete and would destroy the
+      immutable replay log the architecture depends on, whereas
+      `Case`/`Commitment`/`Evaluation` are never FK'd to `Integration` and so
+      already survive disconnect untouched; this step makes that existing
+      guarantee correct and visible rather than accidental. New
+      `POST /api/integrations/{provider}/disconnect` per provider
+      (`apps/web/src/app/api/integrations/{provider}/disconnect/route.ts`)
+      soft-disconnects, and the worker's per-organization query in
+      `apps/worker/src/cycle.ts` now excludes `disconnected` integrations, so
+      polling stops on the next tick. No vendor-side token revocation is
+      attempted: none of Zendesk/Atlassian/Linear expose a self-service
+      revoke endpoint that's reachable from what we actually store (Zendesk's
+      needs the token's numeric id, which the OAuth response never returns;
+      Atlassian's 3LO apps and Linear's OAuth API document no public revoke
+      at all) — clearing the local credentials is what actually stops
+      further access, so that's what disconnect does, and the roadmap's
+      original "revoke where the vendor supports it" framing turned out not
+      to hold for any of the three. Every worker cycle attempt (success or
+      failure) now writes `lastSyncAt`/`lastSyncError` per integration
+      instead of only console-logging, and reconnecting through any
+      provider's OAuth callback resets `status`/`disconnectedAt`/
+      `lastSyncError` back to a clean connected state. The Zendesk-only
+      `ReauthBanner` (`apps/web/src/components/shared/reauth-banner.tsx`)
+      generalizes to a `{provider, reconnectHref}` shape and now covers Jira
+      and Linear too, whose backfill routes already returned
+      `reauthRequired: true` but whose buttons (`jira-actions.tsx`,
+      `linear-actions.tsx`) silently ignored it until now. Fixed a related
+      bug found in the same audit: the Jira/Linear settings cards rendered
+      "Connected" off the integration row's mere existence rather than
+      checking `credentials` the way the Zendesk card always did, so a
+      soft-disconnected Jira/Linear integration would have kept showing as
+      connected. Explicit non-goals, unchanged from the original scope:
+      per-provider settings (project/team allowlists, sync scope) and
+      displaying the connected account/workspace name are new product
+      surface, not lifecycle management.
 
 - [ ] **18 — Email notifications**
       Second notification channel in `packages/notifications`, alongside

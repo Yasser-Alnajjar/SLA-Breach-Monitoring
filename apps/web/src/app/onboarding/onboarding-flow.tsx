@@ -93,7 +93,10 @@ export function OnboardingFlow({ initialStatus, zendeskSubdomain }: OnboardingFl
   if (status.zendesk.reauthRequired) {
     return (
       <Reveal>
-        <ReauthBanner subdomain={zendeskSubdomain ?? ""} />
+        <ReauthBanner
+          provider="Zendesk"
+          reconnectHref={`/api/integrations/zendesk/connect?subdomain=${encodeURIComponent(zendeskSubdomain ?? "")}`}
+        />
       </Reveal>
     );
   }

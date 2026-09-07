@@ -57,6 +57,20 @@ model Integration {
   credentials    Json?
   cursor         Json?
   connectedAt    DateTime            @default(now())
+  /// Lifecycle state (roadmap step 17). `reauth_required` mirrors the
+  /// provider-specific `credentials.reauthRequired` flag each package's
+  /// tokenLifecycle.ts already sets — kept in sync here so the settings UI
+  /// and worker can read integration health without unpacking per-provider
+  /// JSON. Disconnect is always a soft transition to `disconnected`, never a
+  /// row delete: `RawEvent.integrationId` cascades on delete and would
+  /// destroy the immutable replay log this row anchors.
+  status         IntegrationStatus   @default(connected)
+  /// Set when disconnect runs; cleared back to null on reconnect.
+  disconnectedAt DateTime?
+  /// Persisted every worker cycle attempt (success or failure) so the
+  /// settings page can show real sync health instead of only stdout logs.
+  lastSyncAt     DateTime?
+  lastSyncError  String?
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rawEvents      RawEvent[]
 
@@ -331,6 +345,12 @@ enum IntegrationProvider {
   zendesk
   jira
   linear
+}
+
+enum IntegrationStatus {
+  connected
+  disconnected
+  reauth_required
 }
 
 enum CaseLinkMethod {

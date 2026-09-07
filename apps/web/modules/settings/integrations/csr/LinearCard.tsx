@@ -3,23 +3,24 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { BackfillResult } from "@sla/jira";
+import { Actions } from "@/actions/client";
 import { ReauthBanner } from "@/components/shared/reauth-banner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { LinearBackfillResult } from "@/lib/types/integrations";
 
-export function JiraConnectButton() {
+export function LinearConnectButton() {
   return (
-    <Button type="button" size="sm" onClick={() => (window.location.href = "/api/integrations/jira/connect")}>
-      Connect Jira
+    <Button type="button" size="sm" onClick={() => (window.location.href = "/api/integrations/linear/connect")}>
+      Connect Linear
     </Button>
   );
 }
 
-export function JiraBackfillButton({ initialReauthRequired = false }: { initialReauthRequired?: boolean }) {
+export function LinearBackfillButton({ initialReauthRequired = false }: { initialReauthRequired?: boolean }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BackfillResult | null>(null);
+  const [result, setResult] = useState<LinearBackfillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reauthRequired, setReauthRequired] = useState(initialReauthRequired);
 
@@ -28,11 +29,10 @@ export function JiraBackfillButton({ initialReauthRequired = false }: { initialR
     setError(null);
     setResult(null);
 
-    const response = await fetch("/api/integrations/jira/backfill", { method: "POST" });
-    const body = await response.json();
+    const { ok, body } = await Actions.Integrations.runLinearBackfill();
     setRunning(false);
 
-    if (!response.ok) {
+    if (!ok) {
       if (body.reauthRequired) {
         setReauthRequired(true);
       } else {
@@ -41,12 +41,12 @@ export function JiraBackfillButton({ initialReauthRequired = false }: { initialR
       return;
     }
 
-    setResult(body.backfill as BackfillResult);
+    setResult(body.backfill);
     router.refresh();
   }
 
   if (reauthRequired) {
-    return <ReauthBanner provider="Jira" reconnectHref="/api/integrations/jira/connect" />;
+    return <ReauthBanner provider="Linear" reconnectHref="/api/integrations/linear/connect" />;
   }
 
   return (
@@ -63,8 +63,8 @@ export function JiraBackfillButton({ initialReauthRequired = false }: { initialR
       )}
       {result && (
         <p className="text-sm text-muted-foreground">
-          {result.issuesFetched} issues · {result.changelogHistoriesFetched} changelog events ·{" "}
-          {result.remoteLinksFetched} remote links.
+          {result.issuesFetched} issues · {result.historyEntriesFetched} history events ·{" "}
+          {result.attachmentsFetched} linked resources.
         </p>
       )}
     </div>

@@ -7,12 +7,9 @@ import {
   sumLegMinutes,
   type BusinessCalendarVersion,
   type CommitmentKind,
-  type CommitmentStatus,
   type EngineeringLegEvaluation,
   type Leg,
-  type LegSpan,
   type NormalizedEvent,
-  type NormalizedEventType,
   type NormalizedState,
   type PausedInterval,
   type SLAPolicyMatch,
@@ -22,6 +19,7 @@ import {
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import type { ZendeskCredentials } from "@sla/zendesk";
 import type { JiraCredentials } from "@sla/jira";
+import type { CaseDetailData, CaseLinkDetail, CommitmentDetail, LegTotal, TimelineEventDetail } from "./types/cases";
 
 // No business calendar exists yet for a case whose SLA hasn't matched any
 // policy — fall back to an always-open calendar purely for the purpose of
@@ -35,82 +33,6 @@ const FALLBACK_CALENDAR: BusinessCalendarVersion = {
   holidays: [],
   alwaysOpen: true,
 };
-
-export interface CommitmentDetail {
-  id: string;
-  kind: CommitmentKind;
-  status: CommitmentStatus;
-  startedAt: string;
-  targetMinutes: number;
-  dueAt: string;
-  closedAt: string | null;
-  elapsedWorkingMinutes: number;
-  remainingMinutes: number;
-  breachedByMinutes: number | null;
-  policyVersion: {
-    id: string;
-    version: number;
-    match: SLAPolicyMatch;
-    warnAtPercent: number[];
-    pauseOnStates: NormalizedState[];
-    effectiveFrom: string;
-  };
-  calendar: {
-    id: string;
-    version: number;
-    timezone: string;
-    weekly: WeeklyWindow[];
-    holidays: string[];
-    alwaysOpen: boolean;
-  };
-}
-
-export interface CaseLinkDetail {
-  system: "zendesk" | "jira" | "linear";
-  externalId: string;
-  url: string | null;
-  method: string;
-  confidence: string;
-}
-
-export interface TimelineEventDetail {
-  id: string;
-  occurredAt: string;
-  actor: string;
-  system: string;
-  type: NormalizedEventType;
-  fromState: NormalizedState | null;
-  toState: NormalizedState | null;
-}
-
-export interface LegTotal {
-  leg: Leg;
-  minutes: number;
-}
-
-export interface CaseDetailData {
-  asOf: string;
-  case: {
-    id: string;
-    externalId: string;
-    priority: string | null;
-    tier: string | null;
-    channel: string | null;
-    openedAt: string;
-    closedAt: string | null;
-    customerName: string | null;
-    zendeskUrl: string | null;
-  };
-  currentLeg: Leg;
-  commitments: CommitmentDetail[];
-  legSpans: (LegSpan & { endedAt: string })[];
-  legTotals: LegTotal[];
-  engineeringLegTarget: EngineeringLegEvaluation | null;
-  runningIntervals: { start: string; end: string }[];
-  pausedIntervals: PausedInterval[];
-  timeline: TimelineEventDetail[];
-  links: CaseLinkDetail[];
-}
 
 function complementIntervals(
   pausedIntervals: PausedInterval[],

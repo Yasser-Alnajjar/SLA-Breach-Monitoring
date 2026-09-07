@@ -3,14 +3,15 @@
 import { AlertCircle, ArrowRight, CircleDot, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Actions } from "@/actions/client";
 import { Reveal } from "@/components/shared/reveal";
 import { ReauthBanner } from "@/components/shared/reauth-banner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { OnboardingStatus } from "@/lib/onboarding-data";
-import { JiraConnectButton } from "../settings/integrations/jira-actions";
-import { ZendeskConnectForm } from "../settings/integrations/zendesk-actions";
+import type { OnboardingStatus } from "@/lib/types/onboarding";
+import { JiraConnectButton } from "@modules/settings/integrations/csr/JiraCard";
+import { ZendeskConnectForm } from "@modules/settings/integrations/csr/ZendeskCard";
 
 interface OnboardingFlowProps {
   initialStatus: OnboardingStatus;
@@ -38,29 +39,23 @@ export function OnboardingFlow({ initialStatus, zendeskSubdomain }: OnboardingFl
   useEffect(() => {
     if (zendeskRunning && !triggered.current.zendesk) {
       triggered.current.zendesk = true;
-      fetch("/api/integrations/zendesk/backfill", { method: "POST" })
-        .then((res) => res.json())
-        .then((body) => {
-          if (body.error) setError(body.error);
-        })
-        .catch(() => setError("Zendesk backfill failed to start"));
+      Actions.Onboarding.startZendeskBackfill().then(({ ok, body }) => {
+        if (!ok) setError(body.error ?? "Zendesk backfill failed to start");
+      });
     }
     if (jiraRunning && !triggered.current.jira) {
       triggered.current.jira = true;
-      fetch("/api/integrations/jira/backfill", { method: "POST" })
-        .then((res) => res.json())
-        .then((body) => {
-          if (body.error) setError(body.error);
-        })
-        .catch(() => setError("Jira backfill failed to start"));
+      Actions.Onboarding.startJiraBackfill().then(({ ok, body }) => {
+        if (!ok) setError(body.error ?? "Jira backfill failed to start");
+      });
     }
   }, [zendeskRunning, jiraRunning]);
 
   useEffect(() => {
     if (!zendeskRunning && !jiraRunning) return;
     const interval = setInterval(async () => {
-      const res = await fetch("/api/onboarding/progress");
-      if (res.ok) setStatus(await res.json());
+      const progress = await Actions.Onboarding.getProgress();
+      if (progress) setStatus(progress);
     }, 2500);
     return () => clearInterval(interval);
   }, [zendeskRunning, jiraRunning]);

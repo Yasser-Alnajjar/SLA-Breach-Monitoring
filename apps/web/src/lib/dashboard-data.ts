@@ -17,6 +17,7 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
+import type { AgingEscalationRow, AtRiskRow, BreachedCaseRow, DashboardData } from "./types/dashboard";
 
 // "Period" for the two reporting metrics (breach count, compliance %) is a
 // trailing 30-day window rather than a calendar month — it needs no
@@ -26,44 +27,6 @@ const PERIOD_DAYS = 30;
 // (Phase 17), so each list is capped and reports how much it left out.
 const AT_RISK_LIMIT = 12;
 const AGING_LIMIT = 8;
-
-export interface AtRiskRow {
-  commitmentId: string;
-  caseId: string;
-  externalId: string;
-  customerName: string | null;
-  kind: CommitmentKind;
-  remainingMinutes: number;
-  status: CommitmentStatus;
-  currentLeg: Leg;
-  minutesInCurrentLeg: number;
-}
-
-export interface AgingEscalationRow {
-  caseId: string;
-  externalId: string;
-  customerName: string | null;
-  minutesInCurrentLeg: number;
-  legTarget: EngineeringLegEvaluation | null;
-}
-
-export interface BreachedCaseRow {
-  caseId: string;
-  externalId: string;
-  customerName: string | null;
-  kind: CommitmentKind;
-}
-
-export interface DashboardData {
-  asOf: string;
-  periodDays: number;
-  atRisk: AtRiskRow[];
-  atRiskOverflowCount: number;
-  breachedThisPeriod: BreachedCaseRow[];
-  agingInEngineering: AgingEscalationRow[];
-  agingOverflowCount: number;
-  compliance: { current: number | null; previous: number | null };
-}
 
 function minutesBetween(from: string, to: Date): number {
   return Math.round((to.getTime() - new Date(from).getTime()) / 60000);

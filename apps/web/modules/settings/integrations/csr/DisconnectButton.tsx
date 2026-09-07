@@ -3,11 +3,13 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { IntegrationProvider } from "@/lib/types/integrations";
 
 interface DisconnectButtonProps {
-  provider: "zendesk" | "jira" | "linear";
+  provider: IntegrationProvider;
   providerLabel: string;
 }
 
@@ -27,12 +29,11 @@ export function DisconnectButton({ provider, providerLabel }: DisconnectButtonPr
     setDisconnecting(true);
     setError(null);
 
-    const response = await fetch(`/api/integrations/${provider}/disconnect`, { method: "POST" });
+    const result = await Actions.Integrations.disconnect(provider);
     setDisconnecting(false);
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      setError(body?.error ?? "Failed to disconnect");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 

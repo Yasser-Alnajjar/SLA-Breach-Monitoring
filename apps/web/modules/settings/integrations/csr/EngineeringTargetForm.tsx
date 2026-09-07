@@ -3,6 +3,7 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,15 +29,10 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
     setSaving(true);
     setError(null);
 
-    const response = await fetch("/api/settings/engineering-target", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetMinutes: Math.round(parsedHours * 60) }),
-    });
-    const body = await response.json();
+    const { ok, body } = await Actions.Integrations.setEngineeringTarget(Math.round(parsedHours * 60));
     setSaving(false);
 
-    if (!response.ok) {
+    if (!ok) {
       setError(body.error ?? "Failed to save target");
       return;
     }
@@ -49,10 +45,10 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
     setSaving(true);
     setError(null);
 
-    const response = await fetch("/api/settings/engineering-target", { method: "DELETE" });
+    const { ok } = await Actions.Integrations.clearEngineeringTarget();
     setSaving(false);
 
-    if (!response.ok) {
+    if (!ok) {
       setError("Failed to clear target");
       return;
     }

@@ -11,26 +11,13 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
+import type { FindingsAccountRow, FindingsData } from "./types/findings";
 
 // Matches the historical backfill window (Phase 10/11) — the findings
 // screen only ever talks about "the last 90 days" because that's exactly
 // what got imported.
 const FINDINGS_PERIOD_DAYS = 90;
 const TOP_ACCOUNTS_LIMIT = 5;
-
-export interface FindingsAccountRow {
-  customerName: string;
-  escalatedCases: number;
-  breachedCases: number;
-}
-
-export interface FindingsData {
-  periodDays: number;
-  totalEscalated: number;
-  exceededTarget: number;
-  avgEngineeringMinutes: number | null;
-  topAccounts: FindingsAccountRow[];
-}
 
 /**
  * Computes the zero-input findings screen (roadmap step 11 / Phase 11):

@@ -3,17 +3,13 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import type { BackfillResult, NormalizationResult } from "@sla/zendesk";
+import { Actions } from "@/actions/client";
 import { ReauthBanner } from "@/components/shared/reauth-banner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-interface SyncResult {
-  backfill: BackfillResult;
-  normalization: NormalizationResult;
-}
+import type { ZendeskSyncResult } from "@/lib/types/integrations";
 
 export function ZendeskConnectForm() {
   const [subdomain, setSubdomain] = useState("");
@@ -57,7 +53,7 @@ interface ZendeskBackfillButtonProps {
 export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false }: ZendeskBackfillButtonProps) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<SyncResult | null>(null);
+  const [result, setResult] = useState<ZendeskSyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reauthRequired, setReauthRequired] = useState(initialReauthRequired);
 
@@ -66,11 +62,10 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
     setError(null);
     setResult(null);
 
-    const response = await fetch("/api/integrations/zendesk/backfill", { method: "POST" });
-    const body = await response.json();
+    const { ok, body } = await Actions.Integrations.runZendeskBackfill();
     setRunning(false);
 
-    if (!response.ok) {
+    if (!ok) {
       if (body.reauthRequired) {
         setReauthRequired(true);
       } else {
@@ -79,7 +74,7 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
       return;
     }
 
-    setResult(body as SyncResult);
+    setResult(body);
     router.refresh();
   }
 

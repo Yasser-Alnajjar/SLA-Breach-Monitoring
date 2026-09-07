@@ -3,10 +3,11 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { SlackChannel } from "@sla/slack";
+import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SlackChannel } from "@/lib/types/integrations";
 
 export function SlackConnectButton() {
   return (
@@ -29,16 +30,15 @@ export function SlackChannelPicker() {
     setLoading(true);
     setError(null);
 
-    const response = await fetch("/api/integrations/slack/channels");
-    const body = await response.json();
+    const { ok, channels, error: loadError } = await Actions.Integrations.loadSlackChannels();
     setLoading(false);
 
-    if (!response.ok) {
-      setError(body.error ?? "Failed to load channels");
+    if (!ok || !channels) {
+      setError(loadError ?? "Failed to load channels");
       return;
     }
 
-    setChannels(body.channels as SlackChannel[]);
+    setChannels(channels);
   }
 
   async function handleSave() {
@@ -48,15 +48,10 @@ export function SlackChannelPicker() {
     setSaving(true);
     setError(null);
 
-    const response = await fetch("/api/integrations/slack/channel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channelId: channel.id, channelName: channel.name }),
-    });
-    const body = await response.json();
+    const { ok, body } = await Actions.Integrations.saveSlackChannel(channel.id, channel.name);
     setSaving(false);
 
-    if (!response.ok) {
+    if (!ok) {
       setError(body.error ?? "Failed to save channel");
       return;
     }

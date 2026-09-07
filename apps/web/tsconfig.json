@@ -17,7 +17,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],
-      "@hooks": ["./src/hooks/index.ts"]
+      "@hooks": ["./src/hooks/index.ts"],
+      "@modules/*": ["./modules/*"]
     },
     "allowJs": true
   },

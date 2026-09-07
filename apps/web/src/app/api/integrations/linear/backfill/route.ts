@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { LinearReauthRequiredError, runLinearBackfill } from "@sla/linear";
+import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 
@@ -23,7 +23,9 @@ export async function POST() {
 
   try {
     const backfill = await runLinearBackfill(prisma, integration.id);
-    return NextResponse.json({ backfill });
+    const correlation = await runLinearCorrelation(prisma, integration.id);
+    const normalization = await runLinearNormalization(prisma, integration.id);
+    return NextResponse.json({ backfill, correlation, normalization });
   } catch (error) {
     if (error instanceof LinearReauthRequiredError) {
       return NextResponse.json({ error: "Linear needs to be reconnected", reauthRequired: true }, { status: 409 });

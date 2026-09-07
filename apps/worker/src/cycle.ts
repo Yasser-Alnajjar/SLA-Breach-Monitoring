@@ -6,6 +6,7 @@ import {
 } from "@sla/commitments";
 import type { PrismaClient } from "@sla/db";
 import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
+import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
 import { runNotificationPipeline } from "@sla/notifications";
 import {
   runZendeskBackfill,
@@ -80,11 +81,17 @@ export async function runCycle(
           await runZendeskNormalization(prisma, integration.id);
           await runZendeskBusinessCalendarImport(prisma, integration.id);
           await runZendeskSlaPolicyImport(prisma, integration.id);
-        } else {
+        } else if (integration.provider === "jira") {
           if (!config.jira) continue;
           await runJiraBackfill(prisma, integration.id, config.jira);
           await runJiraCorrelation(prisma, integration.id);
           await runJiraNormalization(prisma, integration.id);
+        } else {
+          // Linear's backfill needs no OAuth client config to run (roadmap
+          // step 14: its tokens carry no refresh dance), unlike Jira/Zendesk.
+          await runLinearBackfill(prisma, integration.id);
+          await runLinearCorrelation(prisma, integration.id);
+          await runLinearNormalization(prisma, integration.id);
         }
       } catch (error) {
         result.failures.push({
@@ -95,9 +102,11 @@ export async function runCycle(
               ? "Zendesk needs to be reconnected"
               : error instanceof JiraReauthRequiredError
                 ? "Jira needs to be reconnected"
-                : error instanceof Error
-                  ? error.message
-                  : String(error),
+                : error instanceof LinearReauthRequiredError
+                  ? "Linear needs to be reconnected"
+                  : error instanceof Error
+                    ? error.message
+                    : String(error),
         });
       }
     }

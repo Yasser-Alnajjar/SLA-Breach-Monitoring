@@ -20,6 +20,7 @@ export interface ComplianceReportRow {
   externalId: string;
   zendeskUrl: string | null;
   jiraIssueKeys: string[];
+  linearIssueKeys: string[];
   kind: CommitmentKind;
   status: CommitmentStatus;
   targetMinutes: number;
@@ -130,6 +131,7 @@ export async function getComplianceReportRows(
 
   function toRow(row: (typeof commitmentRows)[number]): ComplianceReportRow {
     const jiraIssueKeys = row.case.caseLinks.filter((l) => l.system === "jira").map((l) => l.externalId);
+    const linearIssueKeys = row.case.caseLinks.filter((l) => l.system === "linear").map((l) => l.externalId);
     const zendeskUrl = zendeskCredentials
       ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${row.case.externalId}`
       : null;
@@ -139,6 +141,7 @@ export async function getComplianceReportRows(
       externalId: row.case.externalId,
       zendeskUrl,
       jiraIssueKeys,
+      linearIssueKeys,
       kind: row.kind,
       targetMinutes: row.targetMinutes,
       openedAt: row.case.openedAt.toISOString(),
@@ -181,6 +184,7 @@ const CSV_HEADER = [
   "Ticket",
   "Zendesk URL",
   "Jira issues",
+  "Linear issues",
   "Commitment",
   "Status",
   "Target",
@@ -199,6 +203,7 @@ export function complianceReportToCsv(rows: ComplianceReportRow[]): string {
       row.externalId,
       row.zendeskUrl,
       row.jiraIssueKeys.join(" "),
+      row.linearIssueKeys.join(" "),
       formatCommitmentKind(row.kind),
       formatCommitmentStatus(row.status),
       formatMinutes(row.targetMinutes),

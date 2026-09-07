@@ -141,6 +141,9 @@ importers:
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
+      '@sla/linear':
+        specifier: workspace:*
+        version: link:../../packages/linear
       '@sla/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications

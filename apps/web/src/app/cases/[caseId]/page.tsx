@@ -223,12 +223,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ cas
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-primary hover:underline"
                     >
-                      {link.system === "jira" ? "Jira" : "Zendesk"} {link.externalId}
+                      {link.system === "jira" ? "Jira" : link.system === "linear" ? "Linear" : "Zendesk"} {link.externalId}
                       <ExternalLink className="size-3.5" />
                     </a>
                   ) : (
                     <span className="text-foreground">
-                      {link.system === "jira" ? "Jira" : "Zendesk"} {link.externalId}
+                      {link.system === "jira" ? "Jira" : link.system === "linear" ? "Linear" : "Zendesk"} {link.externalId}
                     </span>
                   )}
                   {" · "}

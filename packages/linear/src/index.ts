@@ -9,3 +9,14 @@ export type { BackfillResult } from "./backfill";
 export type { LinearOAuthConfig } from "./oauth";
 export { buildAuthorizeUrl, exchangeCodeForToken, LinearOAuthError } from "./oauth";
 export { loadFreshLinearCredentials, markReauthRequired, LinearReauthRequiredError } from "./tokenLifecycle";
+export {
+  normalizeLinearStateType,
+  resolveLinearActor,
+  sortHistoriesChronologically,
+  deriveNormalizedEventsForIssue,
+  runLinearNormalization,
+  UnknownLinearStateTypeError,
+} from "./normalize";
+export type { HistoryRecord, DerivedNormalizedEvent, LinearNormalizationResult } from "./normalize";
+export { parseZendeskTicketId, runLinearCorrelation } from "./correlate";
+export type { CorrelationResult } from "./correlate";

@@ -34,13 +34,16 @@ export interface FindingsData {
 
 /**
  * Computes the zero-input findings screen (roadmap step 11 / Phase 11):
- * "Over the last 90 days, N tickets were escalated to Jira. M exceeded
- * their resolution target...". Every number here comes from data the user
- * never typed — Zendesk's own SLA policies, Zendesk organizations, and the
- * Jira changelog — computed live with the same pure engine functions the
- * dashboard and case detail page use, rather than persisted `Commitment`
- * status, so it's accurate immediately after backfill and doesn't wait on
- * the worker's next evaluation cycle.
+ * "Over the last 90 days, N tickets were escalated to engineering. M
+ * exceeded their resolution target...". Every number here comes from data
+ * the user never typed — Zendesk's own SLA policies, Zendesk organizations,
+ * and the Jira/Linear change history — computed live with the same pure
+ * engine functions the dashboard and case detail page use, rather than
+ * persisted `Commitment` status, so it's accurate immediately after backfill
+ * and doesn't wait on the worker's next evaluation cycle. "Escalated" means
+ * linked to either engineering tracker (Jira or Linear, roadmap step 15) —
+ * a case doesn't stop counting just because a customer uses Linear instead
+ * of Jira.
  */
 export async function getFindingsData(
   prisma: PrismaClient,
@@ -51,7 +54,11 @@ export async function getFindingsData(
   const periodStart = new Date(asOfDate.getTime() - FINDINGS_PERIOD_DAYS * 86_400_000);
 
   const escalatedCases = await prisma.case.findMany({
-    where: { organizationId, openedAt: { gte: periodStart }, caseLinks: { some: { system: "jira" } } },
+    where: {
+      organizationId,
+      openedAt: { gte: periodStart },
+      caseLinks: { some: { system: { in: ["jira", "linear"] } } },
+    },
     include: { customer: true, commitments: true },
   });
 

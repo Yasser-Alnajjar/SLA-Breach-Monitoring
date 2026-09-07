@@ -214,6 +214,7 @@ file gets checked off and committed as each step lands.
       disagree on a case's status. Settings UI added as a fifth card on
       `/settings/integrations` (the only settings surface today), following
       the Slack channel picker's set/clear pattern exactly.
+      [PR #19](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/19)
 
 - [ ] **17 — Email notifications**
       Second notification channel in `packages/notifications`, alongside

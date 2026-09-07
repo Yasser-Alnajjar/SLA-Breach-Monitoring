@@ -181,7 +181,7 @@ file gets checked off and committed as each step lands.
       in for Jira remote links) — no fuzzy matching here either.
       `packages/core`'s `SourceSystem` widens to include `"linear"`, and
       `deriveLegSpans` now ends the engineering leg on a resolved/closed
-      state from *either* tracker, not just Jira. Also fixed a bug in the
+      state from _either_ tracker, not just Jira. Also fixed a bug in the
       worker's two-speed cycle: it had been routing every non-Zendesk
       integration through the Jira ingestion path, so a connected Linear
       integration never actually ran its poll/sweep cycle before this. The
@@ -216,60 +216,94 @@ file gets checked off and committed as each step lands.
       the Slack channel picker's set/clear pattern exactly.
       [PR #19](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/19)
 
-- [ ] **17 — Email notifications**
+- [ ] **17 — Integration lifecycle management: disconnect, reconnect, health**
+      Prioritized ahead of the rest of this list — an audit of the current
+      settings UI → API routes → `Integration` schema → each package's
+      `tokenLifecycle.ts` → worker cycle found that a connected provider can
+      only ever be connected, never disconnected, disabled, or shown as
+      unhealthy: no `DELETE`/disconnect route exists for any provider, the
+      `Integration` model has no `status`/`enabled` field, and worker cycle
+      failures are logged only to stdout (`apps/worker/src/index.ts`), never
+      persisted anywhere the UI can read. `Integration` gains `status`
+      (`connected | disconnected | reauth_required`), `disconnectedAt`,
+      `lastSyncAt`, `lastSyncError`. Disconnect is always a soft state
+      change — credentials cleared, row kept, never
+      `prisma.integration.delete` — since `RawEvent.integrationId` cascades on
+      delete and would destroy the immutable replay log the architecture
+      depends on, whereas `Case`/`Commitment`/`Evaluation` are never FK'd to
+      `Integration` and so already survive disconnect untouched today; this
+      step makes that existing guarantee correct and visible rather than
+      accidental, matching the product requirement that historical
+      dashboards and cases remain available after disconnect. New
+      `POST /api/integrations/{provider}/disconnect` per provider stops that
+      provider's worker polling and, where the vendor supports it, revokes
+      the stored token rather than just discarding it locally. The worker
+      persists `lastSyncAt`/`lastSyncError` every cycle instead of only
+      console-logging them, and the settings page renders it. The
+      Zendesk-only `ReauthBanner`
+      (`apps/web/src/components/shared/reauth-banner.tsx`) and its
+      `reauthRequired` check generalize to Jira and Linear, whose backfill
+      routes already return `reauthRequired: true` today but whose buttons
+      (`jira-actions.tsx`, `linear-actions.tsx`) currently ignore it. Explicit
+      non-goals: per-provider settings (project/team allowlists, sync scope)
+      and displaying the connected account/workspace name (Linear stores none
+      today) are new product surface, not lifecycle management — scope
+      separately if requested.
+
+- [ ] **18 — Email notifications**
       Second notification channel in `packages/notifications`, alongside
       Slack (step 8). Same dedup enforcement point (`Notification` table's
       `@@unique([commitmentId, threshold])`) and the same threshold-crossing
       evaluation output — only the formatter and transport are new.
 
-- [ ] **18 — SLA policy override UI**
+- [ ] **19 — SLA policy override UI**
       Manual override of a matched policy's targets, surfaced in
       `apps/web/src/app/settings/integrations`. An override creates a new
       `SLAPolicyVersion` through the existing versioning path (step 6) rather
       than a side channel, so overridden commitments stay just as
       reproducible and auditable as imported ones.
 
-- [ ] **19 — Webhooks for real-time freshness**
+- [ ] **20 — Webhooks for real-time freshness**
       Zendesk/Jira webhook receivers that push events into the same
       `RawEvent` ingestion path the two-speed poller (step 7) already writes
       to, closing the gap between an event happening and the next 5-minute
       poll. The poll/sweep cycles stay in place as the reconciliation safety
       net for missed or out-of-order webhook deliveries.
 
-- [ ] **20 — Intercom integration (first NICE TO HAVE source)**
+- [ ] **21 — Intercom integration (first NICE TO HAVE source)**
       Only if pulled by customers (`plans/03-Product-and-MVP.md`). New
       `packages/intercom` as a third read-only ticket source, mirroring the
       Zendesk ingest/normalize shape (steps 2–3). Picked first among
       Intercom/Freshdesk/Pylon per whichever integration actual prospects
       ask for.
 
-- [ ] **21 — GitHub integration**
+- [ ] **22 — GitHub integration**
       Engineering-leg source alongside Jira/Linear: PR and commit events
       correlated to a `Case` via the same deterministic-link tier, giving a
       third option for teams that track engineering work in GitHub Issues/PRs
       rather than a dedicated tracker.
 
-- [ ] **22 — Custom business calendars per customer**
+- [ ] **23 — Custom business calendars per customer**
       Extends step 13's calendar engine: today one `BusinessCalendar` covers
       an entire organization. This lets a customer with contractually
       different hours (e.g. 24/7 enterprise tier vs. standard business hours)
       get its own calendar version, matched via `Commitment.calendarVersionId`
       same as today, just resolved per-customer instead of per-org.
 
-- [ ] **23 — Public API**
+- [ ] **24 — Public API**
       Read-only API exposing dashboard and case-detail data
       (`apps/web/src/lib/dashboard-data.ts`, `case-detail-data.ts`) for
       customers wiring their own BI tools or internal dashboards to it.
       API-key auth, not OAuth — this is machine-to-machine, not a new user
       surface.
 
-- [ ] **24 — SSO/SAML**
+- [ ] **25 — SSO/SAML**
       Enterprise auth requirement once deals need it. Layers onto the
       existing minimal email/OAuth auth (step 1) rather than replacing it;
       Phase 10 explicitly kept auth minimal for v1, so this only gets built
       when a specific deal is blocked on it.
 
-- [ ] **25 — Anomaly detection on cycle times**
+- [ ] **26 — Anomaly detection on cycle times**
       Statistical (not AI/LLM — Phase 10's DO NOT BUILD list rules that out)
       detection of unusual cycle-time patterns across `Evaluation` history,
       surfaced as a dashboard callout. Lowest-priority NICE TO HAVE item;

@@ -63,7 +63,7 @@ export interface CommitmentDetail {
 }
 
 export interface CaseLinkDetail {
-  system: "zendesk" | "jira";
+  system: "zendesk" | "jira" | "linear";
   externalId: string;
   url: string | null;
   method: string;
@@ -273,11 +273,13 @@ export async function getCaseDetailData(
     ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
     : null;
 
-  // Linear has no correlator yet (roadmap step 15), so a CaseLink never has
-  // system "linear" today — this filter just keeps the type honest about
-  // which systems this page knows how to build an outbound link for.
+  // Every CaseLink system this page knows how to render — a Zendesk CaseLink
+  // never actually occurs (Case itself *is* the Zendesk side), but the type
+  // guard stays honest about the full IntegrationProvider union.
   const links: CaseLinkDetail[] = caseRow.caseLinks
-    .filter((link): link is typeof link & { system: "jira" | "zendesk" } => link.system === "jira" || link.system === "zendesk")
+    .filter((link): link is typeof link & { system: "jira" | "zendesk" | "linear" } =>
+      link.system === "jira" || link.system === "zendesk" || link.system === "linear",
+    )
     .map((link) => ({
       system: link.system,
       externalId: link.externalId,
@@ -288,7 +290,13 @@ export async function getCaseDetailData(
           ? `${jiraCredentials.siteUrl.replace(/\/$/, "")}/browse/${link.externalId}`
           : link.system === "zendesk" && zendeskCredentials
             ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${link.externalId}`
-            : null,
+            : link.system === "linear"
+              ? // Linear's stored OAuth credentials carry no workspace URL to
+                // reconstruct a browse link from (unlike Jira's `siteUrl` or
+                // Zendesk's `subdomain`), so the correlator (roadmap step 15)
+                // captures the issue's own `url` into evidence at link time.
+                ((link.evidence as { issueUrl?: string } | null)?.issueUrl ?? null)
+              : null,
     }));
 
   const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({

@@ -170,12 +170,30 @@ file gets checked off and committed as each step lands.
       token (they don't expire), so `tokenLifecycle.ts` only ever needs to
       mark `reauthRequired` on a 401, never refresh.
 
-- [ ] **15 — Linear normalizer + correlator extension**
-      `RawEvent` → `NormalizedEvent` for Linear, mirroring step 5's Jira
-      normalizer. Extends the deterministic correlator (`packages/core`) to
-      produce `CaseLink` rows from Zendesk↔Linear links on the same
-      deterministic-tier basis as Zendesk↔Jira — no fuzzy matching here
-      either.
+- [x] **15 — Linear normalizer + correlator extension**
+      `RawEvent` → `NormalizedEvent` for Linear (`packages/linear/src/normalize.ts`),
+      mirroring step 5's Jira normalizer — simpler in one respect, since
+      Linear's history entries embed the full workflow state (including its
+      fixed-vocabulary `type`) directly, unlike Jira's changelog which needs
+      a separate site-wide status lookup. A new `packages/linear/src/correlate.ts`
+      produces `CaseLink` rows from Zendesk↔Linear links on the same
+      deterministic-tier basis as Zendesk↔Jira (Linear attachments standing
+      in for Jira remote links) — no fuzzy matching here either.
+      `packages/core`'s `SourceSystem` widens to include `"linear"`, and
+      `deriveLegSpans` now ends the engineering leg on a resolved/closed
+      state from *either* tracker, not just Jira. Also fixed a bug in the
+      worker's two-speed cycle: it had been routing every non-Zendesk
+      integration through the Jira ingestion path, so a connected Linear
+      integration never actually ran its poll/sweep cycle before this. The
+      case detail page, CSV export, and findings screen now recognize
+      Linear-sourced links and engineering time alongside Jira's; unlike
+      Jira (`siteUrl`) or Zendesk (`subdomain`), Linear's stored OAuth
+      credentials carry no workspace URL to reconstruct a browse link from,
+      so the correlator captures the linked issue's own `url` into the
+      CaseLink's `evidence` at link time instead. Onboarding's progress
+      tracking stays Jira-only for now — a deliberate scope cut, not an
+      oversight, since Linear was never part of that flow's design.
+      [PR #18](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/18)
 
 - [ ] **16 — Optional per-team leg targets**
       The OLA configuration surface stays deliberately tiny per Phase 10's

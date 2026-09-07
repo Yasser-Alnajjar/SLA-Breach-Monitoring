@@ -49,7 +49,10 @@ export function deriveLegSpans(
   );
 
   let zendeskState: NormalizedState | null = null;
-  let jiraState: NormalizedState | null = null;
+  // Either engineering-tracker provider (Jira or Linear) drives the same
+  // decision — a case's engineering leg ends when its linked issue resolves,
+  // regardless of which tracker that issue lives in.
+  let engineeringState: NormalizedState | null = null;
   let linkedIssueCount = 0;
 
   const decide = (): Decision => {
@@ -57,7 +60,7 @@ export function deriveLegSpans(
       return { leg: "waiting_customer", confidence: "certain" };
     }
     if (linkedIssueCount > 0) {
-      if (jiraState === "resolved" || jiraState === "closed") {
+      if (engineeringState === "resolved" || engineeringState === "closed") {
         return { leg: "support", confidence: "certain" };
       }
       return linkedIssueCount > 1
@@ -127,7 +130,7 @@ export function deriveLegSpans(
         event.toState
       ) {
         if (event.system === "zendesk") zendeskState = event.toState;
-        if (event.system === "jira") jiraState = event.toState;
+        if (event.system === "jira" || event.system === "linear") engineeringState = event.toState;
       }
       if (event.type === "issue_linked") linkedIssueCount++;
       if (event.type === "issue_unlinked")

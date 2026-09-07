@@ -167,6 +167,57 @@ describe("deriveLegSpans", () => {
     );
   });
 
+  it("attributes a Linear-linked issue to the engineering leg the same way as a Jira one", () => {
+    const events = [
+      event({
+        type: "case_created",
+        system: "zendesk",
+        toState: "open",
+        occurredAt: "2026-09-07T09:00:00.000Z",
+      }),
+      event({
+        type: "issue_linked",
+        system: "linear",
+        occurredAt: "2026-09-07T10:00:00.000Z",
+      }),
+    ];
+
+    const { spans } = deriveLegSpans(events);
+    expect(spans[spans.length - 1]).toMatchObject({ leg: "engineering", confidence: "certain" });
+  });
+
+  it("ends the engineering leg once the linked issue resolves, regardless of which tracker it's in", () => {
+    const events = [
+      event({
+        type: "case_created",
+        system: "zendesk",
+        toState: "open",
+        occurredAt: "2026-09-07T09:00:00.000Z",
+      }),
+      event({
+        type: "issue_linked",
+        system: "linear",
+        occurredAt: "2026-09-07T10:00:00.000Z",
+      }),
+      event({
+        type: "state_changed",
+        system: "linear",
+        fromState: "in_progress",
+        toState: "resolved",
+        occurredAt: "2026-09-07T11:00:00.000Z",
+      }),
+    ];
+
+    const { spans } = deriveLegSpans(events);
+    expect(
+      spans.map((s) => [s.leg, s.startedAt, s.endedAt]),
+    ).toEqual([
+      ["support", "2026-09-07T09:00:00.000Z", "2026-09-07T10:00:00.000Z"],
+      ["engineering", "2026-09-07T10:00:00.000Z", "2026-09-07T11:00:00.000Z"],
+      ["support", "2026-09-07T11:00:00.000Z", null],
+    ]);
+  });
+
   it("never guesses: absent signals produce an unknown span rather than a default leg", () => {
     const noSignalEvents = [
       event({

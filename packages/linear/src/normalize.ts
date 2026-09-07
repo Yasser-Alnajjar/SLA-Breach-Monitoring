@@ -1,0 +1,263 @@
+import type { Prisma, PrismaClient } from "@sla/db";
+import type { Actor, NormalizedState } from "@sla/core";
+import type { LinearHistoryEntry, LinearIssue, LinearWorkflowState } from "./types";
+
+/**
+ * Linear's true fixed vocabulary (`LinearWorkflowState.type`), unlike the
+ * per-team, per-workflow state name itself. Six categories map onto
+ * `NormalizedState`'s eight values with `backlog`/`unstarted` collapsing to
+ * the same pre-start `open` — both mean "accepted, not yet in progress,"
+ * and `NormalizedState` has no finer distinction than that.
+ */
+const TYPE_TO_NORMALIZED_STATE: Record<string, NormalizedState> = {
+  triage: "new",
+  backlog: "open",
+  unstarted: "open",
+  started: "in_progress",
+  completed: "resolved",
+  canceled: "closed",
+};
+
+export class UnknownLinearStateTypeError extends Error {
+  constructor(type: string) {
+    super(`Unknown Linear workflow state type: ${type}`);
+    this.name = "UnknownLinearStateTypeError";
+  }
+}
+
+export function normalizeLinearStateType(type: string): NormalizedState {
+  const mapped = TYPE_TO_NORMALIZED_STATE[type];
+  if (!mapped) throw new UnknownLinearStateTypeError(type);
+  return mapped;
+}
+
+/**
+ * Best-effort actor resolution, mirroring Jira's `resolveJiraActor`: a null
+ * actor (an automation rule acting without impersonating a user) is
+ * "system"; otherwise compare to the issue's creator, defaulting to "agent"
+ * since most transitions on a support-linked engineering issue are
+ * engineer-side.
+ */
+export function resolveLinearActor(
+  actor: { id: string; name: string } | null | undefined,
+  issue: LinearIssue,
+): Actor {
+  if (!actor) return "system";
+  if (issue.creator?.id === actor.id) return "customer";
+  return "agent";
+}
+
+export interface HistoryRecord {
+  /** The RawEvent row id this entry was read from — becomes NormalizedEvent.sourceRawEventId. */
+  rawEventId: string;
+  entry: LinearHistoryEntry;
+}
+
+export function sortHistoriesChronologically(histories: HistoryRecord[]): HistoryRecord[] {
+  return [...histories].sort((a, b) => {
+    const byTime = Date.parse(a.entry.createdAt) - Date.parse(b.entry.createdAt);
+    return byTime !== 0 ? byTime : a.entry.id.localeCompare(b.entry.id);
+  });
+}
+
+type StateChangeRecord = HistoryRecord & { entry: { fromState: LinearWorkflowState; toState: LinearWorkflowState } };
+
+function isStateChangeRecord(record: HistoryRecord): record is StateChangeRecord {
+  return record.entry.fromState !== null && record.entry.toState !== null;
+}
+
+export interface DerivedNormalizedEvent {
+  occurredAt: string;
+  actor: Actor;
+  fromState: NormalizedState | null;
+  toState: NormalizedState;
+  sourceRawEventId: string;
+}
+
+/**
+ * `RawEvent` → `NormalizedEvent` for one Linear issue. Always emits plain
+ * `state_changed` events, never `case_created`/`case_closed` — those types
+ * mark the anchor Case's own lifecycle (the Zendesk ticket), and a Linear
+ * issue is never the anchor, only ever a linked engineering leg. Regenerated
+ * from scratch on every run, mirroring Jira's normalizer (roadmap step 5).
+ *
+ * The issue's initial state comes from the first state-changing history
+ * entry's `fromState` (falling back to the issue's current state when no
+ * state change was ever recorded) — same approach as Jira's changelog `from`.
+ * Unlike Jira, Linear's history embeds the full state object (including
+ * `type`) directly on every entry, so no separate site-wide status lookup is
+ * needed to recover the fixed-vocabulary category.
+ */
+export function deriveNormalizedEventsForIssue(
+  issue: LinearIssue,
+  historiesForIssue: HistoryRecord[],
+  issueRawEventId: string,
+): DerivedNormalizedEvent[] {
+  const sorted = sortHistoriesChronologically(historiesForIssue);
+  const stateChanges = sorted.filter(isStateChangeRecord);
+
+  const firstChange = stateChanges[0];
+  const initialState = firstChange ? firstChange.entry.fromState : issue.state;
+  const createdActor = firstChange
+    ? resolveLinearActor(firstChange.entry.actor, issue)
+    : resolveLinearActor(issue.creator, issue);
+
+  const events: DerivedNormalizedEvent[] = [
+    {
+      occurredAt: issue.createdAt,
+      actor: createdActor,
+      fromState: null,
+      toState: normalizeLinearStateType(initialState.type),
+      sourceRawEventId: firstChange?.rawEventId ?? issueRawEventId,
+    },
+  ];
+
+  for (const { rawEventId, entry } of stateChanges) {
+    events.push({
+      occurredAt: entry.createdAt,
+      actor: resolveLinearActor(entry.actor, issue),
+      fromState: normalizeLinearStateType(entry.fromState.type),
+      toState: normalizeLinearStateType(entry.toState.type),
+      sourceRawEventId: rawEventId,
+    });
+  }
+
+  return events;
+}
+
+export interface LinearNormalizationResult {
+  issuesProcessed: number;
+  normalizedEventsWritten: number;
+  issuesSkippedNoCaseLink: number;
+  issuesFailed: { issueIdentifier: string; error: string }[];
+}
+
+function latestIssueSnapshots(
+  rows: { id: string; payload: unknown; fetchedAt: Date }[],
+): Map<string, { rawEventId: string; value: LinearIssue; fetchedAt: Date }> {
+  const byId = new Map<string, { rawEventId: string; value: LinearIssue; fetchedAt: Date }>();
+  for (const row of rows) {
+    const value = row.payload as LinearIssue;
+    const existing = byId.get(value.id);
+    if (!existing || row.fetchedAt >= existing.fetchedAt) {
+      byId.set(value.id, { rawEventId: row.id, value, fetchedAt: row.fetchedAt });
+    }
+  }
+  return byId;
+}
+
+/** `issue_history:{issueId}:{entryId}` — history entries carry no issue id of their own. */
+function groupHistoriesByIssueId(
+  rows: { id: string; providerEventId: string; payload: unknown }[],
+): Map<string, HistoryRecord[]> {
+  const byIssueId = new Map<string, HistoryRecord[]>();
+  for (const row of rows) {
+    const issueId = row.providerEventId.split(":")[1];
+    if (!issueId) continue;
+    const record: HistoryRecord = { rawEventId: row.id, entry: row.payload as LinearHistoryEntry };
+    const group = byIssueId.get(issueId);
+    if (group) group.push(record);
+    else byIssueId.set(issueId, [record]);
+  }
+  return byIssueId;
+}
+
+/**
+ * Projects every Linear issue linked to a Case (via a `certain` CaseLink —
+ * the correlator's job, run before this) into NormalizedEvents on that Case.
+ * Idempotent: each issue's own NormalizedEvents are replaced wholesale from a
+ * fresh derivation, scoped to that issue's own RawEvents only, mirroring
+ * `runJiraNormalization`.
+ *
+ * An issue with no `certain` CaseLink yet is skipped, not an error — most
+ * Linear issues are internal engineering work with no customer-facing case
+ * to attach to, and correlation coverage is expected to be partial (Phase 15).
+ */
+export async function runLinearNormalization(
+  prisma: PrismaClient,
+  integrationId: string,
+): Promise<LinearNormalizationResult> {
+  const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+  const organizationId = integration.organizationId;
+
+  const result: LinearNormalizationResult = {
+    issuesProcessed: 0,
+    normalizedEventsWritten: 0,
+    issuesSkippedNoCaseLink: 0,
+    issuesFailed: [],
+  };
+
+  const [issueRows, historyRows, caseLinks] = await Promise.all([
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "issue:" } },
+      select: { id: true, payload: true, fetchedAt: true },
+      orderBy: { fetchedAt: "asc" },
+    }),
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "issue_history:" } },
+      select: { id: true, providerEventId: true, payload: true },
+    }),
+    prisma.caseLink.findMany({
+      where: { system: "linear", confidence: "certain", case: { organizationId } },
+      select: { caseId: true, externalId: true },
+    }),
+  ]);
+
+  const latestIssues = latestIssueSnapshots(issueRows);
+  const historiesByIssueId = groupHistoriesByIssueId(historyRows);
+  const caseIdByIdentifier = new Map(caseLinks.map((link) => [link.externalId, link.caseId]));
+
+  for (const { rawEventId: issueRawEventId, value: issue } of latestIssues.values()) {
+    const caseId = caseIdByIdentifier.get(issue.identifier);
+    if (!caseId) {
+      result.issuesSkippedNoCaseLink += 1;
+      continue;
+    }
+
+    try {
+      const derived = deriveNormalizedEventsForIssue(
+        issue,
+        historiesByIssueId.get(issue.id) ?? [],
+        issueRawEventId,
+      );
+
+      const ownRawEvents = await prisma.rawEvent.findMany({
+        where: {
+          integrationId,
+          OR: [
+            { providerEventId: { startsWith: `issue:${issue.id}:` } },
+            { providerEventId: { startsWith: `issue_history:${issue.id}:` } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      await prisma.$transaction([
+        prisma.normalizedEvent.deleteMany({
+          where: { caseId, sourceRawEventId: { in: ownRawEvents.map((row) => row.id) } },
+        }),
+        prisma.normalizedEvent.createMany({
+          data: derived.map((event) => ({
+            caseId,
+            sourceRawEventId: event.sourceRawEventId,
+            type: "state_changed" as const,
+            occurredAt: new Date(event.occurredAt),
+            actor: event.actor,
+            system: "linear" as const,
+            fromState: event.fromState,
+            toState: event.toState,
+          })) satisfies Prisma.NormalizedEventCreateManyInput[],
+        }),
+      ]);
+      result.issuesProcessed += 1;
+      result.normalizedEventsWritten += derived.length;
+    } catch (error) {
+      result.issuesFailed.push({
+        issueIdentifier: issue.identifier,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return result;
+}

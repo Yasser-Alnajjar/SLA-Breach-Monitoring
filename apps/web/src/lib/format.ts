@@ -103,9 +103,13 @@ export function formatWeeklyWindow(window: { day: number; openMinute: number; cl
   return `${DAY_LABELS[window.day] ?? window.day} ${formatMinuteOfDay(window.openMinute)}–${formatMinuteOfDay(window.closeMinute)}`;
 }
 
+// "remote_link" covers both a Jira remote link and a Linear attachment — the
+// two providers' equivalent of "a URL pointing back at the Zendesk ticket" —
+// so the label stays provider-neutral; which system it is renders separately
+// alongside it wherever a CaseLink is displayed.
 const CASE_LINK_METHOD_LABELS: Record<string, string> = {
   official_link: "Official Zendesk↔Jira link",
-  remote_link: "Jira remote link",
+  remote_link: "Remote link",
   pattern: "Pattern match",
   manual: "Manually linked",
 };

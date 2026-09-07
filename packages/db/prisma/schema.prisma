@@ -21,6 +21,11 @@ model Organization {
   name              String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  /// Optional OLA target (Phase 15 roadmap step 16): minutes a case may spend
+  /// in the engineering leg before it shows as at-risk/breached. Null means
+  /// no target is configured — deliberately a single org-scoped value, not a
+  /// policy builder or a per-team entity.
+  engineeringLegTargetMinutes Int?
   businessCalendars BusinessCalendar[]
   cases             Case[]
   customers         Customer[]

@@ -18,6 +18,61 @@ import { stableHash } from "./util";
  */
 export const BREACH_NOTIFICATION_THRESHOLD = 100;
 
+/**
+ * Fixed warn threshold for the engineering-leg OLA target (roadmap step 16).
+ * Not configurable — "one optional target duration per engineering leg, not
+ * a policy builder" rules out a per-org `warnAtPercent` array here.
+ */
+export const ENGINEERING_LEG_WARN_AT_PERCENT = 80;
+
+export interface EngineeringLegEvaluation {
+  targetMinutes: number;
+  elapsedMinutes: number;
+  remainingMinutes: number;
+  status: "on_track" | "at_risk" | "met" | "breached";
+  breachedByMinutes?: number;
+}
+
+/**
+ * Evaluates an optional engineering-leg OLA target against the cumulative
+ * minutes a case has spent in the engineering leg (`sumLegMinutes` in
+ * `legs.ts`). Mirrors `evaluateCommitment`'s status ladder
+ * (`on_track → at_risk → met | breached`) but has no policy/calendar of its
+ * own — `elapsedMinutes` is plain wall-clock time, not working minutes,
+ * matching how the dashboard's existing "aging in engineering" metric is
+ * already computed (`minutesBetween`, not calendar-aware).
+ *
+ * `legIsOpen` is whether the case is *currently* in the engineering leg: a
+ * breach is permanent once minutes exceed target, but "met" only applies
+ * once the leg has actually closed under target — a case still inside the
+ * leg is `at_risk`/`on_track`, never `met`.
+ */
+export function evaluateEngineeringLegTarget(
+  elapsedMinutes: number,
+  targetMinutes: number,
+  legIsOpen: boolean,
+): EngineeringLegEvaluation {
+  const remainingMinutes = targetMinutes - elapsedMinutes;
+
+  let status: EngineeringLegEvaluation["status"];
+  if (remainingMinutes < 0) {
+    status = "breached";
+  } else if (!legIsOpen) {
+    status = "met";
+  } else {
+    const percentConsumed = (elapsedMinutes / targetMinutes) * 100;
+    status = percentConsumed >= ENGINEERING_LEG_WARN_AT_PERCENT ? "at_risk" : "on_track";
+  }
+
+  return {
+    targetMinutes,
+    elapsedMinutes,
+    remainingMinutes,
+    status,
+    breachedByMinutes: remainingMinutes < 0 ? -remainingMinutes : undefined,
+  };
+}
+
 /** Event types that carry Zendesk's own view of the case's lifecycle state. */
 const ZENDESK_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
   "case_created",

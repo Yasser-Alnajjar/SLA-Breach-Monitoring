@@ -195,12 +195,26 @@ file gets checked off and committed as each step lands.
       oversight, since Linear was never part of that flow's design.
       [PR #18](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/18)
 
-- [ ] **16 — Optional per-team leg targets**
-      The OLA configuration surface stays deliberately tiny per Phase 10's
-      scope reduction: one optional target duration per engineering leg, not
-      a policy builder. Settings UI to set/clear a target on a team; when set,
-      `evaluateCommitment` reports at-risk/breach on the engineering leg the
-      same way it already does for SLA commitments.
+- [x] **16 — Optional per-team leg targets**
+      One optional target duration for the engineering leg, org-scoped rather
+      than a real per-team entity — no `Team` model exists (Jira project /
+      Linear team aren't even persisted), and building one would re-open the
+      "team mapping/org-chart config" item this roadmap's own DO NOT BUILD
+      list excludes. `Organization.engineeringLegTargetMinutes` is a single
+      nullable, clearable field (mirrors `SlackIntegration.channelId`, not a
+      versioned policy). `packages/core`'s new `sumLegMinutes` sums wall-clock
+      minutes across every `LegSpan` of a leg — cumulative, not "current span
+      only" — and `evaluateEngineeringLegTarget` reuses the same
+      `on_track → at_risk → met | breached` ladder `evaluateCommitment`
+      already uses, at a fixed 80% warn threshold rather than a configurable
+      `warnAtPercent` array. No worker/`Evaluation`/`Notification` wiring:
+      like the dashboard's existing "aging in engineering" list, status is
+      computed live in `dashboard-data.ts`/`case-detail-data.ts` from the same
+      `deriveLegSpans` output both already call, so the two pages can never
+      disagree on a case's status. Settings UI added as a fifth card on
+      `/settings/integrations` (the only settings surface today), following
+      the Slack channel picker's set/clear pattern exactly.
+      [PR #19](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/19)
 
 - [ ] **17 — Email notifications**
       Second notification channel in `packages/notifications`, alongside

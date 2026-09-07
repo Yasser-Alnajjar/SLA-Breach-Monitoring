@@ -175,12 +175,24 @@ export default async function DashboardPage() {
                 ) : (
                   <ul className="space-y-2 text-sm">
                     {data.agingInEngineering.map((row) => (
-                      <li key={row.caseId} className="text-muted-foreground">
-                        <span className="text-foreground">{row.customerName ?? "—"}</span> ·{" "}
-                        <a href={`/cases/${row.caseId}`} className="text-primary hover:underline">
-                          #{row.externalId}
-                        </a>{" "}
-                        · {formatMinutes(row.minutesInCurrentLeg)}
+                      <li key={row.caseId} className="flex items-center gap-2 text-muted-foreground">
+                        <span>
+                          <span className="text-foreground">{row.customerName ?? "—"}</span> ·{" "}
+                          <a href={`/cases/${row.caseId}`} className="text-primary hover:underline">
+                            #{row.externalId}
+                          </a>{" "}
+                          · {formatMinutes(row.minutesInCurrentLeg)}
+                        </span>
+                        {row.legTarget && (
+                          <>
+                            <StatusBadge status={row.legTarget.status} />
+                            <span className="text-xs">
+                              {row.legTarget.remainingMinutes >= 0
+                                ? `${formatMinutes(row.legTarget.remainingMinutes)} left`
+                                : `over by ${formatMinutes(row.legTarget.breachedByMinutes ?? 0)}`}
+                            </span>
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>

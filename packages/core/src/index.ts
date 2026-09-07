@@ -4,4 +4,4 @@ export { computeElapsedWorkingMinutes } from "./elapsed";
 export { deriveLegSpans, validateLegSpans } from "./legs";
 export type { DeriveLegSpansOptions } from "./legs";
 export { matchPolicyVersion, createCommitment } from "./commitments";
-export { evaluateCommitment, BREACH_NOTIFICATION_THRESHOLD } from "./evaluate";
+export { evaluateCommitment, findCaseCloseEvent, BREACH_NOTIFICATION_THRESHOLD } from "./evaluate";

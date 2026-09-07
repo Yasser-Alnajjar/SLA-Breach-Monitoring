@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveCaseClosedAt,
   deriveNormalizedEventsForTicket,
   normalizeZendeskStatus,
   resolveActor,
   sortAuditsChronologically,
   UnknownZendeskStatusError,
   type AuditRecord,
+  type DerivedNormalizedEvent,
 } from "../src/normalize";
 import type { ZendeskAudit, ZendeskTicket } from "../src/types";
 
@@ -122,7 +124,7 @@ describe("deriveNormalizedEventsForTicket", () => {
     });
   });
 
-  it("emits case_closed instead of state_changed for the transition into closed", () => {
+  it("emits case_closed instead of state_changed for the transition into solved or closed", () => {
     const audits = [
       audit({
         id: 1,
@@ -151,9 +153,17 @@ describe("deriveNormalizedEventsForTicket", () => {
     expect(events.map((e) => e.type)).toEqual([
       "case_created",
       "state_changed",
-      "state_changed",
+      "case_closed",
       "case_closed",
     ]);
+    const solved = events[2];
+    expect(solved).toMatchObject({
+      type: "case_closed",
+      fromState: "open",
+      toState: "resolved",
+      actor: "agent",
+      sourceRawEventId: "raw_2",
+    });
     const closed = events[3];
     expect(closed).toMatchObject({
       type: "case_closed",
@@ -162,6 +172,36 @@ describe("deriveNormalizedEventsForTicket", () => {
       actor: "system",
       sourceRawEventId: "raw_3",
     });
+  });
+
+  it("emits a plain state_changed when a solved ticket is reopened", () => {
+    const audits = [
+      audit({
+        id: 1,
+        created_at: "2026-01-01T09:05:00Z",
+        author_id: 501,
+        via: { channel: "web" },
+        events: [statusChange("open", "new")],
+      }),
+      audit({
+        id: 2,
+        created_at: "2026-01-02T09:00:00Z",
+        author_id: 900,
+        via: { channel: "web" },
+        events: [statusChange("solved", "open")],
+      }),
+      audit({
+        id: 3,
+        created_at: "2026-01-02T15:00:00Z",
+        author_id: 501,
+        via: { channel: "web" },
+        events: [statusChange("open", "solved")],
+      }),
+    ];
+    const events = deriveNormalizedEventsForTicket({ ...ticket, status: "open" }, audits, "raw_ticket_42");
+
+    expect(events.map((e) => e.type)).toEqual(["case_created", "state_changed", "case_closed", "state_changed"]);
+    expect(events[3]).toMatchObject({ type: "state_changed", fromState: "resolved", toState: "open" });
   });
 
   it("resolves each transition's actor independently from its own audit", () => {
@@ -200,5 +240,112 @@ describe("deriveNormalizedEventsForTicket", () => {
     const events = deriveNormalizedEventsForTicket({ ...ticket, status: "new" }, audits, "raw_ticket_42");
     expect(events).toHaveLength(1);
     expect(events[0]?.type).toBe("case_created");
+  });
+});
+
+describe("deriveCaseClosedAt", () => {
+  const solvedEvent: DerivedNormalizedEvent = {
+    type: "case_closed",
+    occurredAt: "2026-01-02T09:00:00Z",
+    actor: "agent",
+    fromState: "open",
+    toState: "resolved",
+    sourceRawEventId: "raw_2",
+  };
+  const closedEvent: DerivedNormalizedEvent = {
+    type: "case_closed",
+    occurredAt: "2026-01-03T12:00:00Z",
+    actor: "system",
+    fromState: "resolved",
+    toState: "closed",
+    sourceRawEventId: "raw_3",
+  };
+  const createdEvent: DerivedNormalizedEvent = {
+    type: "case_created",
+    occurredAt: "2026-01-01T09:00:00Z",
+    actor: "customer",
+    fromState: null,
+    toState: "open",
+    sourceRawEventId: "raw_ticket_42",
+  };
+
+  it("is set from the solved transition when the ticket is currently solved", () => {
+    const closedAt = deriveCaseClosedAt({ ...ticket, status: "solved" }, [createdEvent, solvedEvent]);
+    expect(closedAt?.toISOString()).toBe("2026-01-02T09:00:00.000Z");
+  });
+
+  it("is set from the closed transition when the ticket is currently closed", () => {
+    const closedAt = deriveCaseClosedAt({ ...ticket, status: "closed" }, [createdEvent, solvedEvent, closedEvent]);
+    expect(closedAt?.toISOString()).toBe("2026-01-03T12:00:00.000Z");
+  });
+
+  it("is null for an open, pending, new, or on-hold ticket", () => {
+    for (const status of ["new", "open", "pending", "hold"]) {
+      expect(deriveCaseClosedAt({ ...ticket, status }, [createdEvent])).toBeNull();
+    }
+  });
+
+  it("is null again once a solved ticket is reopened, even though a case_closed event exists in its history", () => {
+    const reopened: DerivedNormalizedEvent = {
+      type: "state_changed",
+      occurredAt: "2026-01-02T15:00:00Z",
+      actor: "customer",
+      fromState: "resolved",
+      toState: "open",
+      sourceRawEventId: "raw_4",
+    };
+    const closedAt = deriveCaseClosedAt({ ...ticket, status: "open" }, [createdEvent, solvedEvent, reopened]);
+    expect(closedAt).toBeNull();
+  });
+
+  it("falls back to the ticket's updated_at when no case_closed event was derived", () => {
+    const closedAt = deriveCaseClosedAt({ ...ticket, status: "solved", updated_at: "2026-01-05T00:00:00Z" }, [
+      { ...createdEvent, toState: "resolved" },
+    ]);
+    expect(closedAt?.toISOString()).toBe("2026-01-05T00:00:00.000Z");
+  });
+
+  it("uses the most recent case_closed event when the ticket was solved more than once", () => {
+    const secondSolve: DerivedNormalizedEvent = {
+      type: "case_closed",
+      occurredAt: "2026-01-04T10:00:00Z",
+      actor: "agent",
+      fromState: "open",
+      toState: "resolved",
+      sourceRawEventId: "raw_5",
+    };
+    const closedAt = deriveCaseClosedAt({ ...ticket, status: "solved" }, [createdEvent, solvedEvent, secondSolve]);
+    expect(closedAt?.toISOString()).toBe("2026-01-04T10:00:00.000Z");
+  });
+
+  it("is idempotent: re-deriving from the same solved ticket and audits twice yields identical output", () => {
+    const solvedTicket = { ...ticket, status: "solved" };
+    const audits = [
+      audit({
+        id: 1,
+        created_at: "2026-01-01T09:05:00Z",
+        author_id: 501,
+        via: { channel: "web" },
+        events: [statusChange("open", "new")],
+      }),
+      audit({
+        id: 2,
+        created_at: "2026-01-02T09:00:00Z",
+        author_id: 900,
+        via: { channel: "web" },
+        events: [statusChange("solved", "open")],
+      }),
+    ];
+
+    const run = () => {
+      const derived = deriveNormalizedEventsForTicket(solvedTicket, audits, "raw_ticket_42");
+      return { derived, closedAt: deriveCaseClosedAt(solvedTicket, derived) };
+    };
+
+    const first = run();
+    const second = run();
+    expect(second.derived).toEqual(first.derived);
+    expect(second.closedAt?.toISOString()).toBe(first.closedAt?.toISOString());
+    expect(first.derived.map((e) => e.type)).toEqual(["case_created", "state_changed", "case_closed"]);
   });
 });

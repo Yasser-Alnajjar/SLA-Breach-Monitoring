@@ -114,7 +114,12 @@ export function deriveNormalizedEventsForTicket(
   for (const { rawEventId, audit, event } of statusChanges) {
     const toState = normalizeZendeskStatus(event.value);
     events.push({
-      type: toState === "closed" ? "case_closed" : "state_changed",
+      // "solved" and "closed" both end the case's customer-facing lifecycle
+      // (Zendesk is the source of truth for that — Jira reaching its own
+      // "done" category must never produce this type, see jira/normalize.ts).
+      // "solved" can still be reopened by a later transition back to a
+      // non-terminal state, which is emitted as a plain state_changed below.
+      type: toState === "closed" || toState === "resolved" ? "case_closed" : "state_changed",
       occurredAt: audit.created_at,
       actor: resolveActor(audit.via?.channel, audit.author_id, ticket),
       fromState: normalizeZendeskStatus(event.previous_value),
@@ -124,6 +129,30 @@ export function deriveNormalizedEventsForTicket(
   }
 
   return events;
+}
+
+/**
+ * `Case.closedAt` for a ticket: set once it reaches a terminal Zendesk state
+ * ("solved" or "closed"), timestamped from the most recent transition into
+ * either — not the first, so a solve-then-reopen-then-resolve cycle reports
+ * the final resolution, not the first one. Null whenever the ticket's
+ * *current* status isn't terminal, including a solved ticket Zendesk later
+ * reopened: `ticket.status` is always the live snapshot, so this naturally
+ * flips back without needing to detect the reopen explicitly.
+ *
+ * Falls back to `ticket.updated_at` when no case_closed event was derived at
+ * all — a ticket fetched for the first time already solved/closed, with no
+ * audit history recorded for the transition.
+ */
+export function deriveCaseClosedAt(
+  ticket: ZendeskTicket,
+  derivedEvents: DerivedNormalizedEvent[],
+): Date | null {
+  const currentState = normalizeZendeskStatus(ticket.status);
+  if (currentState !== "resolved" && currentState !== "closed") return null;
+
+  const closureEvent = [...derivedEvents].reverse().find((event) => event.type === "case_closed");
+  return new Date(closureEvent?.occurredAt ?? ticket.updated_at);
 }
 
 export interface NormalizationResult {
@@ -228,9 +257,7 @@ export async function runZendeskNormalization(
         auditsByTicketId.get(ticket.id) ?? [],
         ticketRawEventId,
       );
-      const closureEvent = [...derived].reverse().find((event) => event.type === "case_closed");
-      const isClosed = normalizeZendeskStatus(ticket.status) === "closed";
-      const closedAt = isClosed ? new Date(closureEvent?.occurredAt ?? ticket.updated_at) : null;
+      const closedAt = deriveCaseClosedAt(ticket, derived);
 
       const caseRow = await prisma.case.upsert({
         where: { organizationId_externalId: { organizationId, externalId: String(ticket.id) } },

@@ -1,5 +1,5 @@
 import { SignUpForm } from "../csr/SignUpForm";
 
-export const SignUpFeature = async () => {
+export const SignUp = async () => {
   return <SignUpForm />;
 };

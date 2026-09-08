@@ -1,1 +1,1 @@
-export { IntegrationsFeature } from "./ssr/IntegrationsFeature";
+export { Integrations } from "./ssr/Integrations";

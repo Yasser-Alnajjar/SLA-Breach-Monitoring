@@ -333,12 +333,58 @@ file gets checked off and committed as each step lands.
       calculated" disclosure render match conditions identically instead of
       duplicating the logic.
 
-- [ ] **20 — Webhooks for real-time freshness**
-      Zendesk/Jira webhook receivers that push events into the same
-      `RawEvent` ingestion path the two-speed poller (step 7) already writes
-      to, closing the gap between an event happening and the next 5-minute
-      poll. The poll/sweep cycles stay in place as the reconciliation safety
+- [x] **20 — Webhooks for real-time freshness**
+      Zendesk/Jira webhook receivers (`POST /api/webhooks/{provider}/{integrationId}`)
+      that push events into the same `RawEvent` ingestion path the two-speed
+      poller (step 7) already writes to, then run that org's full
+      commitment/evaluation/notification tail synchronously — writing a
+      RawEvent alone does nothing until something re-evaluates commitments
+      and dispatches alerts, and that's the actual point of "real-time":
+      Phase 16's own arithmetic (a 1h P1 first response needs an 80% warning
+      inside a 12-minute window) is what a 5-minute poll can miss. The
+      poll/sweep cycles stay in place unchanged as the reconciliation safety
       net for missed or out-of-order webhook deliveries.
+      No provider-side auto-registration: both OAuth clients stay read-only
+      (Phase 10), and Zendesk's webhook-admin scope and Jira's
+      `manage:jira-webhook` scope are both write scopes this app deliberately
+      never requests, so the customer registers the webhook by hand in their
+      own Zendesk/Jira admin UI, using the URL (and, for Zendesk, bearer
+      token) shown on a new "Real-time webhook" section of each provider's
+      settings card. `Integration.webhookSecret` is generated once at first
+      connect and never rotated on reconnect (mirrors `connectedAt`), so the
+      customer's already-configured webhook keeps working across a
+      disconnect/reconnect cycle; integrations connected before this step
+      have no secret until they reconnect, and the settings card says so.
+      Neither receiver uses HMAC request signing, despite Zendesk documenting
+      one: that scheme needs a secret both sides agree on *before* the
+      webhook exists, but Zendesk's own signing secret is only generated
+      *after* creation, with no field anywhere in its webhook-creation form
+      to hand Zendesk a secret of our choosing — confirmed against the actual
+      creation form, whose only Authentication options are None/API
+      key/Basic/Bearer token. So both providers verify the same way, a
+      shared secret we generate: Zendesk's is pasted into that form's Bearer
+      token field and checked against the `Authorization` header
+      (`verifyZendeskWebhookSecret`, `packages/zendesk/src/webhook.ts`);
+      Jira's classic webhooks have no auth config at creation at all, so its
+      secret rides in the URL as `?secret=`, compared in constant time
+      (`verifyJiraWebhookSecret`, `packages/jira/src/webhook.ts`). Each
+      receiver does a *targeted* single-ticket/single-issue refetch
+      (`runZendeskWebhookIngest`/`runJiraWebhookIngest`, new client methods
+      `fetchTicket`/`fetchIssue`) through the same RawEvent mapping functions
+      the poller uses — deliberately never touching `Integration.cursor`,
+      which belongs to the incremental-export/JQL-window watermark the
+      poller advances, not a one-off refetch. `apps/web` gained `@sla/email`
+      and `@sla/notifications` as direct dependencies so the webhook route
+      can run `runCommitmentPipeline`/`runEvaluationPipeline({scope:
+      "active"})`/`runNotificationPipeline` itself rather than only waiting
+      for the worker; running concurrently with the worker's own cycle is
+      safe by construction — both paths share the same
+      `@@unique([commitmentId, threshold])`-guarded dedup. A payload naming a
+      ticket/issue that 404s on direct fetch (deleted between the event
+      firing and the refetch) or an integration that needs reauth is
+      accepted (200) rather than retried, since no number of webhook retries
+      fixes either; Jira's `jira:issue_deleted` event is accepted and
+      ignored outright, matching the poller's own no-deletion-handling scope.
 
 - [ ] **21 — Intercom integration (first NICE TO HAVE source)**
       Only if pulled by customers (`plans/03-Product-and-MVP.md`). New

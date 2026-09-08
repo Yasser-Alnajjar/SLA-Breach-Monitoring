@@ -1,22 +1,22 @@
 "use client";
 
 import {
+  ChevronRight,
   GitBranch,
   MessageSquare,
-  RefreshCw,
   SlidersHorizontal,
   Ticket,
   Timer,
   Workflow,
 } from "lucide-react";
-import type { Integration } from "@sla/db";
 import { Reveal } from "@/components/shared/reveal";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { IntegrationsPageData } from "@/lib/types/integrations";
-import { ZendeskConnectForm, ZendeskBackfillButton } from "./ZendeskCard";
-import { JiraConnectButton, JiraBackfillButton } from "./JiraCard";
-import { LinearConnectButton, LinearBackfillButton } from "./LinearCard";
+import { ZendeskConnectForm } from "./ZendeskCard";
+import { JiraConnectButton } from "./JiraCard";
+import { LinearConnectButton } from "./LinearCard";
 import {
   SlackConnectButton,
   SlackChannelPicker,
@@ -25,25 +25,6 @@ import {
 import { EngineeringTargetForm } from "./EngineeringTargetForm";
 import { SlaPoliciesCard } from "./SlaPoliciesCard";
 import { DisconnectButton } from "./DisconnectButton";
-
-function SyncHealth({
-  integration,
-}: {
-  integration: Pick<Integration, "lastSyncAt" | "lastSyncError">;
-}) {
-  if (!integration.lastSyncAt) return null;
-
-  return (
-    <p className="text-xs leading-relaxed text-muted-foreground">
-      Last sync attempt {new Date(integration.lastSyncAt).toLocaleString()}
-      {integration.lastSyncError ? (
-        <span className="text-destructive"> — {integration.lastSyncError}</span>
-      ) : (
-        " — succeeded."
-      )}
-    </p>
-  );
-}
 
 interface IntegrationsViewProps {
   data: IntegrationsPageData;
@@ -54,86 +35,135 @@ const iconWrapper =
 
 const descriptionClass = "text-sm leading-6 text-muted-foreground";
 
-/**
- * Reusable backfill operation row.
- * Keeps the backfill action visually secondary.
- */
-function BackfillRow({
-  children,
-  description = "Import the last 90 days of data.",
+const providerToneClasses = {
+  success: "bg-success/10 text-success",
+  primary: "bg-primary/10 text-primary",
+  engineering: "bg-leg-engineering/10 text-leg-engineering",
+  secondary: "bg-secondary/15 text-secondary",
+} as const;
+
+type ProviderTone = keyof typeof providerToneClasses;
+
+const statusToneClasses = {
+  success: { dot: "bg-success", text: "text-success" },
+  warning: { dot: "bg-warning", text: "text-warning" },
+  muted: { dot: "bg-muted-foreground/60", text: "text-muted-foreground" },
+} as const;
+
+function StatusIndicator({
+  tone,
+  label,
 }: {
-  children: React.ReactNode;
-  description?: string;
+  tone: keyof typeof statusToneClasses;
+  label: string;
 }) {
+  const { dot, text } = statusToneClasses[tone];
+
   return (
-    <div className="rounded-xl border bg-muted/20 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="size-3.5 shrink-0 text-muted-foreground" />
-            <p className="text-sm font-medium">Data backfill</p>
-          </div>
-
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {description}
-          </p>
-        </div>
-
-        <div className="shrink-0">{children}</div>
-      </div>
-    </div>
+    <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium">
+      <span className={cn("size-1.5 rounded-full", dot)} />
+      <span className={text}>{label}</span>
+    </span>
   );
 }
 
+function formatDateTime(iso: string | Date): string {
+  return new Date(iso).toLocaleString("en-GB", { timeZone: "Africa/Cairo" });
+}
+
 /**
- * Shared card shell for provider integrations.
+ * Shared card shell for provider integrations — a flat single surface (no
+ * header divider) so the four cards read as lightweight tiles rather than
+ * boxed panels.
  */
 function IntegrationCard({
   delay,
   icon,
+  tone,
   title,
   status,
   children,
 }: {
   delay: number;
   icon: React.ReactNode;
+  tone: ProviderTone;
   title: string;
   status?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <Reveal delay={delay}>
-      <Card className="flex h-full flex-col overflow-hidden">
-        <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/10 px-5 py-4">
+      <Card className="flex h-full flex-col gap-5 p-6 transition-shadow duration-300 hover:shadow-elevated">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <span className={iconWrapper}>{icon}</span>
+            <span
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-xl",
+                providerToneClasses[tone],
+              )}
+            >
+              {icon}
+            </span>
 
-            <CardTitle className="truncate text-sm font-semibold">
+            <CardTitle className="truncate text-base font-medium">
               {title}
             </CardTitle>
           </div>
 
           {status}
-        </CardHeader>
+        </div>
 
-        <CardContent className="flex flex-1 flex-col px-5 py-5">
-          {children}
-        </CardContent>
+        <div className="flex flex-1 flex-col">{children}</div>
       </Card>
     </Reveal>
+  );
+}
+
+/**
+ * A connected integration's card only handles connect/disconnect —
+ * everything else (backfill, real-time webhooks, sync health) lives on its
+ * own `/settings/integrations/[provider]` page now, which has the room a
+ * narrow card column never did for a multi-line result summary or a
+ * copyable webhook URL.
+ */
+function ConnectedCardBody({
+  provider,
+  providerLabel,
+  connectedAt,
+  disconnectHint,
+}: {
+  provider: "zendesk" | "jira" | "linear";
+  providerLabel: string;
+  connectedAt: Date;
+  disconnectHint?: string;
+}) {
+  return (
+    <div className="flex flex-1 flex-col">
+      <p className={descriptionClass}>
+        Connected {formatDateTime(connectedAt)}.
+        {disconnectHint && ` ${disconnectHint}`}
+      </p>
+
+      <div className="mt-auto pt-6 flex items-center gap-2">
+        <DisconnectButton provider={provider} providerLabel={providerLabel} />
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/settings/integrations/${provider}`}>
+            Manage
+            <ChevronRight className="size-3.5" />
+          </a>
+        </Button>
+      </div>
+    </div>
   );
 }
 
 export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
   const {
     zendeskIntegration,
-    zendeskCursor,
     zendeskCredentials,
     jiraIntegration,
-    jiraCursor,
     jiraCredentials,
     linearIntegration,
-    linearCursor,
     linearCredentials,
     slackIntegration,
     engineeringLegTargetMinutes,
@@ -156,70 +186,35 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0}
             icon={<Ticket className="size-4" />}
+            tone="success"
             title="Zendesk"
             status={
               zendeskIntegration && zendeskCredentials ? (
                 zendeskIntegration.status === "reauth_required" ? (
-                  <Badge variant="warning" className="shrink-0">
-                    Needs reconnect
-                  </Badge>
+                  <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
-                  <Badge variant="success" className="shrink-0">
-                    Connected
-                  </Badge>
+                  <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
                 zendeskIntegration?.status === "disconnected" && (
-                  <Badge variant="outline" className="shrink-0">
-                    Disconnected
-                  </Badge>
+                  <StatusIndicator tone="muted" label="Disconnected" />
                 )
               )
             }
           >
             {zendeskIntegration && zendeskCredentials ? (
-              <div className="flex flex-1 flex-col">
-                <div className="space-y-2">
-                  <p className={descriptionClass}>
-                    Connected{" "}
-                    {new Date(zendeskIntegration.connectedAt).toLocaleString()}
-                    {zendeskCursor?.backfillCompletedAt
-                      ? ` — 90-day backfill complete as of ${new Date(
-                          zendeskCursor.backfillCompletedAt,
-                        ).toLocaleString()}.`
-                      : " — no backfill run yet."}
-                  </p>
-
-                  <SyncHealth integration={zendeskIntegration} />
-                </div>
-
-                <div className="mt-auto space-y-3 pt-6">
-                  <BackfillRow>
-                    <ZendeskBackfillButton
-                      subdomain={zendeskCredentials.subdomain}
-                      initialReauthRequired={
-                        zendeskCredentials.reauthRequired === true
-                      }
-                    />
-                  </BackfillRow>
-
-                  <div className="pt-1">
-                    <DisconnectButton
-                      provider="zendesk"
-                      providerLabel="Zendesk"
-                    />
-                  </div>
-                </div>
-              </div>
+              <ConnectedCardBody
+                provider="zendesk"
+                providerLabel="Zendesk"
+                connectedAt={zendeskIntegration.connectedAt}
+              />
             ) : (
               <div className="flex flex-1 flex-col">
                 <p className={descriptionClass}>
                   Read-only access — no tickets, comments, or fields are ever
                   written back to Zendesk.
                   {zendeskIntegration?.disconnectedAt &&
-                    ` Disconnected ${new Date(
-                      zendeskIntegration.disconnectedAt,
-                    ).toLocaleString()}.`}
+                    ` Disconnected ${formatDateTime(zendeskIntegration.disconnectedAt)}.`}
                 </p>
 
                 <div className="mt-auto pt-6">
@@ -233,66 +228,35 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0.05}
             icon={<GitBranch className="size-4" />}
+            tone="primary"
             title="Jira"
             status={
               jiraIntegration && jiraCredentials ? (
                 jiraIntegration.status === "reauth_required" ? (
-                  <Badge variant="warning" className="shrink-0">
-                    Needs reconnect
-                  </Badge>
+                  <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
-                  <Badge variant="success" className="shrink-0">
-                    Connected
-                  </Badge>
+                  <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
                 jiraIntegration?.status === "disconnected" && (
-                  <Badge variant="outline" className="shrink-0">
-                    Disconnected
-                  </Badge>
+                  <StatusIndicator tone="muted" label="Disconnected" />
                 )
               )
             }
           >
             {jiraIntegration && jiraCredentials ? (
-              <div className="flex flex-1 flex-col">
-                <div className="space-y-2">
-                  <p className={descriptionClass}>
-                    Connected{" "}
-                    {new Date(jiraIntegration.connectedAt).toLocaleString()}
-                    {jiraCursor?.backfillCompletedAt
-                      ? ` — 90-day backfill complete as of ${new Date(
-                          jiraCursor.backfillCompletedAt,
-                        ).toLocaleString()}.`
-                      : " — no backfill run yet."}
-                  </p>
-
-                  <SyncHealth integration={jiraIntegration} />
-                </div>
-
-                <div className="mt-auto space-y-3 pt-6">
-                  <BackfillRow>
-                    <JiraBackfillButton
-                      initialReauthRequired={
-                        jiraCredentials.reauthRequired === true
-                      }
-                    />
-                  </BackfillRow>
-
-                  <div className="pt-1">
-                    <DisconnectButton provider="jira" providerLabel="Jira" />
-                  </div>
-                </div>
-              </div>
+              <ConnectedCardBody
+                provider="jira"
+                providerLabel="Jira"
+                connectedAt={jiraIntegration.connectedAt}
+              />
             ) : (
               <div className="flex flex-1 flex-col">
                 <p className={descriptionClass}>
                   Read-only access — no issues, comments, or fields are ever
                   written back to Jira.
                   {jiraIntegration?.disconnectedAt &&
-                    ` Disconnected ${new Date(
-                      jiraIntegration.disconnectedAt,
-                    ).toLocaleString()}.`}
+                    ` Disconnected ${formatDateTime(jiraIntegration.disconnectedAt)}.`}
                 </p>
 
                 <div className="mt-auto pt-6">
@@ -306,60 +270,28 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0.1}
             icon={<Workflow className="size-4" />}
+            tone="engineering"
             title="Linear"
             status={
               linearIntegration && linearCredentials ? (
                 linearIntegration.status === "reauth_required" ? (
-                  <Badge variant="warning" className="shrink-0">
-                    Needs reconnect
-                  </Badge>
+                  <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
-                  <Badge variant="success" className="shrink-0">
-                    Connected
-                  </Badge>
+                  <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
                 linearIntegration?.status === "disconnected" && (
-                  <Badge variant="outline" className="shrink-0">
-                    Disconnected
-                  </Badge>
+                  <StatusIndicator tone="muted" label="Disconnected" />
                 )
               )
             }
           >
             {linearIntegration && linearCredentials ? (
-              <div className="flex flex-1 flex-col">
-                <div className="space-y-2">
-                  <p className={descriptionClass}>
-                    Connected{" "}
-                    {new Date(linearIntegration.connectedAt).toLocaleString()}
-                    {linearCursor?.backfillCompletedAt
-                      ? ` — 90-day backfill complete as of ${new Date(
-                          linearCursor.backfillCompletedAt,
-                        ).toLocaleString()}.`
-                      : " — no backfill run yet."}
-                  </p>
-
-                  <SyncHealth integration={linearIntegration} />
-                </div>
-
-                <div className="mt-auto space-y-3 pt-6">
-                  <BackfillRow>
-                    <LinearBackfillButton
-                      initialReauthRequired={
-                        linearCredentials.reauthRequired === true
-                      }
-                    />
-                  </BackfillRow>
-
-                  <div className="pt-1">
-                    <DisconnectButton
-                      provider="linear"
-                      providerLabel="Linear"
-                    />
-                  </div>
-                </div>
-              </div>
+              <ConnectedCardBody
+                provider="linear"
+                providerLabel="Linear"
+                connectedAt={linearIntegration.connectedAt}
+              />
             ) : (
               <div className="flex flex-1 flex-col">
                 <p className={descriptionClass}>
@@ -367,9 +299,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   written back to Linear. An alternative engineering-leg source
                   alongside Jira, not a replacement.
                   {linearIntegration?.disconnectedAt &&
-                    ` Disconnected ${new Date(
-                      linearIntegration.disconnectedAt,
-                    ).toLocaleString()}.`}
+                    ` Disconnected ${formatDateTime(linearIntegration.disconnectedAt)}.`}
                 </p>
 
                 <div className="mt-auto pt-6">
@@ -383,12 +313,11 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0.15}
             icon={<MessageSquare className="size-4" />}
+            tone="secondary"
             title="Slack"
             status={
               slackIntegration && (
-                <Badge variant="success" className="shrink-0">
-                  Connected
-                </Badge>
+                <StatusIndicator tone="success" label="Connected" />
               )
             }
           >
@@ -397,7 +326,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 <div className="space-y-3">
                   <p className={descriptionClass}>
                     Connected to {slackIntegration.teamName}{" "}
-                    {new Date(slackIntegration.installedAt).toLocaleString()}.
+                    {formatDateTime(slackIntegration.installedAt)}.
                   </p>
 
                   {slackIntegration.channelId && (

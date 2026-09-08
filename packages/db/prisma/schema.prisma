@@ -71,6 +71,13 @@ model Integration {
   /// settings page can show real sync health instead of only stdout logs.
   lastSyncAt     DateTime?
   lastSyncError  String?
+  /// Generated once at first connect (roadmap step 20), never rotated on
+  /// reconnect — the customer pastes this into their Zendesk/Jira webhook
+  /// config to authenticate inbound calls to /api/webhooks/{provider}/{id},
+  /// so it must survive a disconnect/reconnect cycle like connectedAt does.
+  /// Null for integrations connected before this step, and for linear (no
+  /// webhook receiver exists for it).
+  webhookSecret  String?
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rawEvents      RawEvent[]
 

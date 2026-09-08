@@ -6,6 +6,7 @@ import type {
   ZendeskIncrementalTicketExport,
   ZendeskScheduleHolidaysPage,
   ZendeskSlaPoliciesPage,
+  ZendeskTicket,
 } from "./types";
 
 export class ZendeskApiError extends Error {
@@ -92,6 +93,16 @@ export class ZendeskClient {
 
   fetchTicketAuditsPage(ticketId: number, nextPageUrl?: string): Promise<ZendeskAuditsPage> {
     return this.request<ZendeskAuditsPage>(nextPageUrl ?? `/api/v2/tickets/${ticketId}/audits.json`);
+  }
+
+  /**
+   * https://developer.zendesk.com/api-reference/ticketing/tickets/tickets/#show-ticket
+   * Single-ticket fetch for a targeted refetch (roadmap step 20's webhook
+   * receiver) — unlike the incremental export, this reflects the ticket's
+   * state at the moment of the call rather than at the last poll window.
+   */
+  fetchTicket(ticketId: number): Promise<{ ticket: ZendeskTicket }> {
+    return this.request<{ ticket: ZendeskTicket }>(`/api/v2/tickets/${ticketId}.json`);
   }
 
   /** https://developer.zendesk.com/api-reference/ticketing/business-hours/schedules/ — accounts have few schedules, so Zendesk returns them unpaginated. */

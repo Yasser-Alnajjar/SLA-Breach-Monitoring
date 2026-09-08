@@ -31,3 +31,11 @@ export {
 export type { ChangelogRecord, DerivedNormalizedEvent, JiraNormalizationResult } from "./normalize";
 export { parseZendeskTicketId, runJiraCorrelation } from "./correlate";
 export type { CorrelationResult } from "./correlate";
+export {
+  extractJiraWebhookIssueKey,
+  generateWebhookSecret,
+  runJiraWebhookIngest,
+  shouldIngestJiraWebhookEvent,
+  verifyJiraWebhookSecret,
+} from "./webhook";
+export type { JiraWebhookPayload, WebhookIngestResult } from "./webhook";

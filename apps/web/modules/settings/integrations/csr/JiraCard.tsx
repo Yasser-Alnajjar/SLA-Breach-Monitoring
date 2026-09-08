@@ -11,13 +11,21 @@ import type { JiraBackfillResult } from "@/lib/types/integrations";
 
 export function JiraConnectButton() {
   return (
-    <Button type="button" size="sm" onClick={() => (window.location.href = "/api/integrations/jira/connect")}>
+    <Button
+      type="button"
+      size="sm"
+      onClick={() => (window.location.href = "/api/integrations/jira/connect")}
+    >
       Connect Jira
     </Button>
   );
 }
 
-export function JiraBackfillButton({ initialReauthRequired = false }: { initialReauthRequired?: boolean }) {
+export function JiraBackfillButton({
+  initialReauthRequired = false,
+}: {
+  initialReauthRequired?: boolean;
+}) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<JiraBackfillResult | null>(null);
@@ -46,12 +54,23 @@ export function JiraBackfillButton({ initialReauthRequired = false }: { initialR
   }
 
   if (reauthRequired) {
-    return <ReauthBanner provider="Jira" reconnectHref="/api/integrations/jira/connect" />;
+    return (
+      <ReauthBanner
+        provider="Jira"
+        reconnectHref="/api/integrations/jira/connect"
+      />
+    );
   }
 
   return (
     <div className="space-y-3">
-      <Button type="button" size="sm" variant="outline" onClick={handleClick} disabled={running}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={handleClick}
+        disabled={running}
+      >
         {running && <Loader2 className="animate-spin" />}
         {running ? "Running backfill…" : "Run backfill"}
       </Button>
@@ -62,9 +81,9 @@ export function JiraBackfillButton({ initialReauthRequired = false }: { initialR
         </Alert>
       )}
       {result && (
-        <p className="text-sm text-muted-foreground">
-          {result.issuesFetched} issues · {result.changelogHistoriesFetched} changelog events ·{" "}
-          {result.remoteLinksFetched} remote links.
+        <p className="text-sm text-muted-foreground wrap-break-word">
+          {result.issuesFetched} issues · {result.changelogHistoriesFetched}{" "}
+          changelog events · {result.remoteLinksFetched} remote links.
         </p>
       )}
     </div>

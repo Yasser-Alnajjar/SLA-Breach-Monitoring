@@ -1,1 +1,1 @@
-export { CaseDetailFeature } from "./ssr/CaseDetailFeature";
+export { CaseDetail } from "./ssr/CaseDetail";

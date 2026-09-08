@@ -1,4 +1,4 @@
-import type { JiraChangelogPage, JiraCredentials, JiraRemoteLink, JiraSearchPage, JiraStatus } from "./types";
+import type { JiraChangelogPage, JiraCredentials, JiraIssue, JiraRemoteLink, JiraSearchPage, JiraStatus } from "./types";
 
 const SEARCH_PAGE_SIZE = 100;
 
@@ -75,6 +75,18 @@ export class JiraClient {
     });
     if (nextPageToken) params.set("nextPageToken", nextPageToken);
     return this.request<JiraSearchPage>(`/rest/api/3/search/jql?${params.toString()}`);
+  }
+
+  /**
+   * https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-get
+   * Single-issue fetch for a targeted refetch (roadmap step 20's webhook
+   * receiver) — same field set as searchIssues, so downstream mapping/
+   * normalization sees an identical shape whether an issue arrived via poll
+   * or webhook.
+   */
+  fetchIssue(issueIdOrKey: string): Promise<JiraIssue> {
+    const params = new URLSearchParams({ fields: "summary,status,priority,project,created,updated,reporter,assignee" });
+    return this.request<JiraIssue>(`/rest/api/3/issue/${issueIdOrKey}?${params.toString()}`);
   }
 
   /** https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-changelogs/ */

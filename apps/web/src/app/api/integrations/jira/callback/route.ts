@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { exchangeCodeForToken } from "@sla/jira";
+import { exchangeCodeForToken, generateWebhookSecret } from "@sla/jira";
 import { getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getJiraOAuthConfig, JIRA_STATE_COOKIE } from "@/lib/jira-env";
@@ -40,6 +40,9 @@ export async function GET(request: Request) {
       organizationId: state.organizationId,
       provider: "jira",
       credentials: credentials as unknown as Prisma.InputJsonValue,
+      // Generated once, here, and never rotated on reconnect — see
+      // Integration.webhookSecret's doc comment (roadmap step 20).
+      webhookSecret: generateWebhookSecret(),
     },
     // Reconnecting always clears any prior disconnected/reauth_required state
     // and stale sync error, whether this is a first connect or a reconnect.

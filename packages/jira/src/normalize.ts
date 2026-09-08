@@ -233,21 +233,22 @@ export async function runJiraNormalization(
     }),
     prisma.caseLink.findMany({
       where: { system: "jira", confidence: "certain", case: { organizationId } },
-      select: { caseId: true, externalId: true },
+      select: { id: true, caseId: true, externalId: true, evidence: true },
     }),
   ]);
 
   const statusById = buildStatusLookup(latestStatusSnapshots(statusRows));
   const latestIssues = latestIssueSnapshots(issueRows);
   const historiesByIssueKey = groupHistoriesByIssueKey(historyRows);
-  const caseIdByIssueKey = new Map(caseLinks.map((link) => [link.externalId, link.caseId]));
+  const caseLinkByIssueKey = new Map(caseLinks.map((link) => [link.externalId, link]));
 
   for (const { rawEventId: issueRawEventId, value: issue } of latestIssues.values()) {
-    const caseId = caseIdByIssueKey.get(issue.key);
-    if (!caseId) {
+    const caseLink = caseLinkByIssueKey.get(issue.key);
+    if (!caseLink) {
       result.issuesSkippedNoCaseLink += 1;
       continue;
     }
+    const caseId = caseLink.caseId;
 
     try {
       const derived = deriveNormalizedEventsForIssue(
@@ -268,6 +269,8 @@ export async function runJiraNormalization(
         select: { id: true },
       });
 
+      const existingEvidence = (caseLink.evidence as Record<string, unknown> | null) ?? {};
+
       await prisma.$transaction([
         prisma.normalizedEvent.deleteMany({
           where: { caseId, sourceRawEventId: { in: ownRawEvents.map((row) => row.id) } },
@@ -283,6 +286,15 @@ export async function runJiraNormalization(
             fromState: event.fromState,
             toState: event.toState,
           })) satisfies Prisma.NormalizedEventCreateManyInput[],
+        }),
+        prisma.caseLink.update({
+          where: { id: caseLink.id },
+          data: {
+            evidence: {
+              ...existingEvidence,
+              statusName: issue.fields.status.name,
+            } as Prisma.InputJsonValue,
+          },
         }),
       ]);
       result.issuesProcessed += 1;

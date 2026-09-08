@@ -216,30 +216,32 @@ const decodeJWT = (token: string) => {
 const formatDate = (
   date?: string,
   fromNow?: true,
-  time?: "12" | "24",
+  time: "12" | "24" = "12",
   format?: string,
 ): string => {
   if (!date || isNaN(new Date(date).getTime())) {
     return date || "";
   }
 
+  const value = moment(date);
+
   if (format) {
-    return moment.utc(date).format(format);
+    return value.format(format);
   }
 
   if (fromNow) {
-    return moment.utc(date).fromNow(true);
+    return value.fromNow(true);
   }
 
   if (time === "12") {
-    return moment.utc(date).format("DD MMM YYYY h:mm A");
+    return value.format("DD MMM YYYY h:mm:ss A");
   }
 
   if (time === "24") {
-    return moment.utc(date).format("DD MMM YYYY HH:mm:ss");
+    return value.format("DD MMM YYYY HH:mm:ss");
   }
 
-  return moment.utc(date).format("DD/MM/YYYY");
+  return value.format("DD/MM/YYYY");
 };
 
 const numberWithCommas = (val?: number) => {

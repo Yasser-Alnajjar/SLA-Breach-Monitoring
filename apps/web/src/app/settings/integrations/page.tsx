@@ -1,5 +1,5 @@
-import { IntegrationsFeature } from "@modules/settings/integrations";
+import { Integrations } from "@modules/settings/integrations";
 
 export default function IntegrationsPage() {
-  return <IntegrationsFeature />;
+  return <Integrations />;
 }

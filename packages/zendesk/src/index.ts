@@ -59,3 +59,10 @@ export {
   refreshAfterUnauthorized,
   ZendeskReauthRequiredError,
 } from "./tokenLifecycle";
+export {
+  extractZendeskWebhookTicketId,
+  generateWebhookSecret,
+  runZendeskWebhookIngest,
+  verifyZendeskWebhookSecret,
+} from "./webhook";
+export type { WebhookIngestResult } from "./webhook";

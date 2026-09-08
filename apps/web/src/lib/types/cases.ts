@@ -46,6 +46,7 @@ export interface CaseLinkDetail {
   url: string | null;
   method: string;
   confidence: string;
+  statusName: string | null;
 }
 
 export interface TimelineEventDetail {

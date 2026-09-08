@@ -1,1 +1,1 @@
-export { FindingsFeature } from "./ssr/FindingsFeature";
+export { Findings } from "./ssr/Findings";

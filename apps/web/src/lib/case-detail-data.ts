@@ -237,6 +237,10 @@ export async function getCaseDetailData(
                 // captures the issue's own `url` into evidence at link time.
                 ((link.evidence as { issueUrl?: string } | null)?.issueUrl ?? null)
               : null,
+      // Jira's live status name (e.g. "In Progress") is stashed into
+      // evidence by runJiraNormalization on every run — the timeline itself
+      // only carries the coarse new/in_progress/resolved category.
+      statusName: (link.evidence as { statusName?: string } | null)?.statusName ?? null,
     }));
 
   const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({

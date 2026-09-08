@@ -1,5 +1,5 @@
-import { SignUpFeature } from "@modules/auth/sign-up";
+import { SignUp } from "@modules/auth/sign-up";
 
 export default function SignUpPage() {
-  return <SignUpFeature />;
+  return <SignUp />;
 }

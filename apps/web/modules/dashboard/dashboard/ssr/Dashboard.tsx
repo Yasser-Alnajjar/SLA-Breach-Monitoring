@@ -10,7 +10,7 @@ import { DashboardView } from "../csr/DashboardView";
  * "use client" view — nesting it in the CSR layer would drag `@sla/db` into
  * the browser bundle.
  */
-export const DashboardFeature = async () => {
+export const Dashboard = async () => {
   const data = await Actions.Dashboard.getData();
   return (
     <AppShell

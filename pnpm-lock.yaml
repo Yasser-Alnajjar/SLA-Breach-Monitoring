@@ -56,12 +56,18 @@ importers:
       '@sla/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@sla/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
       '@sla/linear':
         specifier: workspace:*
         version: link:../../packages/linear
+      '@sla/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@sla/slack':
         specifier: workspace:*
         version: link:../../packages/slack

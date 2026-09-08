@@ -1,1 +1,1 @@
-export { OnboardingFeature } from "./ssr/OnboardingFeature";
+export { Onboarding } from "./ssr/Onboarding";

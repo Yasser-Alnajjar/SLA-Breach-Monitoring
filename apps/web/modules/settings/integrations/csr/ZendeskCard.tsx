@@ -50,7 +50,10 @@ interface ZendeskBackfillButtonProps {
   initialReauthRequired?: boolean;
 }
 
-export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false }: ZendeskBackfillButtonProps) {
+export function ZendeskBackfillButton({
+  subdomain,
+  initialReauthRequired = false,
+}: ZendeskBackfillButtonProps) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<ZendeskSyncResult | null>(null);
@@ -88,26 +91,39 @@ export function ZendeskBackfillButton({ subdomain, initialReauthRequired = false
   }
 
   return (
-    <div className="space-y-3">
-      <Button type="button" size="sm" variant="outline" onClick={handleClick} disabled={running}>
+    <div className="flex min-w-0 flex-col items-start gap-3">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={handleClick}
+        disabled={running}
+      >
         {running && <Loader2 className="animate-spin" />}
         {running ? "Running backfill…" : "Run backfill"}
       </Button>
+
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="w-full max-w-full">
           <AlertCircle />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="min-w-0 wrap-break-word">
+            {error}
+          </AlertDescription>
         </Alert>
       )}
+
       {result && (
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p>
-            {result.backfill.ticketsFetched} tickets · {result.backfill.ticketAuditsFetched} ticket events ·{" "}
-            {result.backfill.organizationsFetched} organizations · {result.backfill.slaPoliciesFetched} SLA
-            policies.
+        <div className="w-full min-w-0 space-y-1 text-sm text-muted-foreground">
+          <p className="wrap-break-word">
+            {result.backfill.ticketsFetched} tickets ·{" "}
+            {result.backfill.ticketAuditsFetched} ticket events ·{" "}
+            {result.backfill.organizationsFetched} organizations ·{" "}
+            {result.backfill.slaPoliciesFetched} SLA policies.
           </p>
-          <p>
-            {result.normalization.casesUpserted} cases · {result.normalization.customersUpserted} customers ·{" "}
+
+          <p className="wrap-break-word">
+            {result.normalization.casesUpserted} cases ·{" "}
+            {result.normalization.customersUpserted} customers ·{" "}
             {result.normalization.normalizedEventsWritten} normalized events.
             {result.normalization.ticketsFailed.length > 0 &&
               ` ${result.normalization.ticketsFailed.length} ticket(s) failed to normalize.`}

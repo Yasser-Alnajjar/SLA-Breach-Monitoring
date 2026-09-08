@@ -1,1 +1,1 @@
-export { DashboardFeature } from "./ssr/DashboardFeature";
+export { Dashboard } from "./ssr/Dashboard";

@@ -1,5 +1,5 @@
 import { SignInForm } from "../csr/SignInForm";
 
-export const SignInFeature = async () => {
+export const SignIn = async () => {
   return <SignInForm />;
 };

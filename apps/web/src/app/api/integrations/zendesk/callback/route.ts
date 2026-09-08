@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { exchangeCodeForToken } from "@sla/zendesk";
+import { exchangeCodeForToken, generateWebhookSecret } from "@sla/zendesk";
 import { getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getZendeskOAuthConfig, ZENDESK_STATE_COOKIE } from "@/lib/zendesk-env";
@@ -41,6 +41,9 @@ export async function GET(request: Request) {
       organizationId: state.organizationId,
       provider: "zendesk",
       credentials: credentials as unknown as Prisma.InputJsonValue,
+      // Generated once, here, and never rotated on reconnect — see
+      // Integration.webhookSecret's doc comment (roadmap step 20).
+      webhookSecret: generateWebhookSecret(),
     },
     // Reconnecting always clears any prior disconnected/reauth_required state
     // and stale sync error, whether this is a first connect or a reconnect.

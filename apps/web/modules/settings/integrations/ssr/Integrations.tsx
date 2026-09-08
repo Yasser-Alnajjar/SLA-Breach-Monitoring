@@ -8,7 +8,7 @@ import { IntegrationsView } from "../csr/IntegrationsView";
  * "use client" view — nesting it in the CSR layer would drag `@sla/db` into
  * the browser bundle.
  */
-export const IntegrationsFeature = async () => {
+export const Integrations = async () => {
   const data = await Actions.Integrations.getData();
   return (
     <AppShell title="Integrations">

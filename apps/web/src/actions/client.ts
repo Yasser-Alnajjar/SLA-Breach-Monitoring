@@ -1,4 +1,5 @@
 import { signIn } from "next-auth/react";
+import type { CommitmentKind } from "@sla/core";
 import type { OnboardingStatus } from "@/lib/types/onboarding";
 import type {
   IntegrationProvider,
@@ -103,6 +104,12 @@ export const Actions = {
         method: "DELETE",
       });
       return { ok: response.ok };
+    },
+    async overridePolicyTargets(policyId: string, targets: { kind: CommitmentKind; minutes: number }[]) {
+      return postJSON<{ created: boolean; version: { id: string; version: number } }>(
+        "/api/settings/sla-policies/override",
+        { policyId, targets },
+      );
     },
     async disconnect(provider: IntegrationProvider) {
       const response = await fetch(`/api/integrations/${provider}/disconnect`, {

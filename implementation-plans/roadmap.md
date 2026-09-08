@@ -295,12 +295,43 @@ file gets checked off and committed as each step lands.
       so `apps/web/settings/integrations` is untouched — a deliberate scope
       cut, not an oversight.
 
-- [ ] **19 — SLA policy override UI**
-      Manual override of a matched policy's targets, surfaced in
-      `apps/web/src/app/settings/integrations`. An override creates a new
+- [x] **19 — SLA policy override UI**
+      Manual override of a matched policy's targets, surfaced as a sixth card
+      on `apps/web/src/app/settings/integrations`. An override creates a new
       `SLAPolicyVersion` through the existing versioning path (step 6) rather
-      than a side channel, so overridden commitments stay just as
-      reproducible and auditable as imported ones.
+      than a side channel: `normalizeMatch`/`normalizeTargets`/
+      `policyVersionContentEquals` moved out of `packages/zendesk` into a new
+      `packages/core/src/policy-versions.ts` (re-exported from `@sla/zendesk`
+      unchanged, so its existing tests didn't need to move) since the
+      idempotency check — "would this new version be identical to the
+      current one" — was never Zendesk-specific and the override path needed
+      it too. New `overridePolicyTargets` (`packages/commitments/src/override.ts`)
+      loads a policy's latest `SLAPolicyVersion`, carries `match`,
+      `pauseOnStates`, `calendarVersionId`, and `warnAtPercent` over
+      unchanged, and appends a new version with only `targets` replaced — a
+      no-op submission (identical targets) creates nothing, same guarantee
+      step 6 already gives Zendesk re-imports. `Commitment.policyVersionId`
+      stays frozen at creation (the reproducibility anchor from step 6's
+      schema), so existing commitments are untouched; only cases that get a
+      commitment after the override picks up the new targets, via the same
+      "latest version per policy" resolution `runCommitmentPipeline` already
+      does — no separate wiring needed. No settings UI existed for listing
+      SLA policies at all before this step, so `apps/web/src/lib/sla-policies-data.ts`
+      is new (`SLAPolicy` + latest `SLAPolicyVersion`, `externalId !== null`
+      distinguishing "Imported" from "Manual" since no separate provenance
+      field exists on either model), wired into the existing
+      `IntegrationsPageData` SSR read model rather than a lazily-fetched
+      client endpoint (unlike Slack's channel picker, this is a plain DB read
+      with no external API call to defer). `POST /api/settings/sla-policies/override`
+      follows this settings surface's established flat-route, manual-
+      validation convention (no dynamic route segments or Zod schema exist
+      elsewhere in `apps/web/src/app/api/settings`, so this doesn't
+      introduce either) and takes `{ policyId, targets }` rather than a
+      path param. `CommitmentCard`'s inline policy-match formatting on the
+      case detail page was extracted to a shared `formatPolicyMatch` in
+      `lib/format.ts` so the new override UI and the existing "how this was
+      calculated" disclosure render match conditions identically instead of
+      duplicating the logic.
 
 - [ ] **20 — Webhooks for real-time freshness**
       Zendesk/Jira webhook receivers that push events into the same

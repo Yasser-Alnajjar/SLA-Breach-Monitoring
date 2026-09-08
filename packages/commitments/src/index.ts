@@ -20,3 +20,5 @@ export type {
   NormalizedEventRecord,
   NotificationCandidate,
 } from "./evaluate-pipeline";
+export { overridePolicyTargets, PolicyNotFoundError } from "./override";
+export type { PolicyOverrideResult } from "./override";

@@ -33,6 +33,19 @@ export function formatCommitmentKind(kind: string): string {
   return COMMITMENT_KIND_LABELS[kind] ?? kind;
 }
 
+/** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */
+export function formatPolicyMatch(match: { priority?: string[]; tier?: string[]; customerIds?: string[] }): string {
+  return (
+    [
+      match.priority && `priority in [${match.priority.join(", ")}]`,
+      match.tier && `tier in [${match.tier.join(", ")}]`,
+      match.customerIds && "customer-specific",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Any case (default)"
+  );
+}
+
 const COMMITMENT_STATUS_LABELS: Record<string, string> = {
   on_track: "On track",
   at_risk: "At risk",

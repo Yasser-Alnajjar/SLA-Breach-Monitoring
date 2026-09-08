@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@sla/db";
-import type { CommitmentKind, NormalizedState, SLAPolicyMatch } from "@sla/core";
+import { policyVersionContentEquals, type CommitmentKind, type NormalizedState, type SLAPolicyMatch } from "@sla/core";
 import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
 import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilter, ZendeskSlaPolicyMetric } from "./types";
@@ -107,26 +107,7 @@ interface PolicyVersionContent {
   calendarVersionId: string;
 }
 
-function normalizeMatch(match: SLAPolicyMatch): SLAPolicyMatch {
-  return {
-    priority: match.priority ? [...match.priority].sort() : undefined,
-    customerIds: match.customerIds ? [...match.customerIds].sort() : undefined,
-    tier: match.tier ? [...match.tier].sort() : undefined,
-  };
-}
-
-function normalizeTargets(targets: { kind: CommitmentKind; minutes: number }[]) {
-  return [...targets].sort((a, b) => a.kind.localeCompare(b.kind));
-}
-
-/** Whether a newly-derived policy version would be identical to the last-imported one, so a re-run doesn't create a no-op version every time. */
-export function policyVersionContentEquals(existing: PolicyVersionContent, desired: PolicyVersionContent): boolean {
-  if (existing.calendarVersionId !== desired.calendarVersionId) return false;
-  return (
-    JSON.stringify(normalizeMatch(existing.match)) === JSON.stringify(normalizeMatch(desired.match)) &&
-    JSON.stringify(normalizeTargets(existing.targets)) === JSON.stringify(normalizeTargets(desired.targets))
-  );
-}
+export { policyVersionContentEquals };
 
 /**
  * Ensures the organization has a business calendar to anchor commitments to.

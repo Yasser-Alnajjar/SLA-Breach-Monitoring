@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCommitmentKind, formatDateTime, formatMinutes, formatWeeklyWindow } from "@/lib/format";
+import { formatCommitmentKind, formatDateTime, formatMinutes, formatPolicyMatch, formatWeeklyWindow } from "@/lib/format";
 import { STATUS_BORDER_CLASS } from "@/lib/status-styles";
 import type { CommitmentDetail } from "@/lib/types/cases";
 
@@ -37,16 +37,7 @@ export const CommitmentCard = ({ commitment }: { commitment: CommitmentDetail })
               v{commitment.policyVersion.version} (effective {formatDateTime(commitment.policyVersion.effectiveFrom)})
             </dd>
             <dt className="text-muted-foreground">Match</dt>
-            <dd>
-              {[
-                commitment.policyVersion.match.priority &&
-                  `priority in [${commitment.policyVersion.match.priority.join(", ")}]`,
-                commitment.policyVersion.match.tier && `tier in [${commitment.policyVersion.match.tier.join(", ")}]`,
-                commitment.policyVersion.match.customerIds && "customer-specific",
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Any case (default)"}
-            </dd>
+            <dd>{formatPolicyMatch(commitment.policyVersion.match)}</dd>
             <dt className="text-muted-foreground">Pauses on</dt>
             <dd>
               {commitment.policyVersion.pauseOnStates.length > 0

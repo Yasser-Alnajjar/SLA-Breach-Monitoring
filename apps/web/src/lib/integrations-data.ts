@@ -2,11 +2,12 @@ import type { PrismaClient } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCredentials, JiraCursor } from "@sla/jira";
 import type { LinearCredentials, LinearCursor } from "@sla/linear";
+import { getSlaPolicies } from "./sla-policies-data";
 import type { IntegrationsPageData } from "./types/integrations";
 
 /** Assembles the integrations settings page's read model (roadmap step 17). */
 export async function getIntegrationsData(prisma: PrismaClient, organizationId: string): Promise<IntegrationsPageData> {
-  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration, organization] = await Promise.all([
+  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration, organization, slaPolicies] = await Promise.all([
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "zendesk" } },
     }),
@@ -23,6 +24,7 @@ export async function getIntegrationsData(prisma: PrismaClient, organizationId: 
       where: { id: organizationId },
       select: { engineeringLegTargetMinutes: true },
     }),
+    getSlaPolicies(prisma, organizationId),
   ]);
 
   return {
@@ -37,5 +39,6 @@ export async function getIntegrationsData(prisma: PrismaClient, organizationId: 
     linearCredentials: (linearIntegration?.credentials as LinearCredentials | null) ?? null,
     slackIntegration,
     engineeringLegTargetMinutes: organization?.engineeringLegTargetMinutes ?? null,
+    slaPolicies,
   };
 }

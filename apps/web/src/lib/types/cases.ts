@@ -64,6 +64,24 @@ export interface LegTotal {
   minutes: number;
 }
 
+export interface CaseListRow {
+  caseId: string;
+  externalId: string;
+  customerName: string | null;
+  priority: string | null;
+  tier: string | null;
+  channel: string | null;
+  openedAt: string;
+  closedAt: string | null;
+  /** Worst-precedence status across the case's commitments, or null if it has none. */
+  worstCommitmentStatus: CommitmentStatus | null;
+}
+
+export interface CaseListData {
+  asOf: string;
+  cases: CaseListRow[];
+}
+
 export interface CaseDetailData {
   asOf: string;
   case: {

@@ -16,7 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { DashboardData } from "@/lib/types/dashboard";
 import { AtRiskList } from "./AtRiskList";
-import { OtherCasesList } from "./OtherCasesList";
 
 interface DashboardViewProps {
   data: DashboardData;
@@ -202,25 +201,6 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
           </Reveal>
         </div>
       </div>
-
-      <Reveal delay={0.3} className="mt-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>All other cases</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.otherOpenCommitments.length === 0 ? (
-              <EmptyState
-                icon={ListChecks}
-                title="Nothing else open"
-                description="Every open commitment is currently at risk, on track, or breached."
-              />
-            ) : (
-              <OtherCasesList data={data.otherOpenCommitments} />
-            )}
-          </CardContent>
-        </Card>
-      </Reveal>
     </>
   );
 };

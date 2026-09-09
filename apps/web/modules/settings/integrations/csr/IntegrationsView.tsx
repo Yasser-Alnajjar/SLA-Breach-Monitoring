@@ -163,8 +163,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     zendeskCredentials,
     jiraIntegration,
     jiraCredentials,
-    linearIntegration,
-    linearCredentials,
+    // linearIntegration,
+    // linearCredentials,
     slackIntegration,
     engineeringLegTargetMinutes,
     slaPolicies,
@@ -266,8 +266,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             )}
           </IntegrationCard>
 
-          {/* Linear */}
-          <IntegrationCard
+          {/* Linear  this is disabled for now */}
+          {/* <IntegrationCard
             delay={0.1}
             icon={<Workflow className="size-4" />}
             tone="engineering"
@@ -307,7 +307,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 </div>
               </div>
             )}
-          </IntegrationCard>
+          </IntegrationCard> */}
 
           {/* Slack */}
           <IntegrationCard

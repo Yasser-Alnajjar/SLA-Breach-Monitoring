@@ -9,9 +9,7 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
   {
     accessorKey: "customerName",
     header: "Customer",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.original.customerName ?? "—"}</span>
-    ),
+    cell: ({ row }) => row.original.customerName ?? "—",
   },
   {
     accessorKey: "externalId",

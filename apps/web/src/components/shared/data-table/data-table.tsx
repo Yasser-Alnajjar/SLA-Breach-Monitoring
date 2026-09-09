@@ -308,13 +308,7 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn(
-                    "hover:bg-primary/20",
-                    onDoubleClick && "cursor-pointer",
-                  )}
-                >
+                <TableRow key={row.id} className={cn("hover:bg-muted/30")}>
                   {row.getVisibleCells().map((cell, index) => (
                     <TableCell
                       key={cell.id}
@@ -328,7 +322,6 @@ export function DataTable<TData, TValue>({
                         whiteSpace:
                           cell.column.id === "actions" ? "nowrap" : undefined,
                       }}
-                      onDoubleClick={() => handleRowDoubleClick(row.original)}
                     >
                       {flexRender(
                         cell.column.columnDef.cell,

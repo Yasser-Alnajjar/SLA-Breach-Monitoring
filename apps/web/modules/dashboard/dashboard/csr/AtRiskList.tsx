@@ -50,7 +50,7 @@ export const AtRiskList = ({ data }: { data: AtRiskRow[] }) => {
                 placeholder={"Search..."}
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
-                className="h-6 w-64 pe-10"
+                className="h-8 w-64 pe-10"
               />
 
               <Search

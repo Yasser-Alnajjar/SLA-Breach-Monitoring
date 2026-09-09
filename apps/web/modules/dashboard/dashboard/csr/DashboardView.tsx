@@ -1,14 +1,22 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, Gauge, ListChecks, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Gauge,
+  ListChecks,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Reveal } from "@/components/shared/reveal";
 import { StatTile } from "@/components/shared/stat-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatCommitmentKind, formatLeg, formatMinutes } from "@/lib/format";
+import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { DashboardData } from "@/lib/types/dashboard";
+import { AtRiskList } from "./AtRiskList";
+import { OtherCasesList } from "./OtherCasesList";
 
 interface DashboardViewProps {
   data: DashboardData;
@@ -28,14 +36,20 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
             icon={AlertTriangle}
             label={`Breached · ${data.periodDays}d`}
             value={data.breachedThisPeriod.length}
-            tone={data.breachedThisPeriod.length > 0 ? "destructive" : "default"}
+            tone={
+              data.breachedThisPeriod.length > 0 ? "destructive" : "default"
+            }
           />
         </Reveal>
         <Reveal delay={0.05}>
           <StatTile
             icon={Gauge}
             label={`Compliance · ${data.periodDays}d`}
-            value={data.compliance.current === null ? "—" : `${data.compliance.current}%`}
+            value={
+              data.compliance.current === null
+                ? "—"
+                : `${data.compliance.current}%`
+            }
             tone="success"
             trend={
               complianceTrend !== null && (
@@ -46,7 +60,11 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                       : "flex items-center gap-0.5 text-sm font-medium text-destructive"
                   }
                 >
-                  {complianceTrend >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                  {complianceTrend >= 0 ? (
+                    <TrendingUp className="size-3.5" />
+                  ) : (
+                    <TrendingDown className="size-3.5" />
+                  )}
                   {Math.abs(Math.round(complianceTrend * 10) / 10)}pp
                 </span>
               )
@@ -54,7 +72,11 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
           />
         </Reveal>
         <Reveal delay={0.1}>
-          <StatTile icon={ListChecks} label="Aging in engineering" value={data.agingInEngineering.length} />
+          <StatTile
+            icon={ListChecks}
+            label="Aging in engineering"
+            value={data.agingInEngineering.length}
+          />
         </Reveal>
       </div>
 
@@ -66,44 +88,13 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
             </CardHeader>
             <CardContent>
               {data.atRisk.length === 0 ? (
-                <EmptyState icon={ListChecks} title="No open commitments" description="Everything currently tracked is closed." />
+                <EmptyState
+                  icon={ListChecks}
+                  title="No open commitments"
+                  description="Everything currently tracked is closed."
+                />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Ticket</TableHead>
-                      <TableHead>Commitment</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Remaining</TableHead>
-                      <TableHead>Leg</TableHead>
-                      <TableHead>Time in leg</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.atRisk.map((row) => (
-                      <TableRow key={row.commitmentId}>
-                        <TableCell className="font-medium">{row.customerName ?? "—"}</TableCell>
-                        <TableCell>
-                          <a href={`/cases/${row.caseId}`} className="text-primary hover:underline">
-                            #{row.externalId}
-                          </a>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{formatCommitmentKind(row.kind)}</TableCell>
-                        <TableCell>
-                          <StatusBadge status={row.status} />
-                        </TableCell>
-                        <TableCell className={row.remainingMinutes < 0 ? "font-medium text-destructive" : undefined}>
-                          {row.remainingMinutes < 0
-                            ? `${formatMinutes(-row.remainingMinutes)} overdue`
-                            : formatMinutes(row.remainingMinutes)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{formatLeg(row.currentLeg)}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatMinutes(row.minutesInCurrentLeg)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <AtRiskList data={data.atRisk} />
               )}
               {data.atRiskOverflowCount > 0 && (
                 <p className="mt-3 text-xs text-muted-foreground">
@@ -122,7 +113,9 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
               </CardHeader>
               <CardContent>
                 {data.breachedThisPeriod.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No breaches in the last {data.periodDays} days.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No breaches in the last {data.periodDays} days.
+                  </p>
                 ) : (
                   <details className="group">
                     <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
@@ -131,9 +124,18 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                     </summary>
                     <ul className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
                       {data.breachedThisPeriod.map((row, i) => (
-                        <li key={`${row.caseId}-${row.kind}-${i}`} className="text-muted-foreground">
-                          <span className="text-foreground">{row.customerName ?? "—"}</span> ·{" "}
-                          <a href={`/cases/${row.caseId}`} className="text-primary hover:underline">
+                        <li
+                          key={`${row.caseId}-${row.kind}-${i}`}
+                          className="text-muted-foreground"
+                        >
+                          <span className="text-foreground">
+                            {row.customerName ?? "—"}
+                          </span>{" "}
+                          ·{" "}
+                          <a
+                            href={`/cases/${row.caseId}`}
+                            className="text-primary hover:underline"
+                          >
                             #{row.externalId}
                           </a>{" "}
                           · {formatCommitmentKind(row.kind)}
@@ -153,14 +155,25 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
               </CardHeader>
               <CardContent>
                 {data.agingInEngineering.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nothing currently with engineering.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Nothing currently with engineering.
+                  </p>
                 ) : (
                   <ul className="space-y-2 text-sm">
                     {data.agingInEngineering.map((row) => (
-                      <li key={row.caseId} className="flex items-center gap-2 text-muted-foreground">
+                      <li
+                        key={row.caseId}
+                        className="flex items-center gap-2 text-muted-foreground"
+                      >
                         <span>
-                          <span className="text-foreground">{row.customerName ?? "—"}</span> ·{" "}
-                          <a href={`/cases/${row.caseId}`} className="text-primary hover:underline">
+                          <span className="text-foreground">
+                            {row.customerName ?? "—"}
+                          </span>{" "}
+                          ·{" "}
+                          <a
+                            href={`/cases/${row.caseId}`}
+                            className="text-primary hover:underline"
+                          >
                             #{row.externalId}
                           </a>{" "}
                           · {formatMinutes(row.minutesInCurrentLeg)}
@@ -180,13 +193,34 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                   </ul>
                 )}
                 {data.agingOverflowCount > 0 && (
-                  <p className="mt-3 text-xs text-muted-foreground">+{data.agingOverflowCount} more.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    +{data.agingOverflowCount} more.
+                  </p>
                 )}
               </CardContent>
             </Card>
           </Reveal>
         </div>
       </div>
+
+      <Reveal delay={0.3} className="mt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>All other cases</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.otherOpenCommitments.length === 0 ? (
+              <EmptyState
+                icon={ListChecks}
+                title="Nothing else open"
+                description="Every open commitment is currently at risk, on track, or breached."
+              />
+            ) : (
+              <OtherCasesList data={data.otherOpenCommitments} />
+            )}
+          </CardContent>
+        </Card>
+      </Reveal>
     </>
   );
 };

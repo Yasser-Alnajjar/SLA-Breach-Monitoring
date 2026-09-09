@@ -163,6 +163,7 @@ export async function getDashboardData(
   };
 
   const atRisk: AtRiskRow[] = [];
+  const otherOpenCommitments: AtRiskRow[] = [];
   const casesSeenForAging = new Set<string>();
   const agingInEngineering: AgingEscalationRow[] = [];
 
@@ -180,6 +181,18 @@ export async function getDashboardData(
 
     if (evaluation.status === "on_track" || evaluation.status === "at_risk" || evaluation.status === "breached") {
       atRisk.push({
+        commitmentId: row.id,
+        caseId: row.caseId,
+        externalId: row.case.externalId,
+        customerName: row.case.customer?.name ?? null,
+        kind: row.kind,
+        remainingMinutes: evaluation.remainingMinutes,
+        status: evaluation.status,
+        currentLeg,
+        minutesInCurrentLeg,
+      });
+    } else {
+      otherOpenCommitments.push({
         commitmentId: row.id,
         caseId: row.caseId,
         externalId: row.case.externalId,
@@ -229,6 +242,7 @@ export async function getDashboardData(
     periodDays: PERIOD_DAYS,
     atRisk: atRisk.slice(0, AT_RISK_LIMIT),
     atRiskOverflowCount: Math.max(0, atRisk.length - AT_RISK_LIMIT),
+    otherOpenCommitments,
     breachedThisPeriod,
     agingInEngineering: agingInEngineering.slice(0, AGING_LIMIT),
     agingOverflowCount: Math.max(0, agingInEngineering.length - AGING_LIMIT),

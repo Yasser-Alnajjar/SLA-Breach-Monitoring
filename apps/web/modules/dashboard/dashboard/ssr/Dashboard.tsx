@@ -13,17 +13,7 @@ import { DashboardView } from "../csr/DashboardView";
 export const Dashboard = async () => {
   const data = await Actions.Dashboard.getData();
   return (
-    <AppShell
-      title="Dashboard"
-      actions={
-        <Button variant="outline" size="sm" asChild>
-          <a href="/api/reports/commitments">
-            <Download />
-            Export CSV
-          </a>
-        </Button>
-      }
-    >
+    <AppShell title="Dashboard">
       <DashboardView data={data} />
     </AppShell>
   );

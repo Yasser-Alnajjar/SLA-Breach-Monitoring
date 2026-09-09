@@ -18,6 +18,7 @@ import { DataTablePagination } from "./data-table-pagination";
 import { complexFilter } from "./complexFilter";
 import { useQueryParams } from "@hooks";
 import {
+  Table,
   TableHeader,
   TableRow,
   TableHead,
@@ -25,13 +26,12 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Table } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   header?: ({ table }: { table: TTable<TData> }) => React.ReactNode;
-  title: string;
+  title?: string;
   EditForm?: React.ComponentType<
     { rowData: TData; onClose: () => void } & Record<string, any>
   >;
@@ -45,6 +45,8 @@ interface DataTableProps<TData, TValue> {
   setGlobalFilter?: (value: string) => void;
   onDoubleClick?: (row: TData) => void;
   paginated?: boolean;
+  prefix?: string;
+  empty?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -58,7 +60,9 @@ export function DataTable<TData, TValue>({
   onRowSelectionChange,
   onDoubleClick,
   paginated = true,
-  className = "rounded-lg border bg-gray-200",
+  className,
+  prefix,
+  empty,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(
@@ -68,11 +72,20 @@ export function DataTable<TData, TValue>({
   const { getQueryObject, createQueryFromObject } = useQueryParams();
 
   const query = getQueryObject();
-  const pageIndex = Math.max(0, Number(query.page ?? 1) - 1);
-  const pageSize = Number(query.pageSize ?? 10);
 
-  const pagination: PaginationState = { pageIndex, pageSize };
+  const paginationParams = {
+    page: prefix ? `${prefix}Page` : "page",
+    pageSize: prefix ? `${prefix}PageSize` : "pageSize",
+  };
 
+  const pageIndex = Math.max(0, Number(query[paginationParams.page] ?? 1) - 1);
+
+  const pageSize = Math.max(1, Number(query[paginationParams.pageSize] ?? 10));
+
+  const pagination: PaginationState = {
+    pageIndex,
+    pageSize,
+  };
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const previousPositions = useRef<Map<string, DOMRect>>(new Map());
   const processedColumns = columns.map((column) => {
@@ -331,7 +344,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  no_data
+                  {empty}
                 </TableCell>
               </TableRow>
             )}
@@ -341,7 +354,7 @@ export function DataTable<TData, TValue>({
 
       {paginated && (
         <div className="flex flex-col sm:flex-row items-center justify-between border-t p-4 gap-4">
-          <DataTablePagination table={table} />
+          <DataTablePagination table={table} prefix={prefix} />
         </div>
       )}
     </div>

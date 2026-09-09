@@ -32,6 +32,7 @@ export interface DashboardData {
   periodDays: number;
   atRisk: AtRiskRow[];
   atRiskOverflowCount: number;
+  otherOpenCommitments: AtRiskRow[];
   breachedThisPeriod: BreachedCaseRow[];
   agingInEngineering: AgingEscalationRow[];
   agingOverflowCount: number;

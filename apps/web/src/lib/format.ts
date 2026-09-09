@@ -34,7 +34,11 @@ export function formatCommitmentKind(kind: string): string {
 }
 
 /** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */
-export function formatPolicyMatch(match: { priority?: string[]; tier?: string[]; customerIds?: string[] }): string {
+export function formatPolicyMatch(match: {
+  priority?: string[];
+  tier?: string[];
+  customerIds?: string[];
+}): string {
   return (
     [
       match.priority && `priority in [${match.priority.join(", ")}]`,
@@ -97,7 +101,7 @@ export function formatEventDescription(event: {
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -112,7 +116,11 @@ function formatMinuteOfDay(minute: number): string {
 }
 
 /** e.g. "Mon 09:00–17:00" for one BusinessCalendarVersion.weekly entry. */
-export function formatWeeklyWindow(window: { day: number; openMinute: number; closeMinute: number }): string {
+export function formatWeeklyWindow(window: {
+  day: number;
+  openMinute: number;
+  closeMinute: number;
+}): string {
   return `${DAY_LABELS[window.day] ?? window.day} ${formatMinuteOfDay(window.openMinute)}–${formatMinuteOfDay(window.closeMinute)}`;
 }
 

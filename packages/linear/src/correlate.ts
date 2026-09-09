@@ -184,6 +184,18 @@ export async function runLinearCorrelation(prisma: PrismaClient, integrationId: 
 
     if (!existing) {
       result.caseLinksCreated += 1;
+    }
+
+    // Checked independently of `existing`: a CaseLink can persist without
+    // its `issue_linked` event ever having landed (e.g. a prior run created
+    // the link but was interrupted before emitting the event), and gating
+    // solely on the link's own existence would leave that drift permanent.
+    const existingLinkEvent = await prisma.normalizedEvent.findFirst({
+      where: { caseId: zendeskCase.id, type: "issue_linked", sourceRawEventId: firstRawEventId },
+      select: { id: true },
+    });
+
+    if (!existingLinkEvent) {
       await prisma.normalizedEvent.create({
         data: {
           caseId: zendeskCase.id,

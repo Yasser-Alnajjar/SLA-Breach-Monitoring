@@ -10,5 +10,12 @@ const STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  return <Badge variant={STATUS_VARIANT[status] ?? "default"}>{formatCommitmentStatus(status)}</Badge>;
+  return (
+    <Badge
+      variant={STATUS_VARIANT[status] ?? "default"}
+      className="text-nowrap"
+    >
+      {formatCommitmentStatus(status)}
+    </Badge>
+  );
 }

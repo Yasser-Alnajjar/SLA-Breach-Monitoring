@@ -45,8 +45,7 @@ console.log(
     event: "worker_started",
     activePollMs: config.activePollMs,
     reconciliationMs: config.reconciliationMs,
-    zendeskConfigured: config.zendesk !== null,
-    jiraConfigured: config.jira !== null,
+    appUrlConfigured: config.appUrl !== null,
   }),
 );
 

@@ -4,7 +4,7 @@ import {
   type EvaluationPipelineResult,
   type EvaluationScope,
 } from "@sla/commitments";
-import type { PrismaClient } from "@sla/db";
+import { getIntegrationConfig, type PrismaClient } from "@sla/db";
 import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
 import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
 import { runNotificationPipeline } from "@sla/notifications";
@@ -88,14 +88,24 @@ export async function runCycle(
 
       try {
         if (integration.provider === "zendesk") {
-          if (!config.zendesk) continue;
-          await runZendeskBackfill(prisma, integration.id, config.zendesk);
+          if (!config.appUrl) continue;
+          const zendeskConfig = await getIntegrationConfig(prisma, organization.id, "zendesk");
+          if (!zendeskConfig) continue;
+          await runZendeskBackfill(prisma, integration.id, {
+            ...zendeskConfig,
+            redirectUri: `${config.appUrl}/api/integrations/zendesk/callback`,
+          });
           await runZendeskNormalization(prisma, integration.id);
           await runZendeskBusinessCalendarImport(prisma, integration.id);
           await runZendeskSlaPolicyImport(prisma, integration.id);
         } else if (integration.provider === "jira") {
-          if (!config.jira) continue;
-          await runJiraBackfill(prisma, integration.id, config.jira);
+          if (!config.appUrl) continue;
+          const jiraConfig = await getIntegrationConfig(prisma, organization.id, "jira");
+          if (!jiraConfig) continue;
+          await runJiraBackfill(prisma, integration.id, {
+            ...jiraConfig,
+            redirectUri: `${config.appUrl}/api/integrations/jira/callback`,
+          });
           await runJiraCorrelation(prisma, integration.id);
           await runJiraNormalization(prisma, integration.id);
         } else {

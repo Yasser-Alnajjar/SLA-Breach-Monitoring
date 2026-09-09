@@ -1,21 +1,26 @@
 import type { SlackOAuthConfig } from "@sla/slack";
+import { getIntegrationConfig, getPrismaClient } from "@sla/db";
 
 export const SLACK_STATE_COOKIE = "slack_oauth_state";
 
-export function getSlackOAuthConfig(): SlackOAuthConfig {
-  const clientId = process.env.SLACK_CLIENT_ID;
-  const clientSecret = process.env.SLACK_CLIENT_SECRET;
+/**
+ * Resolves this organization's Slack app config: its own client id/secret
+ * (saved from the Integrations settings UI) if configured, otherwise the
+ * legacy SLACK_CLIENT_ID/SLACK_CLIENT_SECRET env vars.
+ */
+export async function getSlackOAuthConfig(organizationId: string): Promise<SlackOAuthConfig> {
   const appUrl = process.env.NEXTAUTH_URL;
+  const config = await getIntegrationConfig(getPrismaClient(), organizationId, "slack");
 
-  if (!clientId || !clientSecret || !appUrl) {
+  if (!config || !appUrl) {
     throw new Error(
-      "Slack OAuth is not configured: SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and NEXTAUTH_URL are required",
+      "Slack is not configured for this organization. Configure it from Integrations settings.",
     );
   }
 
   return {
-    clientId,
-    clientSecret,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
     redirectUri: `${appUrl}/api/integrations/slack/callback`,
   };
 }

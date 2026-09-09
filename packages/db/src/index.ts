@@ -1,6 +1,19 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 export * from "../generated/prisma/client";
+export {
+  isConfigurableIntegrationProvider,
+  getIntegrationConfig,
+  getIntegrationConfigStatus,
+  saveIntegrationConfig,
+  encryptSecret,
+  decryptSecret,
+} from "./integration-config";
+export type {
+  ConfigurableIntegrationProvider,
+  IntegrationOAuthCredentials,
+  IntegrationConfigStatus,
+} from "./integration-config";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,

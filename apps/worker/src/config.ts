@@ -1,6 +1,4 @@
 import type { EmailConfig } from "@sla/email";
-import type { JiraOAuthConfig } from "@sla/jira";
-import type { ZendeskOAuthConfig } from "@sla/zendesk";
 
 /**
  * The worker runs unattended, so a missing provider config is not fatal: it
@@ -8,10 +6,15 @@ import type { ZendeskOAuthConfig } from "@sla/zendesk";
  * an install that only connected one of the two systems. `email` follows the
  * same nullable pattern — an install that never set SMTP credentials just
  * gets no email channel, Slack (if connected) still fires.
+ *
+ * Zendesk/Jira OAuth app config used to live here too, loaded once globally
+ * from env at startup. It's now per-organization (settings UI, stored in
+ * `IntegrationConfig`), so `cycle.ts` resolves it per organization via
+ * `@sla/db`'s `getIntegrationConfig` instead — `appUrl` is all this needs to
+ * pass down, to build each provider's redirect URI.
  */
 export interface WorkerConfig {
-  zendesk: ZendeskOAuthConfig | null;
-  jira: JiraOAuthConfig | null;
+  appUrl: string | null;
   email: EmailConfig | null;
   activePollMs: number;
   reconciliationMs: number;
@@ -47,29 +50,8 @@ function loadEmailConfig(): EmailConfig | null {
 }
 
 export function loadWorkerConfig(): WorkerConfig {
-  const appUrl = process.env.NEXTAUTH_URL;
-  const zendeskClientId = process.env.ZENDESK_CLIENT_ID;
-  const zendeskClientSecret = process.env.ZENDESK_CLIENT_SECRET;
-  const jiraClientId = process.env.JIRA_CLIENT_ID;
-  const jiraClientSecret = process.env.JIRA_CLIENT_SECRET;
-
   return {
-    zendesk:
-      appUrl && zendeskClientId && zendeskClientSecret
-        ? {
-            clientId: zendeskClientId,
-            clientSecret: zendeskClientSecret,
-            redirectUri: `${appUrl}/api/integrations/zendesk/callback`,
-          }
-        : null,
-    jira:
-      appUrl && jiraClientId && jiraClientSecret
-        ? {
-            clientId: jiraClientId,
-            clientSecret: jiraClientSecret,
-            redirectUri: `${appUrl}/api/integrations/jira/callback`,
-          }
-        : null,
+    appUrl: process.env.NEXTAUTH_URL ?? null,
     email: loadEmailConfig(),
     activePollMs: readIntervalMs("WORKER_ACTIVE_POLL_MS", DEFAULT_ACTIVE_POLL_MS),
     reconciliationMs: readIntervalMs("WORKER_RECONCILIATION_MS", DEFAULT_RECONCILIATION_MS),

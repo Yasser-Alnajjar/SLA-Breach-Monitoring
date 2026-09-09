@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   let config;
   try {
-    config = getZendeskOAuthConfig();
+    config = await getZendeskOAuthConfig(session.user.organizationId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Zendesk OAuth is not configured" },

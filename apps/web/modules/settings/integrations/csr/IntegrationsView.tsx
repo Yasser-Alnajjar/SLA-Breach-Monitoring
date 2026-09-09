@@ -25,6 +25,7 @@ import {
 import { EngineeringTargetForm } from "./EngineeringTargetForm";
 import { SlaPoliciesCard } from "./SlaPoliciesCard";
 import { DisconnectButton } from "./DisconnectButton";
+import { IntegrationConfigGate } from "./IntegrationConfigGate";
 
 interface IntegrationsViewProps {
   data: IntegrationsPageData;
@@ -161,11 +162,14 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
   const {
     zendeskIntegration,
     zendeskCredentials,
+    zendeskConfig,
     jiraIntegration,
     jiraCredentials,
+    jiraConfig,
     // linearIntegration,
     // linearCredentials,
     slackIntegration,
+    slackConfig,
     engineeringLegTargetMinutes,
     slaPolicies,
   } = data;
@@ -202,26 +206,33 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               )
             }
           >
-            {zendeskIntegration && zendeskCredentials ? (
-              <ConnectedCardBody
-                provider="zendesk"
-                providerLabel="Zendesk"
-                connectedAt={zendeskIntegration.connectedAt}
-              />
-            ) : (
-              <div className="flex flex-1 flex-col">
-                <p className={descriptionClass}>
-                  Read-only access — no tickets, comments, or fields are ever
-                  written back to Zendesk.
-                  {zendeskIntegration?.disconnectedAt &&
-                    ` Disconnected ${formatDateTime(zendeskIntegration.disconnectedAt)}.`}
-                </p>
+            <IntegrationConfigGate
+              provider="zendesk"
+              providerLabel="Zendesk"
+              config={zendeskConfig}
+              descriptionClass={descriptionClass}
+            >
+              {zendeskIntegration && zendeskCredentials ? (
+                <ConnectedCardBody
+                  provider="zendesk"
+                  providerLabel="Zendesk"
+                  connectedAt={zendeskIntegration.connectedAt}
+                />
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <p className={descriptionClass}>
+                    Read-only access — no tickets, comments, or fields are ever
+                    written back to Zendesk.
+                    {zendeskIntegration?.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(zendeskIntegration.disconnectedAt)}.`}
+                  </p>
 
-                <div className="mt-auto pt-6">
-                  <ZendeskConnectForm />
+                  <div className="mt-auto pt-6">
+                    <ZendeskConnectForm />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </IntegrationConfigGate>
           </IntegrationCard>
 
           {/* Jira */}
@@ -244,26 +255,33 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               )
             }
           >
-            {jiraIntegration && jiraCredentials ? (
-              <ConnectedCardBody
-                provider="jira"
-                providerLabel="Jira"
-                connectedAt={jiraIntegration.connectedAt}
-              />
-            ) : (
-              <div className="flex flex-1 flex-col">
-                <p className={descriptionClass}>
-                  Read-only access — no issues, comments, or fields are ever
-                  written back to Jira.
-                  {jiraIntegration?.disconnectedAt &&
-                    ` Disconnected ${formatDateTime(jiraIntegration.disconnectedAt)}.`}
-                </p>
+            <IntegrationConfigGate
+              provider="jira"
+              providerLabel="Jira"
+              config={jiraConfig}
+              descriptionClass={descriptionClass}
+            >
+              {jiraIntegration && jiraCredentials ? (
+                <ConnectedCardBody
+                  provider="jira"
+                  providerLabel="Jira"
+                  connectedAt={jiraIntegration.connectedAt}
+                />
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <p className={descriptionClass}>
+                    Read-only access — no issues, comments, or fields are ever
+                    written back to Jira.
+                    {jiraIntegration?.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(jiraIntegration.disconnectedAt)}.`}
+                  </p>
 
-                <div className="mt-auto pt-6">
-                  <JiraConnectButton />
+                  <div className="mt-auto pt-6">
+                    <JiraConnectButton />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </IntegrationConfigGate>
           </IntegrationCard>
 
           {/* Linear  this is disabled for now */}
@@ -321,42 +339,49 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               )
             }
           >
-            {slackIntegration ? (
-              <div className="flex flex-1 flex-col">
-                <div className="space-y-3">
+            <IntegrationConfigGate
+              provider="slack"
+              providerLabel="Slack"
+              config={slackConfig}
+              descriptionClass={descriptionClass}
+            >
+              {slackIntegration ? (
+                <div className="flex flex-1 flex-col">
+                  <div className="space-y-3">
+                    <p className={descriptionClass}>
+                      Connected to {slackIntegration.teamName}{" "}
+                      {formatDateTime(slackIntegration.installedAt)}.
+                    </p>
+
+                    {slackIntegration.channelId && (
+                      <p className={descriptionClass}>
+                        At-risk and breach alerts post to #
+                        {slackIntegration.channelName}.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-auto pt-6">
+                    {slackIntegration.channelId ? (
+                      <SlackChannelChangeButton />
+                    ) : (
+                      <SlackChannelPicker />
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-1 flex-col">
                   <p className={descriptionClass}>
-                    Connected to {slackIntegration.teamName}{" "}
-                    {formatDateTime(slackIntegration.installedAt)}.
+                    The only alert channel in v1. Posts when a commitment crosses
+                    a warning threshold or breaches.
                   </p>
 
-                  {slackIntegration.channelId && (
-                    <p className={descriptionClass}>
-                      At-risk and breach alerts post to #
-                      {slackIntegration.channelName}.
-                    </p>
-                  )}
+                  <div className="mt-auto pt-6">
+                    <SlackConnectButton />
+                  </div>
                 </div>
-
-                <div className="mt-auto pt-6">
-                  {slackIntegration.channelId ? (
-                    <SlackChannelChangeButton />
-                  ) : (
-                    <SlackChannelPicker />
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-1 flex-col">
-                <p className={descriptionClass}>
-                  The only alert channel in v1. Posts when a commitment crosses
-                  a warning threshold or breaches.
-                </p>
-
-                <div className="mt-auto pt-6">
-                  <SlackConnectButton />
-                </div>
-              </div>
-            )}
+              )}
+            </IntegrationConfigGate>
           </IntegrationCard>
         </div>
       </section>

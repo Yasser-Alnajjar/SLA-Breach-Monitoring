@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Organization mismatch" }, { status: 403 });
   }
 
-  const config = getZendeskOAuthConfig();
+  const config = await getZendeskOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(state.subdomain, code, config);
 
   const prisma = getPrismaClient();

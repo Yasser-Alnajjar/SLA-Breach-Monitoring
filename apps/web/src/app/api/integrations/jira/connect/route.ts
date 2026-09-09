@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   let config;
   try {
-    config = getJiraOAuthConfig();
+    config = await getJiraOAuthConfig(session.user.organizationId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Jira OAuth is not configured" },

@@ -2,6 +2,8 @@ import { signIn } from "next-auth/react";
 import type { CommitmentKind } from "@sla/core";
 import type { OnboardingStatus } from "@/lib/types/onboarding";
 import type {
+  ConfigurableIntegrationProvider,
+  IntegrationConfigStatus,
   IntegrationProvider,
   JiraBackfillResult,
   LinearBackfillResult,
@@ -109,6 +111,15 @@ export const Actions = {
       return postJSON<{ created: boolean; version: { id: string; version: number } }>(
         "/api/settings/sla-policies/override",
         { policyId, targets },
+      );
+    },
+    async saveIntegrationConfig(
+      provider: ConfigurableIntegrationProvider,
+      input: { clientId: string; clientSecret?: string },
+    ) {
+      return postJSON<IntegrationConfigStatus>(
+        `/api/integrations/${provider}/config`,
+        input,
       );
     },
     async disconnect(provider: IntegrationProvider) {

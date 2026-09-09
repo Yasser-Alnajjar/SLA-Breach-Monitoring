@@ -11,7 +11,7 @@ export async function GET() {
 
   let config;
   try {
-    config = getSlackOAuthConfig();
+    config = await getSlackOAuthConfig(session.user.organizationId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Slack OAuth is not configured" },

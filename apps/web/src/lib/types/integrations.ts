@@ -1,4 +1,4 @@
-import type { Integration, SlackIntegration } from "@sla/db";
+import type { ConfigurableIntegrationProvider, Integration, IntegrationConfigStatus, SlackIntegration } from "@sla/db";
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCredentials, JiraCursor } from "@sla/jira";
@@ -30,9 +30,14 @@ export interface IntegrationsPageData {
   linearCursor: LinearCursor | null;
   linearCredentials: LinearCredentials | null;
   slackIntegration: SlackIntegration | null;
+  zendeskConfig: IntegrationConfigStatus;
+  jiraConfig: IntegrationConfigStatus;
+  slackConfig: IntegrationConfigStatus;
   engineeringLegTargetMinutes: number | null;
   slaPolicies: SlaPolicySummary[];
 }
+
+export type { ConfigurableIntegrationProvider, IntegrationConfigStatus };
 
 export interface ZendeskSyncResult {
   backfill: ZendeskBackfillResult;

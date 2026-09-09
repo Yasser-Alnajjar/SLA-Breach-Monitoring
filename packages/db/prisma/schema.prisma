@@ -30,6 +30,7 @@ model Organization {
   cases             Case[]
   customers         Customer[]
   integrations      Integration[]
+  integrationConfigs IntegrationConfig[]
   slaPolicies       SLAPolicy[]
   slackIntegration  SlackIntegration?
   users             User[]
@@ -346,6 +347,31 @@ model SlackIntegration {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("slack_integrations")
+}
+
+/// Per-organization OAuth app credentials for a configurable integration
+/// (zendesk, jira, slack — see ConfigurableIntegrationProvider in
+/// @sla/db), set from the Integration settings UI instead of a global
+/// `.env` value, so each org can bring its own OAuth app. `provider` is a
+/// plain string rather than `IntegrationProvider` because it also covers
+/// slack, which — per `SlackIntegration`'s doc comment — was deliberately
+/// never added to that enum. Falls back to the legacy `*_CLIENT_ID`/
+/// `*_CLIENT_SECRET` env vars when no row exists, so integrations connected
+/// before this table existed keep working without a data migration.
+model IntegrationConfig {
+  id             String       @id @default(cuid())
+  organizationId String
+  provider       String
+  clientId       String
+  /// AES-256-GCM ciphertext, base64-encoded — see @sla/db's
+  /// encryptSecret/decryptSecret. Never returned to the client in plaintext.
+  clientSecret   String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@map("integration_configs")
 }
 
 enum IntegrationProvider {

@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Organization mismatch" }, { status: 403 });
   }
 
-  const config = getJiraOAuthConfig();
+  const config = await getJiraOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(code, config);
 
   const prisma = getPrismaClient();

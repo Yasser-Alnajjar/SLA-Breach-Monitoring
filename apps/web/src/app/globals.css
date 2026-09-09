@@ -56,49 +56,83 @@
 
 @layer base {
   :root {
-    /* Obsidian surfaces */
-    --background: 240 6% 4%;
-    --card: 240 6% 8%;
-    --card-foreground: 40 20% 94%;
-    --elevated: 240 6% 11%;
-    --interactive: 240 6% 14%;
-    --popover: 240 6% 11%;
-    --popover-foreground: 40 20% 94%;
-    --border: 240 5% 17%;
-    --input: 240 5% 19%;
-    --ring: 220 90% 60%;
+    /* =========================================================
+       SLA OPERATIONS — DARK THEME
+       ========================================================= */
 
-    /* Text */
-    --foreground: 40 20% 94%;
-    --muted: 240 6% 14%;
-    --muted-foreground: 40 8% 62%;
+    /* Surfaces */
+    --background: 222 20% 7%;
+    --card: 222 18% 10%;
+    --card-foreground: 210 20% 96%;
 
-    /* Electric lime primary */
-    --primary: 220 90% 60%;
-    --primary-foreground: 240 6% 6%;
+    --elevated: 222 17% 13%;
+    --interactive: 222 16% 16%;
 
-    /* Warm sand secondary */
-    --secondary: 38 42% 74%;
-    --secondary-foreground: 240 6% 8%;
+    --popover: 222 18% 12%;
+    --popover-foreground: 210 20% 96%;
 
-    --accent: 240 6% 16%;
-    --accent-foreground: 40 20% 94%;
+    /* Borders / Inputs */
+    --border: 217 16% 20%;
+    --input: 217 16% 23%;
+    --ring: 187 72% 48%;
 
-    /* Status */
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 40 20% 96%;
-    --warning: 37 91% 55%;
-    --warning-foreground: 240 6% 8%;
-    --success: 158 55% 48%;
-    --success-foreground: 240 6% 8%;
+    /* =========================================================
+       TEXT
+       ========================================================= */
 
-    /* SLA leg colors (case timeline) */
-    --leg-support: 206 58% 60%;
-    --leg-engineering: 268 55% 70%;
-    --leg-waiting: 33 65% 63%;
-    --leg-unknown: 240 3% 45%;
-    --clock-running: 158 55% 48%;
-    --clock-paused: 240 5% 30%;
+    --foreground: 210 20% 96%;
+    --muted: 222 16% 15%;
+    --muted-foreground: 215 14% 62%;
+
+    /* =========================================================
+       BRAND / INTERACTION
+       Teal = operational / live / service
+       ========================================================= */
+
+    --primary: 187 72% 48%;
+    --primary-foreground: 222 25% 8%;
+
+    --secondary: 217 16% 20%;
+    --secondary-foreground: 210 20% 94%;
+
+    --accent: 187 35% 16%;
+    --accent-foreground: 187 80% 75%;
+
+    /* =========================================================
+       SLA STATUS
+       ========================================================= */
+
+    /* Breached */
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 20% 98%;
+
+    /* At Risk / Warning */
+    --warning: 38 92% 56%;
+    --warning-foreground: 222 25% 8%;
+
+    /* On Track / Met */
+    --success: 158 64% 45%;
+    --success-foreground: 222 25% 8%;
+
+    /* =========================================================
+       SLA TIMELINE
+       ========================================================= */
+
+    /* Support */
+    --leg-support: 199 82% 55%;
+
+    /* Engineering */
+    --leg-engineering: 268 65% 68%;
+
+    /* Waiting */
+    --leg-waiting: 38 92% 56%;
+
+    /* Unknown / Neutral */
+    --leg-unknown: 215 12% 43%;
+
+    /* SLA Clock */
+    --clock-running: 158 64% 45%;
+    --clock-paused: 215 12% 38%;
 
     --radius: 0.625rem;
   }

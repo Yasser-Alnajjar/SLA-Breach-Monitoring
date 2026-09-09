@@ -1,21 +1,26 @@
 import type { ZendeskOAuthConfig } from "@sla/zendesk";
+import { getIntegrationConfig, getPrismaClient } from "@sla/db";
 
 export const ZENDESK_STATE_COOKIE = "zendesk_oauth_state";
 
-export function getZendeskOAuthConfig(): ZendeskOAuthConfig {
-  const clientId = process.env.ZENDESK_CLIENT_ID;
-  const clientSecret = process.env.ZENDESK_CLIENT_SECRET;
+/**
+ * Resolves this organization's Zendesk OAuth app config: its own
+ * client id/secret (saved from the Integrations settings UI) if configured,
+ * otherwise the legacy ZENDESK_CLIENT_ID/ZENDESK_CLIENT_SECRET env vars.
+ */
+export async function getZendeskOAuthConfig(organizationId: string): Promise<ZendeskOAuthConfig> {
   const appUrl = process.env.NEXTAUTH_URL;
+  const config = await getIntegrationConfig(getPrismaClient(), organizationId, "zendesk");
 
-  if (!clientId || !clientSecret || !appUrl) {
+  if (!config || !appUrl) {
     throw new Error(
-      "Zendesk OAuth is not configured: ZENDESK_CLIENT_ID, ZENDESK_CLIENT_SECRET, and NEXTAUTH_URL are required",
+      "Zendesk is not configured for this organization. Configure it from Integrations settings.",
     );
   }
 
   return {
-    clientId,
-    clientSecret,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
     redirectUri: `${appUrl}/api/integrations/zendesk/callback`,
   };
 }

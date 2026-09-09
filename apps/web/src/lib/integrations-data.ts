@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@sla/db";
+import { getIntegrationConfigStatus } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCredentials, JiraCursor } from "@sla/jira";
 import type { LinearCredentials, LinearCursor } from "@sla/linear";
@@ -7,7 +8,17 @@ import type { IntegrationsPageData } from "./types/integrations";
 
 /** Assembles the integrations settings page's read model (roadmap step 17). */
 export async function getIntegrationsData(prisma: PrismaClient, organizationId: string): Promise<IntegrationsPageData> {
-  const [zendeskIntegration, jiraIntegration, linearIntegration, slackIntegration, organization, slaPolicies] = await Promise.all([
+  const [
+    zendeskIntegration,
+    jiraIntegration,
+    linearIntegration,
+    slackIntegration,
+    organization,
+    slaPolicies,
+    zendeskConfig,
+    jiraConfig,
+    slackConfig,
+  ] = await Promise.all([
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "zendesk" } },
     }),
@@ -25,6 +36,9 @@ export async function getIntegrationsData(prisma: PrismaClient, organizationId: 
       select: { engineeringLegTargetMinutes: true },
     }),
     getSlaPolicies(prisma, organizationId),
+    getIntegrationConfigStatus(prisma, organizationId, "zendesk"),
+    getIntegrationConfigStatus(prisma, organizationId, "jira"),
+    getIntegrationConfigStatus(prisma, organizationId, "slack"),
   ]);
 
   return {
@@ -38,6 +52,9 @@ export async function getIntegrationsData(prisma: PrismaClient, organizationId: 
     linearCursor: (linearIntegration?.cursor as LinearCursor | null) ?? null,
     linearCredentials: (linearIntegration?.credentials as LinearCredentials | null) ?? null,
     slackIntegration,
+    zendeskConfig,
+    jiraConfig,
+    slackConfig,
     engineeringLegTargetMinutes: organization?.engineeringLegTargetMinutes ?? null,
     slaPolicies,
   };

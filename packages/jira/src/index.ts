@@ -28,7 +28,12 @@ export {
   UnknownJiraStatusCategoryError,
   UnknownJiraStatusError,
 } from "./normalize";
-export type { ChangelogRecord, DerivedNormalizedEvent, JiraNormalizationResult } from "./normalize";
+export type {
+  ChangelogRecord,
+  DerivedNormalizedEvent,
+  JiraNormalizationResult,
+  JiraStatusInfo,
+} from "./normalize";
 export { parseZendeskTicketId, runJiraCorrelation } from "./correlate";
 export type { CorrelationResult } from "./correlate";
 export {

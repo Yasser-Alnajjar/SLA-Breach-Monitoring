@@ -57,6 +57,9 @@ export interface TimelineEventDetail {
   type: NormalizedEventType;
   fromState: NormalizedState | null;
   toState: NormalizedState | null;
+  /** Provider-native status names (e.g. Jira's "Code Review"). Only Jira events carry these. */
+  fromStatusName: string | null;
+  toStatusName: string | null;
 }
 
 export interface LegTotal {

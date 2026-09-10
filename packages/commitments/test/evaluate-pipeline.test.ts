@@ -180,7 +180,30 @@ describe("toNormalizedEventDomain", () => {
       system: "zendesk",
       fromState: "new",
       toState: "open",
+      fromStatusName: null,
+      toStatusName: null,
       sourceRawEventId: "raw_1",
     });
+  });
+
+  it("carries a Jira row's provider-native status names through untouched", () => {
+    const domain = toNormalizedEventDomain({
+      id: "evt_2",
+      caseId: "case_1",
+      type: "state_changed",
+      occurredAt: new Date("2026-01-03T09:00:00Z"),
+      actor: "agent",
+      system: "jira",
+      fromState: "in_progress",
+      toState: "in_progress",
+      fromStatusName: "In Progress",
+      toStatusName: "Code Review",
+      sourceRawEventId: "raw_2",
+    });
+    expect(domain.fromStatusName).toBe("In Progress");
+    expect(domain.toStatusName).toBe("Code Review");
+    // The normalized SLA state is unaffected by the custom names carried alongside it.
+    expect(domain.fromState).toBe("in_progress");
+    expect(domain.toState).toBe("in_progress");
   });
 });

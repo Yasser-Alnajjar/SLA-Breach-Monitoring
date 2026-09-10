@@ -19,7 +19,13 @@ import {
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import type { ZendeskCredentials } from "@sla/zendesk";
 import type { JiraCredentials } from "@sla/jira";
-import type { CaseDetailData, CaseLinkDetail, CommitmentDetail, LegTotal, TimelineEventDetail } from "./types/cases";
+import type {
+  CaseDetailData,
+  CaseLinkDetail,
+  CommitmentDetail,
+  LegTotal,
+  TimelineEventDetail,
+} from "./types/cases";
 
 // No business calendar exists yet for a case whose SLA hasn't matched any
 // policy — fall back to an always-open calendar purely for the purpose of
@@ -39,7 +45,9 @@ function complementIntervals(
   start: string,
   end: string,
 ): { start: string; end: string }[] {
-  const sorted = [...pausedIntervals].sort((a, b) => a.start.localeCompare(b.start));
+  const sorted = [...pausedIntervals].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
   const running: { start: string; end: string }[] = [];
   let cursor = start;
   for (const p of sorted) {
@@ -74,29 +82,45 @@ export async function getCaseDetailData(
   });
   if (!caseRow) return null;
 
-  const [eventRows, zendeskIntegration, jiraIntegration, organization] = await Promise.all([
-    prisma.normalizedEvent.findMany({ where: { caseId }, orderBy: { occurredAt: "asc" } }),
-    prisma.integration.findUnique({
-      where: { organizationId_provider: { organizationId, provider: "zendesk" } },
-    }),
-    prisma.integration.findUnique({
-      where: { organizationId_provider: { organizationId, provider: "jira" } },
-    }),
-    prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { engineeringLegTargetMinutes: true },
-    }),
-  ]);
+  const [eventRows, zendeskIntegration, jiraIntegration, organization] =
+    await Promise.all([
+      prisma.normalizedEvent.findMany({
+        where: { caseId },
+        orderBy: { occurredAt: "asc" },
+      }),
+      prisma.integration.findUnique({
+        where: {
+          organizationId_provider: { organizationId, provider: "zendesk" },
+        },
+      }),
+      prisma.integration.findUnique({
+        where: {
+          organizationId_provider: { organizationId, provider: "jira" },
+        },
+      }),
+      prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { engineeringLegTargetMinutes: true },
+      }),
+    ]);
 
-  const policyVersionIds = [...new Set(caseRow.commitments.map((c) => c.policyVersionId))];
-  const calendarVersionIds = [...new Set(caseRow.commitments.map((c) => c.calendarVersionId))];
+  const policyVersionIds = [
+    ...new Set(caseRow.commitments.map((c) => c.policyVersionId)),
+  ];
+  const calendarVersionIds = [
+    ...new Set(caseRow.commitments.map((c) => c.calendarVersionId)),
+  ];
 
   const [policyVersionRows, calendarVersionRows] = await Promise.all([
     policyVersionIds.length > 0
-      ? prisma.sLAPolicyVersion.findMany({ where: { id: { in: policyVersionIds } } })
+      ? prisma.sLAPolicyVersion.findMany({
+          where: { id: { in: policyVersionIds } },
+        })
       : Promise.resolve([]),
     calendarVersionIds.length > 0
-      ? prisma.businessCalendarVersion.findMany({ where: { id: { in: calendarVersionIds } } })
+      ? prisma.businessCalendarVersion.findMany({
+          where: { id: { in: calendarVersionIds } },
+        })
       : Promise.resolve([]),
   ]);
 
@@ -131,16 +155,26 @@ export async function getCaseDetailData(
     ]),
   );
 
-  const domainEvents: NormalizedEvent[] = eventRows.map(toNormalizedEventDomain);
+  const domainEvents: NormalizedEvent[] = eventRows.map(
+    toNormalizedEventDomain,
+  );
 
   const commitments: CommitmentDetail[] = caseRow.commitments
     .map((row): CommitmentDetail | null => {
       const policyVersion = policyVersionsById.get(row.policyVersionId);
-      const calendarRow = calendarVersionRows.find((c) => c.id === row.calendarVersionId);
+      const calendarRow = calendarVersionRows.find(
+        (c) => c.id === row.calendarVersionId,
+      );
       const calendar = calendarsById.get(row.calendarVersionId);
       if (!policyVersion || !calendarRow || !calendar) return null;
 
-      const evaluation = evaluateCommitment(toCommitmentDomain(row), domainEvents, policyVersion, calendar, asOf);
+      const evaluation = evaluateCommitment(
+        toCommitmentDomain(row),
+        domainEvents,
+        policyVersion,
+        calendar,
+        asOf,
+      );
 
       return {
         id: row.id,
@@ -176,22 +210,34 @@ export async function getCaseDetailData(
 
   const endBound = caseRow.closedAt?.toISOString() ?? asOf;
 
-  const { spans } = deriveLegSpans(domainEvents, { caseOpenedAt: caseRow.openedAt.toISOString() });
+  const { spans } = deriveLegSpans(domainEvents, {
+    caseOpenedAt: caseRow.openedAt.toISOString(),
+  });
   const legSpans = spans.map((s) => ({ ...s, endedAt: s.endedAt ?? endBound }));
   const currentLeg: Leg = legSpans[legSpans.length - 1]?.leg ?? "unknown";
 
   const legTotalsByLeg = new Map<Leg, number>();
   for (const s of legSpans) {
-    const minutes = (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60_000;
+    const minutes =
+      (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) /
+      60_000;
     legTotalsByLeg.set(s.leg, (legTotalsByLeg.get(s.leg) ?? 0) + minutes);
   }
-  const LEG_ORDER: Leg[] = ["support", "engineering", "waiting_customer", "unknown"];
-  const legTotals: LegTotal[] = LEG_ORDER.filter((leg) => legTotalsByLeg.has(leg)).map((leg) => ({
+  const LEG_ORDER: Leg[] = [
+    "support",
+    "engineering",
+    "waiting_customer",
+    "unknown",
+  ];
+  const legTotals: LegTotal[] = LEG_ORDER.filter((leg) =>
+    legTotalsByLeg.has(leg),
+  ).map((leg) => ({
     leg,
     minutes: legTotalsByLeg.get(leg)!,
   }));
 
-  const engineeringLegTargetMinutes = organization?.engineeringLegTargetMinutes ?? null;
+  const engineeringLegTargetMinutes =
+    organization?.engineeringLegTargetMinutes ?? null;
   const engineeringLegTarget: EngineeringLegEvaluation | null =
     engineeringLegTargetMinutes !== null
       ? evaluateEngineeringLegTarget(
@@ -202,12 +248,25 @@ export async function getCaseDetailData(
       : null;
 
   const pauseOnStates = commitments[0]?.policyVersion.pauseOnStates ?? [];
-  const pauseCalendar = commitments[0] ? calendarsById.get(commitments[0].calendar.id)! : FALLBACK_CALENDAR;
-  const { pausedIntervals } = computeElapsedWorkingMinutes(domainEvents, pauseOnStates, pauseCalendar, endBound);
-  const runningIntervals = complementIntervals(pausedIntervals, caseRow.openedAt.toISOString(), endBound);
+  const pauseCalendar = commitments[0]
+    ? calendarsById.get(commitments[0].calendar.id)!
+    : FALLBACK_CALENDAR;
+  const { pausedIntervals } = computeElapsedWorkingMinutes(
+    domainEvents,
+    pauseOnStates,
+    pauseCalendar,
+    endBound,
+  );
+  const runningIntervals = complementIntervals(
+    pausedIntervals,
+    caseRow.openedAt.toISOString(),
+    endBound,
+  );
 
-  const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
-  const jiraCredentials = (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
+  const zendeskCredentials =
+    (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
+  const jiraCredentials =
+    (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
 
   const zendeskUrl = zendeskCredentials
     ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
@@ -217,8 +276,11 @@ export async function getCaseDetailData(
   // never actually occurs (Case itself *is* the Zendesk side), but the type
   // guard stays honest about the full IntegrationProvider union.
   const links: CaseLinkDetail[] = caseRow.caseLinks
-    .filter((link): link is typeof link & { system: "jira" | "zendesk" | "linear" } =>
-      link.system === "jira" || link.system === "zendesk" || link.system === "linear",
+    .filter(
+      (link): link is typeof link & { system: "jira" | "zendesk" | "linear" } =>
+        link.system === "jira" ||
+        link.system === "zendesk" ||
+        link.system === "linear",
     )
     .map((link) => ({
       system: link.system,
@@ -235,12 +297,15 @@ export async function getCaseDetailData(
                 // reconstruct a browse link from (unlike Jira's `siteUrl` or
                 // Zendesk's `subdomain`), so the correlator (roadmap step 15)
                 // captures the issue's own `url` into evidence at link time.
-                ((link.evidence as { issueUrl?: string } | null)?.issueUrl ?? null)
+                ((link.evidence as { issueUrl?: string } | null)?.issueUrl ??
+                null)
               : null,
       // Jira's live status name (e.g. "In Progress") is stashed into
-      // evidence by runJiraNormalization on every run — the timeline itself
-      // only carries the coarse new/in_progress/resolved category.
-      statusName: (link.evidence as { statusName?: string } | null)?.statusName ?? null,
+      // evidence by runJiraNormalization on every run, for the CaseLink's
+      // current-status display; the timeline's own fromStatusName/
+      // toStatusName below carry each transition's own historical name.
+      statusName:
+        (link.evidence as { statusName?: string } | null)?.statusName ?? null,
     }));
 
   const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({
@@ -251,6 +316,8 @@ export async function getCaseDetailData(
     type: e.type,
     fromState: e.fromState,
     toState: e.toState,
+    fromStatusName: e.fromStatusName ?? null,
+    toStatusName: e.toStatusName ?? null,
   }));
 
   return {

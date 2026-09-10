@@ -116,6 +116,8 @@ model NormalizedEvent {
   system           IntegrationProvider
   fromState        String?
   toState          String?
+  fromStatusName   String?
+  toStatusName     String?
   createdAt        DateTime            @default(now())
   case             Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
   sourceRawEvent   RawEvent            @relation(fields: [sourceRawEventId], references: [id])

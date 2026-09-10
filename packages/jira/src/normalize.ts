@@ -34,19 +34,32 @@ export class UnknownJiraStatusError extends Error {
 }
 
 /**
+ * A status id's normalized SLA state (the fixed 3-value category the engine
+ * consumes) alongside its actual Jira name (per-workflow, unbounded — the
+ * timeline displays this verbatim instead of the coarse category).
+ */
+export interface JiraStatusInfo {
+  normalizedState: NormalizedState;
+  name: string;
+}
+
+/**
  * A changelog entry's `from`/`to` are status ids, not categories — this
  * lookup (built once per run from the site-wide status list) is what makes
  * historical transitions resolvable without guessing from a status name.
  */
-export function buildStatusLookup(statuses: JiraStatus[]): Map<string, NormalizedState> {
-  const lookup = new Map<string, NormalizedState>();
+export function buildStatusLookup(statuses: JiraStatus[]): Map<string, JiraStatusInfo> {
+  const lookup = new Map<string, JiraStatusInfo>();
   for (const status of statuses) {
-    lookup.set(status.id, normalizeJiraStatusCategory(status.statusCategory.key));
+    lookup.set(status.id, {
+      normalizedState: normalizeJiraStatusCategory(status.statusCategory.key),
+      name: status.name,
+    });
   }
   return lookup;
 }
 
-function normalizeStatusId(statusId: string, statusById: Map<string, NormalizedState>): NormalizedState {
+function lookupStatus(statusId: string, statusById: Map<string, JiraStatusInfo>): JiraStatusInfo {
   const mapped = statusById.get(statusId);
   if (!mapped) throw new UnknownJiraStatusError(statusId);
   return mapped;
@@ -89,6 +102,8 @@ export interface DerivedNormalizedEvent {
   actor: Actor;
   fromState: NormalizedState | null;
   toState: NormalizedState;
+  fromStatusName: string | null;
+  toStatusName: string;
   sourceRawEventId: string;
 }
 
@@ -107,7 +122,7 @@ export function deriveNormalizedEventsForIssue(
   issue: JiraIssue,
   historiesForIssue: ChangelogRecord[],
   issueRawEventId: string,
-  statusById: Map<string, NormalizedState>,
+  statusById: Map<string, JiraStatusInfo>,
 ): DerivedNormalizedEvent[] {
   const sorted = sortHistoriesChronologically(historiesForIssue);
   const statusChanges = sorted.flatMap(({ rawEventId, history }) =>
@@ -119,23 +134,30 @@ export function deriveNormalizedEventsForIssue(
   const createdActor = firstChange
     ? resolveJiraActor(firstChange.history.author?.accountId, issue)
     : resolveJiraActor(issue.fields.reporter?.accountId, issue);
+  const initialStatus = lookupStatus(initialStatusId, statusById);
 
   const events: DerivedNormalizedEvent[] = [
     {
       occurredAt: issue.fields.created,
       actor: createdActor,
       fromState: null,
-      toState: normalizeStatusId(initialStatusId, statusById),
+      toState: initialStatus.normalizedState,
+      fromStatusName: null,
+      toStatusName: initialStatus.name,
       sourceRawEventId: firstChange?.rawEventId ?? issueRawEventId,
     },
   ];
 
   for (const { rawEventId, history, item } of statusChanges) {
+    const from = lookupStatus(item.from, statusById);
+    const to = lookupStatus(item.to, statusById);
     events.push({
       occurredAt: history.created,
       actor: resolveJiraActor(history.author?.accountId, issue),
-      fromState: normalizeStatusId(item.from, statusById),
-      toState: normalizeStatusId(item.to, statusById),
+      fromState: from.normalizedState,
+      toState: to.normalizedState,
+      fromStatusName: from.name,
+      toStatusName: to.name,
       sourceRawEventId: rawEventId,
     });
   }
@@ -285,6 +307,8 @@ export async function runJiraNormalization(
             system: "jira" as const,
             fromState: event.fromState,
             toState: event.toState,
+            fromStatusName: event.fromStatusName,
+            toStatusName: event.toStatusName,
           })) satisfies Prisma.NormalizedEventCreateManyInput[],
         }),
         prisma.caseLink.update({

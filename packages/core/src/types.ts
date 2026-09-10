@@ -39,6 +39,11 @@ export interface NormalizedEvent {
   system: SourceSystem;
   fromState: NormalizedState | null;
   toState: NormalizedState | null;
+  // Provider-native status names (e.g. Jira's "Code Review"), unbounded and
+  // per-workflow unlike `fromState`/`toState`. Only Jira populates these —
+  // the SLA engine itself never reads them, only the timeline display does.
+  fromStatusName?: string | null;
+  toStatusName?: string | null;
   sourceRawEventId: string;
 }
 

@@ -36,6 +36,8 @@ export interface NormalizedEventRecord {
   system: string;
   fromState: string | null;
   toState: string | null;
+  fromStatusName?: string | null;
+  toStatusName?: string | null;
   sourceRawEventId: string;
 }
 
@@ -66,6 +68,8 @@ export function toNormalizedEventDomain(row: NormalizedEventRecord): NormalizedE
     system: row.system as NormalizedEvent["system"],
     fromState: row.fromState as NormalizedState | null,
     toState: row.toState as NormalizedState | null,
+    fromStatusName: row.fromStatusName ?? null,
+    toStatusName: row.toStatusName ?? null,
     sourceRawEventId: row.sourceRawEventId,
   };
 }

@@ -386,40 +386,78 @@ file gets checked off and committed as each step lands.
       fixes either; Jira's `jira:issue_deleted` event is accepted and
       ignored outright, matching the poller's own no-deletion-handling scope.
 
-- [ ] **21 — Intercom integration (first NICE TO HAVE source)**
+- [x] **21 — Tenant-scoped integration configuration**
+      Zendesk/Jira/Slack OAuth **app** credentials (`client_id`/`client_secret`)
+      moved from a single global `.env` to a new `IntegrationConfig` model
+      (`organizationId` + `provider`, `@@unique` on the pair), set from a new
+      "Configure" step on each provider's settings card
+      (`IntegrationConfigGate`/`IntegrationConfigForm`,
+      `GET/POST /api/integrations/{provider}/config`) — so each customer on
+      the shared deployment brings its own OAuth app rather than sharing
+      this project's. `IntegrationConfig` stays a separate model from
+      `Integration`/`SlackIntegration` (different lifecycle: disconnect
+      clears connection credentials but keeps the org's OAuth app config, so
+      reconnect needs no reconfiguration) and provider packages stay
+      `process.env`-free — `apps/web`'s `{jira,zendesk,slack}-env.ts` and
+      `apps/worker`'s `cycle.ts` resolve each org's config via `@sla/db`'s
+      `getIntegrationConfig`/`getIntegrationConfigStatus` instead. The
+      client secret is AES-256-GCM encrypted at rest under a dedicated
+      `INTEGRATION_CONFIG_ENCRYPTION_KEY` (kept separate from
+      `NEXTAUTH_SECRET` so rotating one never invalidates the other); a row
+      that fails to decrypt (wrong/rotated key, corrupted ciphertext) throws
+      a distinct `IntegrationConfigUnreadableError` with a stable, safe
+      message rather than a raw crypto error, so a 5xx never leaks
+      ciphertext or the underlying cause. There is no `.env` fallback and no
+      migration path from one — the product had no production tenants yet,
+      so the simplest correct thing was to make `IntegrationConfig` the only
+      source outright. Onboarding's Zendesk/Jira connect prompts
+      (`OnboardingFlow.tsx`) are gated the same way the settings cards are,
+      so a fresh organization with no configuration sees "Configure" instead
+      of a raw JSON 500 from an OAuth route with nothing to authenticate
+      with. The OAuth `state.organizationId === session.user.organizationId`
+      tenant check every connect/callback pair already enforced is now one
+      shared, unit-tested `validateOAuthState` (`apps/web/src/lib/oauth-state.ts`)
+      instead of three near-identical inline copies. The worker's per-cycle
+      `continue` on a provider with no app URL or no saved config was
+      replaced with a recorded diagnostic entry (`result.failures`) and a
+      written `Integration.lastSyncError`, so an unconfigured integration
+      shows up the same way a failed sync does instead of silently never
+      polling.
+
+- [ ] **22 — Intercom integration (first NICE TO HAVE source)**
       Only if pulled by customers (`plans/03-Product-and-MVP.md`). New
       `packages/intercom` as a third read-only ticket source, mirroring the
       Zendesk ingest/normalize shape (steps 2–3). Picked first among
       Intercom/Freshdesk/Pylon per whichever integration actual prospects
       ask for.
 
-- [ ] **22 — GitHub integration**
+- [ ] **23 — GitHub integration**
       Engineering-leg source alongside Jira/Linear: PR and commit events
       correlated to a `Case` via the same deterministic-link tier, giving a
       third option for teams that track engineering work in GitHub Issues/PRs
       rather than a dedicated tracker.
 
-- [ ] **23 — Custom business calendars per customer**
+- [ ] **24 — Custom business calendars per customer**
       Extends step 13's calendar engine: today one `BusinessCalendar` covers
       an entire organization. This lets a customer with contractually
       different hours (e.g. 24/7 enterprise tier vs. standard business hours)
       get its own calendar version, matched via `Commitment.calendarVersionId`
       same as today, just resolved per-customer instead of per-org.
 
-- [ ] **24 — Public API**
+- [ ] **25 — Public API**
       Read-only API exposing dashboard and case-detail data
       (`apps/web/src/lib/dashboard-data.ts`, `case-detail-data.ts`) for
       customers wiring their own BI tools or internal dashboards to it.
       API-key auth, not OAuth — this is machine-to-machine, not a new user
       surface.
 
-- [ ] **25 — SSO/SAML**
+- [ ] **26 — SSO/SAML**
       Enterprise auth requirement once deals need it. Layers onto the
       existing minimal email/OAuth auth (step 1) rather than replacing it;
       Phase 10 explicitly kept auth minimal for v1, so this only gets built
       when a specific deal is blocked on it.
 
-- [ ] **26 — Anomaly detection on cycle times**
+- [ ] **27 — Anomaly detection on cycle times**
       Statistical (not AI/LLM — Phase 10's DO NOT BUILD list rules that out)
       detection of unusual cycle-time patterns across `Evaluation` history,
       surfaced as a dashboard callout. Lowest-priority NICE TO HAVE item;

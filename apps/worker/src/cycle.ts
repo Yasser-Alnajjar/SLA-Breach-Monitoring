@@ -88,9 +88,9 @@ export async function runCycle(
 
       try {
         if (integration.provider === "zendesk") {
-          if (!config.appUrl) continue;
+          if (!config.appUrl) throw new Error("Worker app URL is not configured (NEXTAUTH_URL)");
           const zendeskConfig = await getIntegrationConfig(prisma, organization.id, "zendesk");
-          if (!zendeskConfig) continue;
+          if (!zendeskConfig) throw new Error("Zendesk is not configured for this organization");
           await runZendeskBackfill(prisma, integration.id, {
             ...zendeskConfig,
             redirectUri: `${config.appUrl}/api/integrations/zendesk/callback`,
@@ -99,9 +99,9 @@ export async function runCycle(
           await runZendeskBusinessCalendarImport(prisma, integration.id);
           await runZendeskSlaPolicyImport(prisma, integration.id);
         } else if (integration.provider === "jira") {
-          if (!config.appUrl) continue;
+          if (!config.appUrl) throw new Error("Worker app URL is not configured (NEXTAUTH_URL)");
           const jiraConfig = await getIntegrationConfig(prisma, organization.id, "jira");
-          if (!jiraConfig) continue;
+          if (!jiraConfig) throw new Error("Jira is not configured for this organization");
           await runJiraBackfill(prisma, integration.id, {
             ...jiraConfig,
             redirectUri: `${config.appUrl}/api/integrations/jira/callback`,
@@ -116,6 +116,12 @@ export async function runCycle(
           await runLinearNormalization(prisma, integration.id);
         }
       } catch (error) {
+        // Every path here — not configured, an undecryptable config
+        // (IntegrationConfigUnreadableError, W5), a reauth requirement, or a
+        // provider sync failure — lands one diagnostic entry instead of a
+        // silent `continue`, so a misconfigured or disconnected-at-the-config
+        // level integration shows up the same way a failed sync does, both
+        // in `result.failures` and on `Integration.lastSyncError`.
         reauthRequired =
           error instanceof ZendeskReauthRequiredError ||
           error instanceof JiraReauthRequiredError ||

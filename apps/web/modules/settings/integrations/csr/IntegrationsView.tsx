@@ -147,7 +147,7 @@ function ConnectedCardBody({
 
       <div className="mt-auto pt-6 flex items-center gap-2">
         <DisconnectButton provider={provider} providerLabel={providerLabel} />
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" className="text-nowrap" size="sm" asChild>
           <a href={`/settings/integrations/${provider}`}>
             Manage
             <ChevronRight className="size-3.5" />
@@ -160,15 +160,13 @@ function ConnectedCardBody({
 
 export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
   const {
-    zendeskIntegration,
-    zendeskCredentials,
+    zendesk,
     zendeskConfig,
-    jiraIntegration,
-    jiraCredentials,
+    jira,
     jiraConfig,
-    // linearIntegration,
-    // linearCredentials,
-    slackIntegration,
+    // linear,
+    // linearConfig,
+    slack,
     slackConfig,
     engineeringLegTargetMinutes,
     slaPolicies,
@@ -193,17 +191,18 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             tone="success"
             title="Zendesk"
             status={
-              zendeskIntegration && zendeskCredentials ? (
-                zendeskIntegration.status === "reauth_required" ? (
+              zendeskConfig.configured &&
+              (zendesk.connected ? (
+                zendesk.reauthRequired ? (
                   <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
                   <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
-                zendeskIntegration?.status === "disconnected" && (
+                zendesk.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
                 )
-              )
+              ))
             }
           >
             <IntegrationConfigGate
@@ -212,19 +211,19 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               config={zendeskConfig}
               descriptionClass={descriptionClass}
             >
-              {zendeskIntegration && zendeskCredentials ? (
+              {zendesk.connected ? (
                 <ConnectedCardBody
                   provider="zendesk"
                   providerLabel="Zendesk"
-                  connectedAt={zendeskIntegration.connectedAt}
+                  connectedAt={zendesk.connectedAt!}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
                   <p className={descriptionClass}>
                     Read-only access — no tickets, comments, or fields are ever
                     written back to Zendesk.
-                    {zendeskIntegration?.disconnectedAt &&
-                      ` Disconnected ${formatDateTime(zendeskIntegration.disconnectedAt)}.`}
+                    {zendesk.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(zendesk.disconnectedAt)}.`}
                   </p>
 
                   <div className="mt-auto pt-6">
@@ -242,17 +241,18 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             tone="primary"
             title="Jira"
             status={
-              jiraIntegration && jiraCredentials ? (
-                jiraIntegration.status === "reauth_required" ? (
+              jiraConfig.configured &&
+              (jira.connected ? (
+                jira.reauthRequired ? (
                   <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
                   <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
-                jiraIntegration?.status === "disconnected" && (
+                jira.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
                 )
-              )
+              ))
             }
           >
             <IntegrationConfigGate
@@ -261,19 +261,19 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               config={jiraConfig}
               descriptionClass={descriptionClass}
             >
-              {jiraIntegration && jiraCredentials ? (
+              {jira.connected ? (
                 <ConnectedCardBody
                   provider="jira"
                   providerLabel="Jira"
-                  connectedAt={jiraIntegration.connectedAt}
+                  connectedAt={jira.connectedAt!}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
                   <p className={descriptionClass}>
                     Read-only access — no issues, comments, or fields are ever
                     written back to Jira.
-                    {jiraIntegration?.disconnectedAt &&
-                      ` Disconnected ${formatDateTime(jiraIntegration.disconnectedAt)}.`}
+                    {jira.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(jira.disconnectedAt)}.`}
                   </p>
 
                   <div className="mt-auto pt-6">
@@ -291,40 +291,47 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             tone="engineering"
             title="Linear"
             status={
-              linearIntegration && linearCredentials ? (
-                linearIntegration.status === "reauth_required" ? (
+              linear.connected ? (
+                linear.reauthRequired ? (
                   <StatusIndicator tone="warning" label="Needs reconnect" />
                 ) : (
                   <StatusIndicator tone="success" label="Connected" />
                 )
               ) : (
-                linearIntegration?.status === "disconnected" && (
+                linear.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
                 )
               )
             }
           >
-            {linearIntegration && linearCredentials ? (
-              <ConnectedCardBody
-                provider="linear"
-                providerLabel="Linear"
-                connectedAt={linearIntegration.connectedAt}
-              />
-            ) : (
-              <div className="flex flex-1 flex-col">
-                <p className={descriptionClass}>
-                  Read-only access — no issues, comments, or fields are ever
-                  written back to Linear. An alternative engineering-leg source
-                  alongside Jira, not a replacement.
-                  {linearIntegration?.disconnectedAt &&
-                    ` Disconnected ${formatDateTime(linearIntegration.disconnectedAt)}.`}
-                </p>
+            <IntegrationConfigGate
+              provider="linear"
+              providerLabel="Linear"
+              config={linearConfig}
+              descriptionClass={descriptionClass}
+            >
+              {linear.connected ? (
+                <ConnectedCardBody
+                  provider="linear"
+                  providerLabel="Linear"
+                  connectedAt={linear.connectedAt!}
+                />
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <p className={descriptionClass}>
+                    Read-only access — no issues, comments, or fields are ever
+                    written back to Linear. An alternative engineering-leg
+                    source alongside Jira, not a replacement.
+                    {linear.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(linear.disconnectedAt)}.`}
+                  </p>
 
-                <div className="mt-auto pt-6">
-                  <LinearConnectButton />
+                  <div className="mt-auto pt-6">
+                    <LinearConnectButton />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </IntegrationConfigGate>
           </IntegrationCard> */}
 
           {/* Slack */}
@@ -334,7 +341,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             tone="secondary"
             title="Slack"
             status={
-              slackIntegration && (
+              slackConfig.configured &&
+              slack.connected && (
                 <StatusIndicator tone="success" label="Connected" />
               )
             }
@@ -345,24 +353,23 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               config={slackConfig}
               descriptionClass={descriptionClass}
             >
-              {slackIntegration ? (
+              {slack.connected ? (
                 <div className="flex flex-1 flex-col">
                   <div className="space-y-3">
                     <p className={descriptionClass}>
-                      Connected to {slackIntegration.teamName}{" "}
-                      {formatDateTime(slackIntegration.installedAt)}.
+                      Connected to {slack.teamName}{" "}
+                      {formatDateTime(slack.installedAt!)}.
                     </p>
 
-                    {slackIntegration.channelId && (
+                    {slack.channelId && (
                       <p className={descriptionClass}>
-                        At-risk and breach alerts post to #
-                        {slackIntegration.channelName}.
+                        At-risk and breach alerts post to #{slack.channelName}.
                       </p>
                     )}
                   </div>
 
                   <div className="mt-auto pt-6">
-                    {slackIntegration.channelId ? (
+                    {slack.channelId ? (
                       <SlackChannelChangeButton />
                     ) : (
                       <SlackChannelPicker />
@@ -372,8 +379,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               ) : (
                 <div className="flex flex-1 flex-col">
                   <p className={descriptionClass}>
-                    The only alert channel in v1. Posts when a commitment crosses
-                    a warning threshold or breaches.
+                    The only alert channel in v1. Posts when a commitment
+                    crosses a warning threshold or breaches.
                   </p>
 
                   <div className="mt-auto pt-6">

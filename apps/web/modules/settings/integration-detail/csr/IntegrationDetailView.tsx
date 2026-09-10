@@ -16,12 +16,11 @@ import {
   INTEGRATION_PROVIDER_LABELS,
   type IntegrationDetailData,
 } from "@/lib/types/integrations";
-import type { ZendeskCredentials } from "@sla/zendesk";
+import { Utils } from "@/lib/utils";
 import { ZendeskBackfillButton } from "../../integrations/csr/ZendeskCard";
 import { JiraBackfillButton } from "../../integrations/csr/JiraCard";
 import { LinearBackfillButton } from "../../integrations/csr/LinearCard";
 import { WebhookInfo } from "../../integrations/csr/WebhookInfo";
-import { Utils } from "@/lib/utils";
 
 const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
   zendesk: <Ticket className="size-4" />,
@@ -56,6 +55,7 @@ function SectionCard({
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="px-5 py-5">{children}</CardContent>
     </Card>
   );
@@ -66,7 +66,17 @@ interface IntegrationDetailViewProps {
 }
 
 export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
-  const { provider, integration, credentials, cursor } = data;
+  const {
+    provider,
+    integrationId,
+    connectedAt,
+    reauthRequired,
+    lastSyncAt,
+    lastSyncError,
+    backfillCompletedAt,
+    webhookSecret,
+    subdomain,
+  } = data;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -82,24 +92,23 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className={iconWrapper}>{PROVIDER_ICONS[provider]}</span>
+
             <div className="min-w-0">
               <h1 className="font-display text-xl font-medium tracking-tight">
                 {INTEGRATION_PROVIDER_LABELS[provider]}
               </h1>
+
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Connected {Utils.formatDate(`${integration.connectedAt}`)}
+                Connected {Utils.formatDateTimeV2(connectedAt)}
               </p>
             </div>
           </div>
+
           <Badge
-            variant={
-              integration.status === "reauth_required" ? "warning" : "success"
-            }
+            variant={reauthRequired ? "warning" : "success"}
             className="shrink-0"
           >
-            {integration.status === "reauth_required"
-              ? "Needs reconnect"
-              : "Connected"}
+            {reauthRequired ? "Needs reconnect" : "Connected"}
           </Badge>
         </div>
       </Reveal>
@@ -112,19 +121,18 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
         >
           <div className="space-y-2">
             <p className={descriptionClass}>
-              {cursor?.backfillCompletedAt
-                ? `90-day backfill complete as of ${Utils.formatDate(cursor.backfillCompletedAt)}.`
+              {backfillCompletedAt
+                ? `90-day backfill complete as of ${Utils.formatDateTimeV2(
+                    backfillCompletedAt,
+                  )}.`
                 : "No backfill run yet."}
             </p>
-            {integration.lastSyncAt && (
+
+            {lastSyncAt && (
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Last sync attempt{" "}
-                {Utils.formatDate(`${integration.lastSyncAt}`)}
-                {integration.lastSyncError ? (
-                  <span className="text-destructive">
-                    {" "}
-                    — {integration.lastSyncError}
-                  </span>
+                Last sync attempt {Utils.formatDateTimeV2(lastSyncAt)}
+                {lastSyncError ? (
+                  <span className="text-destructive"> — {lastSyncError}</span>
                 ) : (
                   " — succeeded."
                 )}
@@ -142,19 +150,17 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
         >
           {provider === "zendesk" && (
             <ZendeskBackfillButton
-              subdomain={(credentials as ZendeskCredentials).subdomain}
-              initialReauthRequired={credentials.reauthRequired === true}
+              subdomain={subdomain ?? ""}
+              initialReauthRequired={reauthRequired}
             />
           )}
+
           {provider === "jira" && (
-            <JiraBackfillButton
-              initialReauthRequired={credentials.reauthRequired === true}
-            />
+            <JiraBackfillButton initialReauthRequired={reauthRequired} />
           )}
+
           {provider === "linear" && (
-            <LinearBackfillButton
-              initialReauthRequired={credentials.reauthRequired === true}
-            />
+            <LinearBackfillButton initialReauthRequired={reauthRequired} />
           )}
         </SectionCard>
       </Reveal>
@@ -168,8 +174,8 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           >
             <WebhookInfo
               provider={provider}
-              integrationId={integration.id}
-              webhookSecret={integration.webhookSecret}
+              integrationId={integrationId}
+              webhookSecret={webhookSecret}
             />
           </SectionCard>
         </Reveal>

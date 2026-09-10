@@ -6,6 +6,7 @@ import {
   mapChangelogHistoryToRawEvent,
   mapIssueToRawEvent,
   mapRemoteLinkToRawEvent,
+  mapStatusToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
 import { loadFreshJiraCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
@@ -57,6 +58,7 @@ export interface WebhookIngestResult {
   issuesFetched: number;
   changelogHistoriesFetched: number;
   remoteLinksFetched: number;
+  statusesFetched: number;
 }
 
 /**
@@ -67,6 +69,13 @@ export interface WebhookIngestResult {
  * through the same RawEvent mapping functions the poller uses, so a
  * subsequent `runJiraCorrelation`/`runJiraNormalization` call picks them up
  * identically whether the issue arrived via poll or webhook.
+ *
+ * Also refetches the site's full status list, same as `runJiraBackfill`'s
+ * `backfillStatuses`: a tenant can add a custom status and transition an
+ * issue onto it between poll cycles, and the synchronous
+ * `runJiraNormalization` this feeds into (see the webhook route) needs that
+ * status id resolvable *now* — otherwise the issue's events fail to
+ * normalize and its Timeline silently stops updating until the next poll.
  */
 export async function runJiraWebhookIngest(
   prisma: PrismaClient,
@@ -79,8 +88,9 @@ export async function runJiraWebhookIngest(
     onUnauthorized: (failed) => refreshAfterUnauthorized(prisma, integrationId, config, failed),
   });
 
+  const statuses = await client.fetchStatuses();
   const issue = await client.fetchIssue(issueKey);
-  const rawEvents: RawEventInput[] = [mapIssueToRawEvent(issue)];
+  const rawEvents: RawEventInput[] = [...statuses.map(mapStatusToRawEvent), mapIssueToRawEvent(issue)];
 
   let changelogHistoriesFetched = 0;
   let startAt = 0;
@@ -105,5 +115,10 @@ export async function runJiraWebhookIngest(
     skipDuplicates: true,
   });
 
-  return { issuesFetched: 1, changelogHistoriesFetched, remoteLinksFetched: remoteLinks.length };
+  return {
+    issuesFetched: 1,
+    changelogHistoriesFetched,
+    remoteLinksFetched: remoteLinks.length,
+    statusesFetched: statuses.length,
+  };
 }

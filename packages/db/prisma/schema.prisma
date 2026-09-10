@@ -351,13 +351,11 @@ model SlackIntegration {
 
 /// Per-organization OAuth app credentials for a configurable integration
 /// (zendesk, jira, slack — see ConfigurableIntegrationProvider in
-/// @sla/db), set from the Integration settings UI instead of a global
-/// `.env` value, so each org can bring its own OAuth app. `provider` is a
-/// plain string rather than `IntegrationProvider` because it also covers
+/// @sla/db), set from the Integration settings UI. This is the only source
+/// of these credentials — there is no global `.env` fallback. `provider` is
+/// a plain string rather than `IntegrationProvider` because it also covers
 /// slack, which — per `SlackIntegration`'s doc comment — was deliberately
-/// never added to that enum. Falls back to the legacy `*_CLIENT_ID`/
-/// `*_CLIENT_SECRET` env vars when no row exists, so integrations connected
-/// before this table existed keep working without a data migration.
+/// never added to that enum.
 model IntegrationConfig {
   id             String       @id @default(cuid())
   organizationId String

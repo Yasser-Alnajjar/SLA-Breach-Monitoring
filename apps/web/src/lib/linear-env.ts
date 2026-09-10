@@ -1,21 +1,32 @@
 import type { LinearOAuthConfig } from "@sla/linear";
+import { getIntegrationConfig, getPrismaClient } from "@sla/db";
 
 export const LINEAR_STATE_COOKIE = "linear_oauth_state";
 
-export function getLinearOAuthConfig(): LinearOAuthConfig {
-  const clientId = process.env.LINEAR_CLIENT_ID;
-  const clientSecret = process.env.LINEAR_CLIENT_SECRET;
+/**
+ * Resolves this organization's Linear OAuth app config: its own
+ * client id/secret (saved from the Integrations settings UI) if configured,
+ * otherwise the legacy LINEAR_CLIENT_ID/LINEAR_CLIENT_SECRET env vars.
+ */
+export async function getLinearOAuthConfig(
+  organizationId: string,
+): Promise<LinearOAuthConfig> {
   const appUrl = process.env.NEXTAUTH_URL;
+  const config = await getIntegrationConfig(
+    getPrismaClient(),
+    organizationId,
+    "linear",
+  );
 
-  if (!clientId || !clientSecret || !appUrl) {
+  if (!config || !appUrl) {
     throw new Error(
-      "Linear OAuth is not configured: LINEAR_CLIENT_ID, LINEAR_CLIENT_SECRET, and NEXTAUTH_URL are required",
+      "Linear is not configured for this organization. Configure it from Integrations settings.",
     );
   }
 
   return {
-    clientId,
-    clientSecret,
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
     redirectUri: `${appUrl}/api/integrations/linear/callback`,
   };
 }

@@ -119,6 +119,12 @@ describe("runJiraWebhookIngest", () => {
   it("fetches the issue, its full changelog, and remote links, without touching the cursor", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = input.toString();
+      if (url.includes("/rest/api/3/status")) {
+        return jsonResponse(200, [
+          { id: "1", name: "To Do", statusCategory: { key: "new" } },
+          { id: "2", name: "In Review", statusCategory: { key: "indeterminate" } },
+        ]);
+      }
       if (url.includes("/rest/api/3/issue/ENG-42?")) {
         return jsonResponse(200, issue("ENG-42"));
       }
@@ -150,10 +156,17 @@ describe("runJiraWebhookIngest", () => {
     const prisma = createFakePrisma();
     const result = await runJiraWebhookIngest(prisma as never, "integration-1", config, "ENG-42");
 
-    expect(result).toEqual({ issuesFetched: 1, changelogHistoriesFetched: 2, remoteLinksFetched: 1 });
-    expect(prisma._rawEvents).toHaveLength(4);
+    expect(result).toEqual({
+      issuesFetched: 1,
+      changelogHistoriesFetched: 2,
+      remoteLinksFetched: 1,
+      statusesFetched: 2,
+    });
+    expect(prisma._rawEvents).toHaveLength(6);
     expect(prisma._rawEvents.map((e) => e.providerEventId)).toEqual(
       expect.arrayContaining([
+        expect.stringContaining("status:1:"),
+        expect.stringContaining("status:2:"),
         expect.stringContaining("issue:ENG-42:"),
         "issue_changelog:ENG-42:h1",
         "issue_changelog:ENG-42:h2",

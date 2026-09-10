@@ -63,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
 
   let config;
   try {
-    config = getZendeskOAuthConfig();
+    config = await getZendeskOAuthConfig(integration.organizationId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Zendesk OAuth is not configured" },

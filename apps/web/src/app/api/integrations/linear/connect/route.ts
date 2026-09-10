@@ -7,14 +7,20 @@ import { getLinearOAuthConfig, LINEAR_STATE_COOKIE } from "@/lib/linear-env";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   let config;
   try {
-    config = getLinearOAuthConfig();
+    config = await getLinearOAuthConfig(session.user.organizationId);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Linear OAuth is not configured" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Linear OAuth is not configured",
+      },
       { status: 500 },
     );
   }

@@ -4,6 +4,7 @@ import { exchangeCodeForToken, generateWebhookSecret } from "@sla/zendesk";
 import { getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getZendeskOAuthConfig, ZENDESK_STATE_COOKIE } from "@/lib/zendesk-env";
+import { validateOAuthState } from "@/lib/oauth-state";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -11,25 +12,25 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const returnedState = url.searchParams.get("state");
   const cookieState = request.headers
     .get("cookie")
     ?.split("; ")
     .find((entry) => entry.startsWith(`${ZENDESK_STATE_COOKIE}=`))
     ?.slice(ZENDESK_STATE_COOKIE.length + 1);
 
-  if (!code || !returnedState || !cookieState || returnedState !== cookieState) {
+  if (!code) {
     return NextResponse.json({ error: "Invalid or expired OAuth state" }, { status: 400 });
   }
 
-  const state = JSON.parse(Buffer.from(cookieState, "base64url").toString("utf-8")) as {
-    subdomain: string;
-    organizationId: string;
-  };
-
-  if (state.organizationId !== session.user.organizationId) {
-    return NextResponse.json({ error: "Organization mismatch" }, { status: 403 });
+  const validation = validateOAuthState({
+    returnedState: url.searchParams.get("state"),
+    cookieState,
+    sessionOrganizationId: session.user.organizationId,
+  });
+  if (!validation.ok) {
+    return NextResponse.json({ error: validation.error }, { status: validation.status });
   }
+  const state = validation.state as { subdomain: string; organizationId: string };
 
   const config = await getZendeskOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(state.subdomain, code, config);

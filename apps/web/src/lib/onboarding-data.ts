@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@sla/db";
+import { getIntegrationConfigStatus } from "@sla/db";
 import type { ZendeskCredentials, ZendeskCursor } from "@sla/zendesk";
 import type { JiraCredentials, JiraCursor } from "@sla/jira";
 import type { OnboardingStatus } from "./types/onboarding";
@@ -14,7 +15,15 @@ export async function getOnboardingStatus(
   prisma: PrismaClient,
   organizationId: string,
 ): Promise<OnboardingStatus> {
-  const [zendeskIntegration, jiraIntegration, ticketsFetched, escalatedCases, linkedIssues] = await Promise.all([
+  const [
+    zendeskIntegration,
+    jiraIntegration,
+    ticketsFetched,
+    escalatedCases,
+    linkedIssues,
+    zendeskConfig,
+    jiraConfig,
+  ] = await Promise.all([
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "zendesk" } },
     }),
@@ -26,6 +35,8 @@ export async function getOnboardingStatus(
     }),
     prisma.case.count({ where: { organizationId, caseLinks: { some: { system: "jira" } } } }),
     prisma.caseLink.count({ where: { case: { organizationId }, system: "jira" } }),
+    getIntegrationConfigStatus(prisma, organizationId, "zendesk"),
+    getIntegrationConfigStatus(prisma, organizationId, "jira"),
   ]);
 
   const zendeskCredentials = (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
@@ -44,6 +55,8 @@ export async function getOnboardingStatus(
       backfillComplete: jiraCursor?.backfillCompletedAt != null,
       reauthRequired: jiraCredentials?.reauthRequired === true,
     },
+    zendeskConfig,
+    jiraConfig,
     ticketsFetched,
     escalatedCases,
     linkedIssues,

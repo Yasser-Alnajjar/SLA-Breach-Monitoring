@@ -213,6 +213,7 @@ const decodeJWT = (token: string) => {
     return null;
   }
 };
+
 const formatDate = (
   date?: string,
   fromNow?: true,
@@ -700,13 +701,10 @@ const removeLocaleFromUrl = (url?: string) => {
   return normalized === "" ? "/" : normalized;
 };
 
-function formatDateTime(
-  date: string | null | undefined,
-  locale: string,
-): string {
+function formatDateTimeV2(date: Date | null | undefined): string {
   if (!date) return "-";
 
-  return new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-US", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -717,12 +715,12 @@ function formatDateTime(
     // hydration mismatch (#418). KSA has no DST, so Asia/Riyadh is stable and is
     // also the correct display timezone for the ministry.
     timeZone: "Asia/Riyadh",
-    numberingSystem: locale === "ar" ? "arab" : "latn",
+    numberingSystem: "latn",
   }).format(new Date(date));
 }
 
 export const Utils = {
-  formatDateTime,
+  formatDateTimeV2,
   exportFile,
   removeLocaleFromUrl,
   withoutProperty,

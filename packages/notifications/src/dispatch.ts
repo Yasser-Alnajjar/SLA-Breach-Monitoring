@@ -36,8 +36,8 @@ function errorMessage(error: unknown): string {
  * some other cycle already recorded this exact alert, so it's counted as
  * skipped rather than failed.
  *
- * `emailConfig` is nullable the same way `WorkerConfig.zendesk`/`.jira` are:
- * an unattended worker must not crash-loop an install that never set SMTP
+ * `emailConfig` is nullable the same way `WorkerConfig.email` is: an
+ * unattended worker must not crash-loop an install that never set SMTP
  * credentials, it should just skip that channel.
  */
 export async function runNotificationPipeline(

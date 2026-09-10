@@ -10,8 +10,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { OnboardingStatus } from "@/lib/types/onboarding";
+import { IntegrationConfigGate } from "@modules/settings/integrations/csr/IntegrationConfigGate";
 import { JiraConnectButton } from "@modules/settings/integrations/csr/JiraCard";
 import { ZendeskConnectForm } from "@modules/settings/integrations/csr/ZendeskCard";
+
+const descriptionClass = "text-sm text-muted-foreground";
 
 interface OnboardingFlowProps {
   initialStatus: OnboardingStatus;
@@ -72,13 +75,20 @@ export function OnboardingFlow({ initialStatus, zendeskSubdomain }: OnboardingFl
       <Reveal>
         <Card>
           <CardContent className="pt-5">
-            <p className="text-sm text-muted-foreground">
-              Connect Zendesk to pull your last 90 days of tickets, SLA policies, and organizations —
-              read-only, one click.
-            </p>
-            <div className="mt-4">
-              <ZendeskConnectForm />
-            </div>
+            <IntegrationConfigGate
+              provider="zendesk"
+              providerLabel="Zendesk"
+              config={status.zendeskConfig}
+              descriptionClass={descriptionClass}
+            >
+              <p className={descriptionClass}>
+                Connect Zendesk to pull your last 90 days of tickets, SLA policies, and organizations —
+                read-only, one click.
+              </p>
+              <div className="mt-4">
+                <ZendeskConnectForm />
+              </div>
+            </IntegrationConfigGate>
           </CardContent>
         </Card>
       </Reveal>
@@ -128,13 +138,20 @@ export function OnboardingFlow({ initialStatus, zendeskSubdomain }: OnboardingFl
 
           {!status.jira.connected && (
             <div className="rounded-lg border border-dashed border-border p-3.5">
-              <p className="text-sm text-muted-foreground">
-                Connecting Jira adds engineering-leg timing — optional, and can be done later without
-                losing progress.
-              </p>
-              <div className="mt-3">
-                <JiraConnectButton />
-              </div>
+              <IntegrationConfigGate
+                provider="jira"
+                providerLabel="Jira"
+                config={status.jiraConfig}
+                descriptionClass={descriptionClass}
+              >
+                <p className={descriptionClass}>
+                  Connecting Jira adds engineering-leg timing — optional, and can be done later without
+                  losing progress.
+                </p>
+                <div className="mt-3">
+                  <JiraConnectButton />
+                </div>
+              </IntegrationConfigGate>
             </div>
           )}
 

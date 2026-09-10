@@ -13,11 +13,16 @@ import type { PrismaClient } from "../generated/prisma/client";
  * (disabled in the UI, still env-only) — kept a separate, narrower union
  * from `IntegrationProvider` so extending it doesn't touch that enum.
  */
-export type ConfigurableIntegrationProvider = "zendesk" | "jira" | "slack";
+export type ConfigurableIntegrationProvider =
+  | "zendesk"
+  | "jira"
+  | "slack"
+  | "linear";
 
 const CONFIGURABLE_PROVIDERS: ConfigurableIntegrationProvider[] = [
   "zendesk",
   "jira",
+  "linear",
   "slack",
 ];
 
@@ -37,18 +42,36 @@ export interface IntegrationConfigStatus {
   clientId: string | null;
 }
 
+/**
+ * Thrown by `getIntegrationConfig` when a row exists but its `clientSecret`
+ * can't be decrypted (wrong/rotated `INTEGRATION_CONFIG_ENCRYPTION_KEY`, or
+ * corrupted ciphertext) — distinct from "not configured" (no row), which is
+ * a normal state and returns `null` instead of throwing. The message is
+ * deliberately generic and stable: several callers surface `error.message`
+ * directly in a 5xx response, so it must never carry ciphertext, the
+ * underlying crypto error, or a stack trace. `cause` keeps the real error
+ * available for server-side logging only.
+ */
+export class IntegrationConfigUnreadableError extends Error {
+  constructor(cause: unknown) {
+    super(
+      "Integration configuration is unavailable. Please re-enter the configuration.",
+    );
+    this.name = "IntegrationConfigUnreadableError";
+    this.cause = cause;
+  }
+}
+
 const ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const ENCRYPTION_SALT = "sla-breach-monitoring/integration-config";
 
 /**
- * Derives a stable AES-256 key from INTEGRATION_CONFIG_ENCRYPTION_KEY rather than requiring a
- * dedicated encryption-key env var — the app already treats INTEGRATION_CONFIG_ENCRYPTION_KEY
- * as its one required app-wide secret, and there is no other secrets-storage
- * mechanism in this codebase to reuse (access tokens are stored as plain
- * JSON on `Integration.credentials`).
+ * Derives a stable AES-256 key from the dedicated INTEGRATION_CONFIG_ENCRYPTION_KEY secret —
+ * kept separate from NEXTAUTH_SECRET so rotating one never invalidates the other.
  */
 function getEncryptionKey(): Buffer {
   const secret = process.env.INTEGRATION_CONFIG_ENCRYPTION_KEY;
+
   if (!secret) {
     throw new Error(
       "INTEGRATION_CONFIG_ENCRYPTION_KEY must be set to encrypt or decrypt integration configuration",
@@ -91,31 +114,10 @@ export function decryptSecret(encoded: string): string {
   return plaintext.toString("utf8");
 }
 
-function envVarPrefix(provider: ConfigurableIntegrationProvider): string {
-  return provider.toUpperCase();
-}
-
 /**
- * Legacy fallback for installs that connected an integration before this
- * table existed — those still have their OAuth app's client id/secret in
- * `.env` and nothing in `integration_configs`. Reading them here (rather
- * than migrating data) keeps a connected integration working exactly as
- * before until the org re-saves its configuration from the settings UI.
- */
-function readEnvFallback(
-  provider: ConfigurableIntegrationProvider,
-): IntegrationOAuthCredentials | null {
-  const prefix = envVarPrefix(provider);
-  const clientId = process.env[`${prefix}_CLIENT_ID`];
-  const clientSecret = process.env[`${prefix}_CLIENT_SECRET`];
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
-
-/**
- * Resolves the OAuth app credentials for one organization's integration:
- * the org's own configuration (saved via the settings UI) if it exists,
- * otherwise the legacy global env vars, otherwise null (not configured).
+ * Resolves the OAuth app credentials for one organization's integration from
+ * its own configuration (saved via the settings UI), or null when the
+ * organization hasn't configured this integration yet.
  */
 export async function getIntegrationConfig(
   prisma: PrismaClient,
@@ -126,14 +128,16 @@ export async function getIntegrationConfig(
     where: { organizationId_provider: { organizationId, provider } },
   });
 
-  if (row) {
+  if (!row) return null;
+
+  try {
     return {
       clientId: row.clientId,
       clientSecret: decryptSecret(row.clientSecret),
     };
+  } catch (error) {
+    throw new IntegrationConfigUnreadableError(error);
   }
-
-  return readEnvFallback(provider);
 }
 
 /** Status-only read for the settings UI — never exposes the secret itself. */
@@ -146,11 +150,8 @@ export async function getIntegrationConfigStatus(
     where: { organizationId_provider: { organizationId, provider } },
     select: { clientId: true },
   });
-  if (row) return { configured: true, clientId: row.clientId };
-
-  const fallback = readEnvFallback(provider);
-  return fallback
-    ? { configured: true, clientId: fallback.clientId }
+  return row
+    ? { configured: true, clientId: row.clientId }
     : { configured: false, clientId: null };
 }
 

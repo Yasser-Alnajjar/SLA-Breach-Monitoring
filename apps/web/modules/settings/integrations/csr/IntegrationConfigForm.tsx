@@ -42,10 +42,12 @@ export function IntegrationConfigForm({
     setSaving(true);
     setError(null);
 
-    const { ok, body } = await Actions.Integrations.saveIntegrationConfig(provider, {
-      clientId,
-      clientSecret: clientSecret || undefined,
-    });
+    const { ok, body, status } =
+      await Actions.Integrations.saveIntegrationConfig(provider, {
+        clientId,
+        clientSecret: clientSecret || undefined,
+      });
+    console.log({ ok, body, status });
 
     setSaving(false);
 
@@ -79,7 +81,11 @@ export function IntegrationConfigForm({
           autoComplete="off"
           value={clientSecret}
           onChange={(event) => setClientSecret(event.target.value)}
-          placeholder={isEdit ? "Leave blank to keep the current secret" : `${providerLabel} OAuth app client secret`}
+          placeholder={
+            isEdit
+              ? "Leave blank to keep the current secret"
+              : `${providerLabel} OAuth app client secret`
+          }
           required={!isEdit}
         />
       </div>
@@ -90,7 +96,13 @@ export function IntegrationConfigForm({
           {saving ? "Saving…" : isEdit ? "Save changes" : "Save configuration"}
         </Button>
         {onCancel && (
-          <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={saving}
+          >
             Cancel
           </Button>
         )}

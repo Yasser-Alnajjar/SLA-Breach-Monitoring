@@ -8,6 +8,7 @@ export {
   saveIntegrationConfig,
   encryptSecret,
   decryptSecret,
+  IntegrationConfigUnreadableError,
 } from "./integration-config";
 export type {
   ConfigurableIntegrationProvider,

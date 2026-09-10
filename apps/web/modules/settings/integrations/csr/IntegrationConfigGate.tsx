@@ -35,11 +35,18 @@ export function IntegrationConfigGate({
   descriptionClass,
   children,
 }: IntegrationConfigGateProps) {
+  console.log(providerLabel, {
+    provider,
+    providerLabel,
+    config,
+    descriptionClass,
+  });
+
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [configuring, setConfiguring] = useState(false);
 
-  if (!config.configured) {
+  if (!config?.configured) {
     return (
       <div className="flex flex-1 flex-col">
         <p className={descriptionClass}>

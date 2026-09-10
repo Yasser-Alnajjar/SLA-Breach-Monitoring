@@ -4,6 +4,7 @@ import { exchangeCodeForToken } from "@sla/linear";
 import { getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getLinearOAuthConfig, LINEAR_STATE_COOKIE } from "@/lib/linear-env";
+import { validateOAuthState } from "@/lib/oauth-state";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -11,31 +12,43 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const returnedState = url.searchParams.get("state");
   const cookieState = request.headers
     .get("cookie")
     ?.split("; ")
     .find((entry) => entry.startsWith(`${LINEAR_STATE_COOKIE}=`))
     ?.slice(LINEAR_STATE_COOKIE.length + 1);
 
-  if (!code || !returnedState || !cookieState || returnedState !== cookieState) {
-    return NextResponse.json({ error: "Invalid or expired OAuth state" }, { status: 400 });
+  if (!code) {
+    return NextResponse.json(
+      { error: "Invalid or expired OAuth state" },
+      { status: 400 },
+    );
   }
 
-  const state = JSON.parse(Buffer.from(cookieState, "base64url").toString("utf-8")) as {
-    organizationId: string;
-  };
-
-  if (state.organizationId !== session.user.organizationId) {
-    return NextResponse.json({ error: "Organization mismatch" }, { status: 403 });
+  const validation = validateOAuthState({
+    returnedState: url.searchParams.get("state"),
+    cookieState,
+    sessionOrganizationId: session.user.organizationId,
+  });
+  if (!validation.ok) {
+    return NextResponse.json(
+      { error: validation.error },
+      { status: validation.status },
+    );
   }
+  const { state } = validation;
 
-  const config = getLinearOAuthConfig();
+  const config = await getLinearOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(code, config);
 
   const prisma = getPrismaClient();
   await prisma.integration.upsert({
-    where: { organizationId_provider: { organizationId: state.organizationId, provider: "linear" } },
+    where: {
+      organizationId_provider: {
+        organizationId: state.organizationId,
+        provider: "linear",
+      },
+    },
     create: {
       organizationId: state.organizationId,
       provider: "linear",

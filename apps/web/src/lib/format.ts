@@ -90,26 +90,16 @@ export function formatEventDescription(event: {
   type: string;
   fromState: string | null;
   toState: string | null;
-  fromStatusName?: string | null;
-  toStatusName?: string | null;
 }): string {
   if (event.type === "state_changed" && event.fromState && event.toState) {
-    const fromLabel =
-      event.fromStatusName ?? formatNormalizedState(event.fromState);
-
-    const toLabel = event.toStatusName ?? formatNormalizedState(event.toState);
-
-    return `${fromLabel} → ${toLabel}`;
+    return `${formatNormalizedState(event.fromState)} → ${formatNormalizedState(event.toState)}`;
   }
-
   if (event.type === "case_created" && event.toState) {
-    return `Opened as ${
-      event.toStatusName ?? formatNormalizedState(event.toState)
-    }`;
+    return `Opened as ${formatNormalizedState(event.toState)}`;
   }
-
   return EVENT_TYPE_LABELS[event.type] ?? event.type;
 }
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",

@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${fontSans.variable} ${fontDisplay.variable}`}
       suppressHydrationWarning
     >
-      <body>
+      <body suppressHydrationWarning>
         <MotionProvider>{children}</MotionProvider>
       </body>
     </html>

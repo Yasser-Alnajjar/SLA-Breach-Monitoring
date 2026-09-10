@@ -9,7 +9,9 @@ import {
   type CommitmentRecord,
 } from "../src/evaluate-pipeline";
 
-function commitmentRow(overrides: Partial<CommitmentRecord> = {}): CommitmentRecord {
+function commitmentRow(
+  overrides: Partial<CommitmentRecord> = {},
+): CommitmentRecord {
   return {
     id: "cmt_1",
     caseId: "case_1",
@@ -25,7 +27,9 @@ function commitmentRow(overrides: Partial<CommitmentRecord> = {}): CommitmentRec
   };
 }
 
-function zendeskEvent(overrides: Partial<NormalizedEvent> = {}): NormalizedEvent {
+function zendeskEvent(
+  overrides: Partial<NormalizedEvent> = {},
+): NormalizedEvent {
   return {
     id: "evt",
     caseId: "case_1",
@@ -42,18 +46,35 @@ function zendeskEvent(overrides: Partial<NormalizedEvent> = {}): NormalizedEvent
 
 describe("hasCaseClosedEvent", () => {
   it("is true for a case_closed event at or before asOf", () => {
-    const events = [zendeskEvent({ type: "case_closed", occurredAt: "2026-01-01T09:30:00Z", toState: "resolved" })];
+    const events = [
+      zendeskEvent({
+        type: "case_closed",
+        occurredAt: "2026-01-01T09:30:00Z",
+        toState: "resolved",
+      }),
+    ];
     expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(true);
     expect(hasCaseClosedEvent(events, "2026-01-01T09:30:00Z")).toBe(true);
   });
 
   it("ignores a close that happens after asOf", () => {
-    const events = [zendeskEvent({ type: "case_closed", occurredAt: "2026-01-01T11:00:00Z", toState: "resolved" })];
+    const events = [
+      zendeskEvent({
+        type: "case_closed",
+        occurredAt: "2026-01-01T11:00:00Z",
+        toState: "resolved",
+      }),
+    ];
     expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
   });
 
   it("ignores other event types", () => {
-    const events = [zendeskEvent({ type: "state_changed", occurredAt: "2026-01-01T09:30:00Z" })];
+    const events = [
+      zendeskEvent({
+        type: "state_changed",
+        occurredAt: "2026-01-01T09:30:00Z",
+      }),
+    ];
     expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
   });
 
@@ -116,21 +137,33 @@ describe("shouldPersistEvaluation", () => {
   });
 
   it("persists a status transition", () => {
-    expect(shouldPersistEvaluation("at_risk", "on_track", false, false)).toBe(true);
-    expect(shouldPersistEvaluation("breached", "at_risk", false, false)).toBe(true);
+    expect(shouldPersistEvaluation("at_risk", "on_track", false, false)).toBe(
+      true,
+    );
+    expect(shouldPersistEvaluation("breached", "at_risk", false, false)).toBe(
+      true,
+    );
   });
 
   it("writes nothing when a poll finds the same status again", () => {
-    expect(shouldPersistEvaluation("on_track", "on_track", false, false)).toBe(false);
-    expect(shouldPersistEvaluation("at_risk", "at_risk", false, false)).toBe(false);
+    expect(shouldPersistEvaluation("on_track", "on_track", false, false)).toBe(
+      false,
+    );
+    expect(shouldPersistEvaluation("at_risk", "at_risk", false, false)).toBe(
+      false,
+    );
   });
 
   it("persists the final snapshot when a case closes on an already-breached commitment", () => {
-    expect(shouldPersistEvaluation("breached", "breached", true, false)).toBe(true);
+    expect(shouldPersistEvaluation("breached", "breached", true, false)).toBe(
+      true,
+    );
   });
 
   it("stops re-persisting once the commitment is finalized", () => {
-    expect(shouldPersistEvaluation("breached", "breached", true, true)).toBe(false);
+    expect(shouldPersistEvaluation("breached", "breached", true, true)).toBe(
+      false,
+    );
     expect(shouldPersistEvaluation("met", "met", true, true)).toBe(false);
   });
 });
@@ -152,7 +185,9 @@ describe("toCommitmentDomain", () => {
   });
 
   it("passes through a closedAt that is set", () => {
-    const domain = toCommitmentDomain(commitmentRow({ closedAt: new Date("2026-01-01T09:45:00Z") }));
+    const domain = toCommitmentDomain(
+      commitmentRow({ closedAt: new Date("2026-01-01T09:45:00Z") }),
+    );
     expect(domain.closedAt).toBe("2026-01-01T09:45:00.000Z");
   });
 });
@@ -180,30 +215,7 @@ describe("toNormalizedEventDomain", () => {
       system: "zendesk",
       fromState: "new",
       toState: "open",
-      fromStatusName: null,
-      toStatusName: null,
       sourceRawEventId: "raw_1",
     });
-  });
-
-  it("carries a Jira row's provider-native status names through untouched", () => {
-    const domain = toNormalizedEventDomain({
-      id: "evt_2",
-      caseId: "case_1",
-      type: "state_changed",
-      occurredAt: new Date("2026-01-03T09:00:00Z"),
-      actor: "agent",
-      system: "jira",
-      fromState: "in_progress",
-      toState: "in_progress",
-      fromStatusName: "In Progress",
-      toStatusName: "Code Review",
-      sourceRawEventId: "raw_2",
-    });
-    expect(domain.fromStatusName).toBe("In Progress");
-    expect(domain.toStatusName).toBe("Code Review");
-    // The normalized SLA state is unaffected by the custom names carried alongside it.
-    expect(domain.fromState).toBe("in_progress");
-    expect(domain.toState).toBe("in_progress");
   });
 });

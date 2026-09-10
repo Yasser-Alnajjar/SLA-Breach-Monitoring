@@ -36,8 +36,6 @@ export interface NormalizedEventRecord {
   system: string;
   fromState: string | null;
   toState: string | null;
-  fromStatusName?: string | null;
-  toStatusName?: string | null;
   sourceRawEventId: string;
 }
 
@@ -58,7 +56,9 @@ export function toCommitmentDomain(row: CommitmentRecord): Commitment {
 }
 
 /** Maps a persisted NormalizedEvent row to packages/core's pure `NormalizedEvent`. */
-export function toNormalizedEventDomain(row: NormalizedEventRecord): NormalizedEvent {
+export function toNormalizedEventDomain(
+  row: NormalizedEventRecord,
+): NormalizedEvent {
   return {
     id: row.id,
     caseId: row.caseId,
@@ -68,8 +68,6 @@ export function toNormalizedEventDomain(row: NormalizedEventRecord): NormalizedE
     system: row.system as NormalizedEvent["system"],
     fromState: row.fromState as NormalizedState | null,
     toState: row.toState as NormalizedState | null,
-    fromStatusName: row.fromStatusName ?? null,
-    toStatusName: row.toStatusName ?? null,
     sourceRawEventId: row.sourceRawEventId,
   };
 }
@@ -82,7 +80,10 @@ export function toNormalizedEventDomain(row: NormalizedEventRecord): NormalizedE
  * commitment that merely reads as "breached" right now because time ran out
  * on a still-open case.
  */
-export function hasCaseClosedEvent(events: NormalizedEvent[], asOf: string): boolean {
+export function hasCaseClosedEvent(
+  events: NormalizedEvent[],
+  asOf: string,
+): boolean {
   return findCaseCloseEvent(events, asOf) !== null;
 }
 
@@ -93,7 +94,10 @@ export function hasCaseClosedEvent(events: NormalizedEvent[], asOf: string): boo
  * still-open case — remaining evaluations must keep running so
  * `breachedByMinutes` keeps growing until the case actually closes.
  */
-export function isTerminalStatus(status: CommitmentStatus, caseClosed: boolean): boolean {
+export function isTerminalStatus(
+  status: CommitmentStatus,
+  caseClosed: boolean,
+): boolean {
   if (status === "met") return true;
   if (status === "breached") return caseClosed;
   return false;
@@ -187,13 +191,26 @@ export async function runEvaluationPipeline(
   result.commitmentsConsidered = commitmentRows.length;
   if (commitmentRows.length === 0) return result;
 
-  const policyVersionIds = [...new Set(commitmentRows.map((c) => c.policyVersionId))];
-  const calendarVersionIds = [...new Set(commitmentRows.map((c) => c.calendarVersionId))];
+  const policyVersionIds = [
+    ...new Set(commitmentRows.map((c) => c.policyVersionId)),
+  ];
+  const calendarVersionIds = [
+    ...new Set(commitmentRows.map((c) => c.calendarVersionId)),
+  ];
   const caseIds = [...new Set(commitmentRows.map((c) => c.caseId))];
 
-  const [policyVersionRows, calendarVersionRows, eventRows, latestEvaluationRows] = await Promise.all([
-    prisma.sLAPolicyVersion.findMany({ where: { id: { in: policyVersionIds } } }),
-    prisma.businessCalendarVersion.findMany({ where: { id: { in: calendarVersionIds } } }),
+  const [
+    policyVersionRows,
+    calendarVersionRows,
+    eventRows,
+    latestEvaluationRows,
+  ] = await Promise.all([
+    prisma.sLAPolicyVersion.findMany({
+      where: { id: { in: policyVersionIds } },
+    }),
+    prisma.businessCalendarVersion.findMany({
+      where: { id: { in: calendarVersionIds } },
+    }),
     prisma.normalizedEvent.findMany({ where: { caseId: { in: caseIds } } }),
     prisma.evaluation.findMany({
       where: { commitmentId: { in: commitmentRows.map((c) => c.id) } },
@@ -247,18 +264,34 @@ export async function runEvaluationPipeline(
   }
 
   const evaluationsToCreate: Prisma.EvaluationCreateManyInput[] = [];
-  const commitmentUpdates: { id: string; status: CommitmentStatus; closedAt: string | null }[] = [];
+  const commitmentUpdates: {
+    id: string;
+    status: CommitmentStatus;
+    closedAt: string | null;
+  }[] = [];
 
   for (const row of commitmentRows) {
     try {
       const policyVersion = policyVersionsById.get(row.policyVersionId);
-      if (!policyVersion) throw new Error(`No SLAPolicyVersion loaded for ${row.policyVersionId}`);
+      if (!policyVersion)
+        throw new Error(
+          `No SLAPolicyVersion loaded for ${row.policyVersionId}`,
+        );
       const calendarVersion = calendarsById.get(row.calendarVersionId);
-      if (!calendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${row.calendarVersionId}`);
+      if (!calendarVersion)
+        throw new Error(
+          `No BusinessCalendarVersion loaded for ${row.calendarVersionId}`,
+        );
 
       const caseEvents = eventsByCaseId.get(row.caseId) ?? [];
       const commitment = toCommitmentDomain(row);
-      const evaluation = evaluateCommitment(commitment, caseEvents, policyVersion, calendarVersion, asOf);
+      const evaluation = evaluateCommitment(
+        commitment,
+        caseEvents,
+        policyVersion,
+        calendarVersion,
+        asOf,
+      );
 
       const caseClosed = hasCaseClosedEvent(caseEvents, asOf);
       const terminal = isTerminalStatus(evaluation.status, caseClosed);
@@ -312,14 +345,20 @@ export async function runEvaluationPipeline(
   }
 
   if (evaluationsToCreate.length > 0) {
-    const created = await prisma.evaluation.createMany({ data: evaluationsToCreate, skipDuplicates: true });
+    const created = await prisma.evaluation.createMany({
+      data: evaluationsToCreate,
+      skipDuplicates: true,
+    });
     result.evaluationsCreated = created.count;
   }
 
   for (const update of commitmentUpdates) {
     await prisma.commitment.update({
       where: { id: update.id },
-      data: { status: update.status, ...(update.closedAt ? { closedAt: new Date(update.closedAt) } : {}) },
+      data: {
+        status: update.status,
+        ...(update.closedAt ? { closedAt: new Date(update.closedAt) } : {}),
+      },
     });
   }
 

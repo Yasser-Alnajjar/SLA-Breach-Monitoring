@@ -301,9 +301,8 @@ export async function getCaseDetailData(
                 null)
               : null,
       // Jira's live status name (e.g. "In Progress") is stashed into
-      // evidence by runJiraNormalization on every run, for the CaseLink's
-      // current-status display; the timeline's own fromStatusName/
-      // toStatusName below carry each transition's own historical name.
+      // evidence by runJiraNormalization on every run — the timeline itself
+      // only carries the coarse new/in_progress/resolved category.
       statusName:
         (link.evidence as { statusName?: string } | null)?.statusName ?? null,
     }));
@@ -316,8 +315,6 @@ export async function getCaseDetailData(
     type: e.type,
     fromState: e.fromState,
     toState: e.toState,
-    fromStatusName: e.fromStatusName ?? null,
-    toStatusName: e.toStatusName ?? null,
   }));
 
   return {

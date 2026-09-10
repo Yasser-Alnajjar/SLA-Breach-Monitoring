@@ -12,7 +12,12 @@ export { computeSourceHash } from "./hash";
 export { runJiraBackfill, formatJqlDateTime } from "./backfill";
 export type { BackfillResult } from "./backfill";
 export type { JiraOAuthConfig } from "./oauth";
-export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, JiraOAuthError } from "./oauth";
+export {
+  buildAuthorizeUrl,
+  exchangeCodeForToken,
+  refreshAccessToken,
+  JiraOAuthError,
+} from "./oauth";
 export {
   loadFreshJiraCredentials,
   refreshAfterUnauthorized,
@@ -32,7 +37,6 @@ export type {
   ChangelogRecord,
   DerivedNormalizedEvent,
   JiraNormalizationResult,
-  JiraStatusInfo,
 } from "./normalize";
 export { parseZendeskTicketId, runJiraCorrelation } from "./correlate";
 export type { CorrelationResult } from "./correlate";

@@ -215,6 +215,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Zendesk"
               config={zendeskConfig}
               descriptionClass={descriptionClass}
+              helpUrl="https://developer.zendesk.com/api-reference/ticketing/oauth/creating-oauth-clients/"
+              helpLabel="Get your Zendesk OAuth app credentials"
             >
               {zendesk.connected ? (
                 <ConnectedCardBody
@@ -265,6 +267,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Jira"
               config={jiraConfig}
               descriptionClass={descriptionClass}
+              helpUrl="https://developer.atlassian.com/console/myapps/"
+              helpLabel="Get your Jira OAuth app credentials"
             >
               {jira.connected ? (
                 <ConnectedCardBody
@@ -314,6 +318,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Linear"
               config={linearConfig}
               descriptionClass={descriptionClass}
+              helpUrl="https://linear.app/settings/api"
+              helpLabel="Get your Linear OAuth app credentials"
             >
               {linear.connected ? (
                 <ConnectedCardBody
@@ -410,6 +416,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Slack"
               config={slackConfig}
               descriptionClass={descriptionClass}
+              helpUrl="https://api.slack.com/apps"
+              helpLabel="Get your Slack app credentials"
             >
               {slack.connected ? (
                 <div className="flex flex-1 flex-col">

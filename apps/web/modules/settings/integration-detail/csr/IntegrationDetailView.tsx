@@ -33,7 +33,10 @@ const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
 };
 
 /** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
-const PROVIDER_APP_URLS: Partial<Record<IntegrationDetailData["provider"], string>> = {
+const PROVIDER_APP_URLS: Record<IntegrationDetailData["provider"], string> = {
+  zendesk: "https://developer.zendesk.com/api-reference/ticketing/oauth/creating-oauth-clients/",
+  jira: "https://developer.atlassian.com/console/myapps/",
+  linear: "https://linear.app/settings/api",
   intercom: "https://developers.intercom.com/",
 };
 

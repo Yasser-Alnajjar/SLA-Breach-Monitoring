@@ -47,7 +47,6 @@ export function IntegrationConfigForm({
         clientId,
         clientSecret: clientSecret || undefined,
       });
-    console.log({ ok, body, status });
 
     setSaving(false);
 

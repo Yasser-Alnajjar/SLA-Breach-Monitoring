@@ -81,7 +81,6 @@ export function createIntegrationConfigHandlers(
       session.user.organizationId,
       provider,
     );
-    console.log("status", status);
 
     return NextResponse.json(status);
   }

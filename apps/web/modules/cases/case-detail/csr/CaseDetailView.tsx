@@ -32,7 +32,6 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
 
   const legTotalMinutes =
     data.legTotals.reduce((sum, t) => sum + t.minutes, 0) || 1;
-  console.log(data);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">

@@ -40,13 +40,6 @@ export function IntegrationConfigGate({
   helpUrl,
   helpLabel,
 }: IntegrationConfigGateProps) {
-  console.log(providerLabel, {
-    provider,
-    providerLabel,
-    config,
-    descriptionClass,
-  });
-
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [configuring, setConfiguring] = useState(false);

@@ -9,21 +9,22 @@ import type { PrismaClient } from "../generated/prisma/client";
 /**
  * Integrations whose OAuth app credentials are configured per-organization
  * from the Integrations settings UI (roadmap: integration config refactor)
- * rather than a single global `.env` value. Deliberately excludes `linear`
- * (disabled in the UI, still env-only) — kept a separate, narrower union
+ * rather than a single global `.env` value. Kept a separate, narrower union
  * from `IntegrationProvider` so extending it doesn't touch that enum.
  */
 export type ConfigurableIntegrationProvider =
   | "zendesk"
   | "jira"
   | "slack"
-  | "linear";
+  | "linear"
+  | "intercom";
 
 const CONFIGURABLE_PROVIDERS: ConfigurableIntegrationProvider[] = [
   "zendesk",
   "jira",
   "linear",
   "slack",
+  "intercom",
 ];
 
 export function isConfigurableIntegrationProvider(

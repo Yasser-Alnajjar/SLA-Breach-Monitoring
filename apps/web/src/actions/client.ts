@@ -5,6 +5,7 @@ import type {
   ConfigurableIntegrationProvider,
   IntegrationConfigStatus,
   IntegrationProvider,
+  IntercomBackfillResult,
   JiraBackfillResult,
   LinearBackfillResult,
   SlackChannel,
@@ -78,6 +79,11 @@ export const Actions = {
     async runLinearBackfill() {
       return postJSON<{ backfill: LinearBackfillResult }>(
         "/api/integrations/linear/backfill",
+      );
+    },
+    async runIntercomBackfill() {
+      return postJSON<{ backfill: IntercomBackfillResult }>(
+        "/api/integrations/intercom/backfill",
       );
     },
     async loadSlackChannels() {

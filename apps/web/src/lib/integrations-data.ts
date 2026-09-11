@@ -45,6 +45,7 @@ export async function getIntegrationsData(
     zendeskIntegration,
     jiraIntegration,
     linearIntegration,
+    intercomIntegration,
     slackIntegration,
     organization,
     slaPolicies,
@@ -52,6 +53,7 @@ export async function getIntegrationsData(
     linearConfig,
     jiraConfig,
     slackConfig,
+    intercomConfig,
   ] = await Promise.all([
     prisma.integration.findUnique({
       where: {
@@ -66,6 +68,12 @@ export async function getIntegrationsData(
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId, provider: "linear" },
+      },
+      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+    }),
+    prisma.integration.findUnique({
+      where: {
+        organizationId_provider: { organizationId, provider: "intercom" },
       },
       select: { connectedAt: true, disconnectedAt: true, credentials: true },
     }),
@@ -87,6 +95,7 @@ export async function getIntegrationsData(
     getIntegrationConfigStatus(prisma, organizationId, "linear"),
     getIntegrationConfigStatus(prisma, organizationId, "jira"),
     getIntegrationConfigStatus(prisma, organizationId, "slack"),
+    getIntegrationConfigStatus(prisma, organizationId, "intercom"),
   ]);
 
   const zendeskCredentials =
@@ -99,6 +108,7 @@ export async function getIntegrationsData(
     },
     jira: toConnectionView(jiraIntegration),
     linear: toConnectionView(linearIntegration),
+    intercom: toConnectionView(intercomIntegration),
     slack: {
       connected: slackIntegration !== null,
       teamName: slackIntegration?.teamName ?? null,
@@ -110,6 +120,7 @@ export async function getIntegrationsData(
     zendeskConfig,
     linearConfig,
     slackConfig,
+    intercomConfig,
     engineeringLegTargetMinutes:
       organization?.engineeringLegTargetMinutes ?? null,
     slaPolicies,

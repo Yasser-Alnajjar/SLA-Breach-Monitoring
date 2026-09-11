@@ -268,9 +268,17 @@ export async function getCaseDetailData(
   const jiraCredentials =
     (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
 
-  const zendeskUrl = zendeskCredentials
-    ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
-    : null;
+  // Gated on caseRow.system (roadmap step 22), not just "is Zendesk
+  // connected": once Intercom can create cases too, an org with both
+  // integrations connected would otherwise build a Zendesk ticket link for
+  // an Intercom-sourced case whose externalId was never a Zendesk ticket id.
+  // Intercom itself gets no equivalent link here yet — unlike Zendesk's
+  // subdomain or Jira's siteUrl, its stored credentials carry no workspace
+  // identifier to build an inbox URL from (same gap @sla/linear has).
+  const zendeskUrl =
+    zendeskCredentials && caseRow.system === "zendesk"
+      ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
+      : null;
 
   // Every CaseLink system this page knows how to render — a Zendesk CaseLink
   // never actually occurs (Case itself *is* the Zendesk side), but the type

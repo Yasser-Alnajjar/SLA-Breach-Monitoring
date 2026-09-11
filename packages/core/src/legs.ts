@@ -48,6 +48,10 @@ export function deriveLegSpans(
     a.occurredAt.localeCompare(b.occurredAt),
   );
 
+  // Either ticket-source provider (Zendesk or Intercom, roadmap step 22)
+  // drives the same decision — a case only ever comes from one of them, so
+  // whichever one is present is "the" helpdesk state. Kept the historical
+  // name since Zendesk is still the only one either drives in practice.
   let zendeskState: NormalizedState | null = null;
   // Either engineering-tracker provider (Jira or Linear) drives the same
   // decision — a case's engineering leg ends when its linked issue resolves,
@@ -129,7 +133,7 @@ export function deriveLegSpans(
         (event.type === "state_changed" || event.type === "case_created") &&
         event.toState
       ) {
-        if (event.system === "zendesk") zendeskState = event.toState;
+        if (event.system === "zendesk" || event.system === "intercom") zendeskState = event.toState;
         if (event.system === "jira" || event.system === "linear") engineeringState = event.toState;
       }
       if (event.type === "issue_linked") linkedIssueCount++;

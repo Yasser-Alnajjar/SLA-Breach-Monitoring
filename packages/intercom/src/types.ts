@@ -1,0 +1,108 @@
+/**
+ * Minimal shapes for the Intercom REST API fields this adapter actually
+ * reads. Not full API coverage — extend as real customer usage demands more
+ * (roadmap step 22 is a NICE TO HAVE, built only as far as customers who
+ * actually ask for Intercom need).
+ */
+
+export interface IntercomCredentials {
+  accessToken: string;
+  tokenType?: string;
+  /**
+   * Set when a request is rejected with 401. Intercom access tokens don't
+   * expire and carry no refresh token (unlike Zendesk/Jira) — a 401 is
+   * unambiguous: the token was revoked and there is no path back except the
+   * user reconnecting. Cleared automatically on reconnect.
+   */
+  reauthRequired?: boolean;
+}
+
+/** One entry in `conversation.contacts.contacts` — the conversation's participants, not full Contact records. */
+export interface IntercomConversationContactRef {
+  id: string;
+  type: string;
+}
+
+export interface IntercomConversationSource {
+  type: string;
+  author?: { type: string; id: string; name?: string; email?: string };
+}
+
+/**
+ * Intercom's three-state conversation lifecycle — a flatter vocabulary than
+ * Zendesk's six ticket statuses. `normalizeIntercomState` in ./normalize maps
+ * this onto the shared `NormalizedState` vocabulary.
+ */
+export type IntercomConversationState = "open" | "closed" | "snoozed";
+
+export interface IntercomConversation {
+  id: string;
+  created_at: number; // epoch seconds
+  updated_at: number;
+  state: IntercomConversationState;
+  priority?: string | null;
+  admin_assignee_id?: number | string | null;
+  contacts?: { contacts: IntercomConversationContactRef[] };
+  source?: IntercomConversationSource;
+  [key: string]: unknown;
+}
+
+/**
+ * One entry in `conversation.conversation_parts.conversation_parts`.
+ * `part_type` has a wide vendor vocabulary (comment, note, assignment,
+ * language_detection_details, conversation_rating_changed, ...) — only
+ * "close", "open", and "snoozed" are read as state transitions; everything
+ * else is ignored rather than treated as an error, since Intercom documents
+ * no closed set of part types the way Zendesk documents ticket statuses.
+ */
+export interface IntercomConversationPart {
+  id: string;
+  part_type: string;
+  created_at: number;
+  author?: { type: string; id: string; name?: string };
+  [key: string]: unknown;
+}
+
+/** `GET /conversations/{id}` — the only endpoint that returns the full part list. */
+export interface IntercomConversationWithParts extends IntercomConversation {
+  conversation_parts?: { conversation_parts: IntercomConversationPart[]; total_count: number };
+}
+
+export interface IntercomConversationSearchPage {
+  conversations: IntercomConversation[];
+  pages: { next?: { starting_after: string } | null; total_pages: number };
+  total_count: number;
+}
+
+export interface IntercomCompany {
+  id: string;
+  name: string;
+  updated_at: number;
+  [key: string]: unknown;
+}
+
+export interface IntercomCompaniesPage {
+  data: IntercomCompany[];
+  pages: { page: number; per_page: number; total_pages: number };
+  total_count: number;
+}
+
+/** Only the fields the normalizer needs to resolve a conversation's primary contact to a company. */
+export interface IntercomContact {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  companies?: { data: { id: string }[] };
+  [key: string]: unknown;
+}
+
+/**
+ * Persisted in Integration.cursor. Resumable across backfill runs, mirroring
+ * ZendeskCursor: `updatedSince` is the incremental-search watermark, advanced
+ * only after a page's conversations (and their parts/contacts) have been
+ * written as RawEvents.
+ */
+export interface IntercomCursor {
+  conversations?: { updatedSince: number; startingAfter?: string };
+  backfillCompletedAt?: string; // ISO 8601
+}

@@ -3,6 +3,7 @@
 import {
   ChevronRight,
   GitBranch,
+  LifeBuoy,
   MessageSquare,
   SlidersHorizontal,
   Ticket,
@@ -17,6 +18,7 @@ import type { IntegrationsPageData } from "@/lib/types/integrations";
 import { ZendeskConnectForm } from "./ZendeskCard";
 import { JiraConnectButton } from "./JiraCard";
 import { LinearConnectButton } from "./LinearCard";
+import { IntercomConnectButton } from "./IntercomCard";
 import {
   SlackConnectButton,
   SlackChannelPicker,
@@ -41,6 +43,7 @@ const providerToneClasses = {
   primary: "bg-primary/10 text-primary",
   engineering: "bg-leg-engineering/10 text-leg-engineering",
   secondary: "bg-secondary/15 text-secondary",
+  warning: "bg-warning/10 text-warning",
 } as const;
 
 type ProviderTone = keyof typeof providerToneClasses;
@@ -133,7 +136,7 @@ function ConnectedCardBody({
   connectedAt,
   disconnectHint,
 }: {
-  provider: "zendesk" | "jira" | "linear";
+  provider: "zendesk" | "jira" | "linear" | "intercom";
   providerLabel: string;
   connectedAt: Date;
   disconnectHint?: string;
@@ -166,6 +169,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     jiraConfig,
     // linear,
     // linearConfig,
+    intercom,
+    intercomConfig,
     slack,
     slackConfig,
     engineeringLegTargetMinutes,
@@ -333,6 +338,57 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               )}
             </IntegrationConfigGate>
           </IntegrationCard> */}
+
+          {/* Intercom */}
+          <IntegrationCard
+            delay={0.1}
+            icon={<LifeBuoy className="size-4" />}
+            tone="warning"
+            title="Intercom"
+            status={
+              intercomConfig.configured &&
+              (intercom.connected ? (
+                intercom.reauthRequired ? (
+                  <StatusIndicator tone="warning" label="Needs reconnect" />
+                ) : (
+                  <StatusIndicator tone="success" label="Connected" />
+                )
+              ) : (
+                intercom.disconnectedAt && (
+                  <StatusIndicator tone="muted" label="Disconnected" />
+                )
+              ))
+            }
+          >
+            <IntegrationConfigGate
+              provider="intercom"
+              providerLabel="Intercom"
+              config={intercomConfig}
+              descriptionClass={descriptionClass}
+            >
+              {intercom.connected ? (
+                <ConnectedCardBody
+                  provider="intercom"
+                  providerLabel="Intercom"
+                  connectedAt={intercom.connectedAt!}
+                />
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <p className={descriptionClass}>
+                    Read-only access — no conversations, contacts, or fields
+                    are ever written back to Intercom. An alternative ticket
+                    source alongside Zendesk, not a replacement.
+                    {intercom.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(intercom.disconnectedAt)}.`}
+                  </p>
+
+                  <div className="mt-auto pt-6">
+                    <IntercomConnectButton />
+                  </div>
+                </div>
+              )}
+            </IntegrationConfigGate>
+          </IntegrationCard>
 
           {/* Slack */}
           <IntegrationCard

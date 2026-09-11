@@ -59,6 +59,9 @@ importers:
       '@sla/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@sla/intercom':
+        specifier: workspace:*
+        version: link:../../packages/intercom
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
@@ -162,6 +165,9 @@ importers:
       '@sla/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@sla/intercom':
+        specifier: workspace:*
+        version: link:../../packages/intercom
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
@@ -256,6 +262,25 @@ importers:
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@26.4.1)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+
+  packages/intercom:
+    dependencies:
+      '@sla/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sla/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

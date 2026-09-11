@@ -132,9 +132,13 @@ export async function getComplianceReportRows(
   function toRow(row: (typeof commitmentRows)[number]): ComplianceReportRow {
     const jiraIssueKeys = row.case.caseLinks.filter((l) => l.system === "jira").map((l) => l.externalId);
     const linearIssueKeys = row.case.caseLinks.filter((l) => l.system === "linear").map((l) => l.externalId);
-    const zendeskUrl = zendeskCredentials
-      ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${row.case.externalId}`
-      : null;
+    // Gated on row.case.system (roadmap step 22), not just "is Zendesk
+    // connected" — see case-detail-data.ts for why. Intercom-sourced rows
+    // get no outbound link here (same gap @sla/linear already has).
+    const zendeskUrl =
+      zendeskCredentials && row.case.system === "zendesk"
+        ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${row.case.externalId}`
+        : null;
 
     const base = {
       customerName: row.case.customer?.name ?? "Unknown account",

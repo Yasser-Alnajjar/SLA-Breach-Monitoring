@@ -424,12 +424,62 @@ file gets checked off and committed as each step lands.
       shows up the same way a failed sync does instead of silently never
       polling.
 
-- [ ] **22 — Intercom integration (first NICE TO HAVE source)**
-      Only if pulled by customers (`plans/03-Product-and-MVP.md`). New
-      `packages/intercom` as a third read-only ticket source, mirroring the
-      Zendesk ingest/normalize shape (steps 2–3). Picked first among
-      Intercom/Freshdesk/Pylon per whichever integration actual prospects
-      ask for.
+- [x] **22 — Intercom integration (first NICE TO HAVE source)**
+      New `packages/intercom` as a third read-only ticket source, mirroring
+      the Zendesk ingest/normalize shape (steps 2–3): OAuth connect (no
+      refresh token — Intercom access tokens don't expire, so
+      `tokenLifecycle.ts` mirrors Linear's shape, not Zendesk's), backfill of
+      conversations/conversation parts/companies/contacts into `RawEvent`,
+      and normalization into `Case`/`Customer`/`NormalizedEvent`. Intercom's
+      conversation parts carry no explicit before/after state the way
+      Zendesk's audit `Change` events do, so `deriveNormalizedEventsForConversation`
+      replays parts chronologically against a running state tracked from
+      "open" (every conversation starts open) instead of reading an explicit
+      previous value. A conversation's `Customer` is resolved by following
+      its primary contact to that contact's first company — Intercom carries
+      no company id directly on the conversation the way a Zendesk ticket's
+      `organization_id` does, so this is one extra hop (`GET /contacts/{id}`)
+      per conversation.
+      `Customer` gains `intercomCompanyId` (a separate unique key from
+      `zendeskOrgId`, not a shared generic column). `Case` gains a `system`
+      field (`IntegrationProvider`, defaulted to `zendesk` for existing rows)
+      recording which ticket-source integration created it — an audit of
+      `case-detail-data.ts` and `report-data.ts` found both built an outbound
+      Zendesk ticket link off "is Zendesk connected for this org" alone, with
+      no way to tell a Zendesk-sourced case from an Intercom-sourced one; both
+      now gate on `case.system === "zendesk"` instead. `packages/core`'s
+      `SourceSystem` and `deriveLegSpans` widen the same way Jira/Linear
+      already share one "engineering" branch: a Zendesk-or-Intercom event now
+      drives the same helpdesk-state branch, since a case only ever comes
+      from one of them. Deliberately NOT part of `Case`'s unique key —
+      Jira/Linear's correlator looks up a case by `externalId` alone with no
+      way to know in advance which ticket source created it, and an org
+      connecting two ticket sources whose externalIds collide is an accepted,
+      uncommon edge case (the product positions Zendesk and Intercom as
+      alternatives — `plans/02-Vertical-Wedge-ICP.md` — not both at once).
+      No outbound Intercom conversation link is built yet: unlike Zendesk's
+      subdomain or Jira's siteUrl, Intercom's stored credentials carry no
+      workspace identifier to build an inbox URL from (the same gap
+      `packages/linear` already has) — a deliberate scope cut, not an
+      oversight. Also deliberately out of scope, matching this step's own
+      "ingest/normalize shape (steps 2–3)" framing: SLA policy import (no
+      Intercom-native equivalent modeled; an Intercom-only organization gets
+      no commitments until a policy exists, whether imported for some other
+      provider or created through step 19's override UI), business calendar
+      import, webhook receiver, and onboarding wiring (mirrors Linear's own
+      settings-only connect flow). `IntegrationConfig` gains `"intercom"`
+      alongside zendesk/jira/slack/linear so it uses the same tenant-scoped
+      OAuth app credentials as every other provider, with the settings card
+      and `/settings/integrations/intercom` detail page following the
+      existing per-provider pattern exactly. Verified end-to-end against
+      Intercom's real OAuth server (the connect route correctly redirects to
+      `app.intercom.com`'s live sign-in page) and against its real API's 401
+      response (an invalid token correctly flows through
+      `IntercomReauthRequiredError` into both the web backfill route and the
+      worker's cycle, surfacing as a `ReauthBanner` in the UI and
+      `status: reauth_required` on the `Integration` row) — confirmed via the
+      already-running dev `next` and `worker` processes picking up the new
+      code through their own hot reload.
 
 - [ ] **23 — GitHub integration**
       Engineering-leg source alongside Jira/Linear: PR and commit events

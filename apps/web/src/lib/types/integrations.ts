@@ -4,6 +4,7 @@ import type {
 } from "@sla/db";
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
 import type { SlackChannel } from "@sla/slack";
+import type { BackfillResult as IntercomBackfillResult } from "@sla/intercom";
 import type { BackfillResult as JiraBackfillResult } from "@sla/jira";
 import type { BackfillResult as LinearBackfillResult } from "@sla/linear";
 import type {
@@ -54,6 +55,8 @@ export interface IntegrationsPageData {
   jira: IntegrationConnectionView;
   linear: IntegrationConnectionView;
   linearConfig: IntegrationConfigStatus;
+  intercom: IntegrationConnectionView;
+  intercomConfig: IntegrationConfigStatus;
   slack: SlackConnectionView;
   zendeskConfig: IntegrationConfigStatus;
   jiraConfig: IntegrationConfigStatus;
@@ -69,14 +72,15 @@ export interface ZendeskSyncResult {
   normalization: NormalizationResult;
 }
 
-export type { SlackChannel, JiraBackfillResult, LinearBackfillResult };
+export type { SlackChannel, IntercomBackfillResult, JiraBackfillResult, LinearBackfillResult };
 
-export type IntegrationProvider = "zendesk" | "jira" | "linear";
+export type IntegrationProvider = "zendesk" | "jira" | "linear" | "intercom";
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   "zendesk",
   "jira",
   "linear",
+  "intercom",
 ];
 
 export function isIntegrationProvider(
@@ -90,6 +94,7 @@ export const INTEGRATION_PROVIDER_LABELS: Record<IntegrationProvider, string> =
     zendesk: "Zendesk",
     jira: "Jira",
     linear: "Linear",
+    intercom: "Intercom",
   };
 
 /**

@@ -124,19 +124,26 @@ model NormalizedEvent {
   @@map("normalized_events")
 }
 
-/// Derived from Zendesk organizations. Never manually entered.
+/// Derived from Zendesk organizations or Intercom companies. Never manually entered.
 model Customer {
-  id             String       @id @default(cuid())
-  organizationId String
-  name           String
-  zendeskOrgId   String?
-  tier           String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  cases          Case[]
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                String       @id @default(cuid())
+  organizationId    String
+  name              String
+  zendeskOrgId      String?
+  /// Intercom company id (roadmap step 22) — a separate optional key from
+  /// `zendeskOrgId` rather than a shared generic column, since an org that
+  /// somehow connected both ticket sources must never collide a Zendesk
+  /// organization and an unrelated Intercom company onto the same Customer
+  /// row just because they reused the same upstream numeric id.
+  intercomCompanyId String?
+  tier              String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  cases             Case[]
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, zendeskOrgId])
+  @@unique([organizationId, intercomCompanyId])
   @@map("customers")
 }
 
@@ -148,6 +155,18 @@ model Case {
   organizationId   String
   customerId       String?
   externalId       String
+  /// Which ticket-source integration created this case (roadmap step 22:
+  /// Intercom joined Zendesk as a second possible source). Set once at
+  /// creation and never changed — used to pick the right outbound ticket
+  /// link (case-detail-data.ts, report-data.ts) instead of the old
+  /// always-Zendesk assumption. Deliberately NOT part of the unique key
+  /// below: Jira/Linear's correlator looks up a case by externalId alone,
+  /// with no way to know in advance which ticket source created it. An org
+  /// that connects two ticket sources whose externalIds happen to collide is
+  /// an accepted, uncommon edge case (the product positions Zendesk and
+  /// Intercom as alternatives, not both at once — plans/02), not one this
+  /// column tries to prevent.
+  system           IntegrationProvider @default(zendesk)
   priority         String?
   tier             String?
   channel          String?
@@ -376,6 +395,7 @@ enum IntegrationProvider {
   zendesk
   jira
   linear
+  intercom
 }
 
 enum IntegrationStatus {

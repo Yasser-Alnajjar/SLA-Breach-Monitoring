@@ -5,6 +5,7 @@ import {
   type EvaluationScope,
 } from "@sla/commitments";
 import { getIntegrationConfig, type PrismaClient } from "@sla/db";
+import { IntercomReauthRequiredError, runIntercomBackfill, runIntercomNormalization } from "@sla/intercom";
 import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
 import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
 import { runNotificationPipeline } from "@sla/notifications";
@@ -108,12 +109,21 @@ export async function runCycle(
           });
           await runJiraCorrelation(prisma, integration.id);
           await runJiraNormalization(prisma, integration.id);
-        } else {
+        } else if (integration.provider === "linear") {
           // Linear's backfill needs no OAuth client config to run (roadmap
           // step 14: its tokens carry no refresh dance), unlike Jira/Zendesk.
           await runLinearBackfill(prisma, integration.id);
           await runLinearCorrelation(prisma, integration.id);
           await runLinearNormalization(prisma, integration.id);
+        } else {
+          // Intercom's backfill needs no OAuth client config to run either
+          // (roadmap step 22: like Linear, its tokens carry no refresh
+          // dance) — only the connect/callback routes need the app's
+          // client id/secret. No correlation step: Intercom is a ticket
+          // source that creates its own Cases, not an engineering-leg
+          // source that links onto one.
+          await runIntercomBackfill(prisma, integration.id);
+          await runIntercomNormalization(prisma, integration.id);
         }
       } catch (error) {
         // Every path here — not configured, an undecryptable config
@@ -125,7 +135,8 @@ export async function runCycle(
         reauthRequired =
           error instanceof ZendeskReauthRequiredError ||
           error instanceof JiraReauthRequiredError ||
-          error instanceof LinearReauthRequiredError;
+          error instanceof LinearReauthRequiredError ||
+          error instanceof IntercomReauthRequiredError;
         syncError = reauthRequired
           ? `${integration.provider[0]!.toUpperCase()}${integration.provider.slice(1)} needs to be reconnected`
           : error instanceof Error

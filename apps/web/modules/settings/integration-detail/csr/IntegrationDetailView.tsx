@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   GitBranch,
+  LifeBuoy,
   RefreshCw,
   Ticket,
   Webhook as WebhookIcon,
@@ -20,12 +21,14 @@ import { Utils } from "@/lib/utils";
 import { ZendeskBackfillButton } from "../../integrations/csr/ZendeskCard";
 import { JiraBackfillButton } from "../../integrations/csr/JiraCard";
 import { LinearBackfillButton } from "../../integrations/csr/LinearCard";
+import { IntercomBackfillButton } from "../../integrations/csr/IntercomCard";
 import { WebhookInfo } from "../../integrations/csr/WebhookInfo";
 
 const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
   zendesk: <Ticket className="size-4" />,
   jira: <GitBranch className="size-4" />,
   linear: <Workflow className="size-4" />,
+  intercom: <LifeBuoy className="size-4" />,
 };
 
 const iconWrapper =
@@ -161,6 +164,10 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
 
           {provider === "linear" && (
             <LinearBackfillButton initialReauthRequired={reauthRequired} />
+          )}
+
+          {provider === "intercom" && (
+            <IntercomBackfillButton initialReauthRequired={reauthRequired} />
           )}
         </SectionCard>
       </Reveal>

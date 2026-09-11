@@ -274,6 +274,7 @@ export async function runZendeskNormalization(
           organizationId,
           customerId: customer?.id ?? null,
           externalId: String(ticket.id),
+          system: "zendesk",
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
           openedAt: new Date(ticket.created_at),

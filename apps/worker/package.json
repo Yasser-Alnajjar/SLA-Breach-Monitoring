@@ -13,6 +13,7 @@
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",
     "@sla/email": "workspace:*",
+    "@sla/intercom": "workspace:*",
     "@sla/jira": "workspace:*",
     "@sla/linear": "workspace:*",
     "@sla/notifications": "workspace:*",

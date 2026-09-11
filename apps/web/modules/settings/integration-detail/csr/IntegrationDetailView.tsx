@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ExternalLink,
   GitBranch,
   LifeBuoy,
   RefreshCw,
@@ -29,6 +30,11 @@ const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
   jira: <GitBranch className="size-4" />,
   linear: <Workflow className="size-4" />,
   intercom: <LifeBuoy className="size-4" />,
+};
+
+/** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
+const PROVIDER_APP_URLS: Partial<Record<IntegrationDetailData["provider"], string>> = {
+  intercom: "https://developers.intercom.com/",
 };
 
 const iconWrapper =
@@ -114,6 +120,18 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
             {reauthRequired ? "Needs reconnect" : "Connected"}
           </Badge>
         </div>
+
+        {PROVIDER_APP_URLS[provider] && (
+          <a
+            href={PROVIDER_APP_URLS[provider]}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+          >
+            {INTEGRATION_PROVIDER_LABELS[provider]} developer hub
+            <ExternalLink className="size-3" />
+          </a>
+        )}
       </Reveal>
 
       <Reveal delay={0.05}>

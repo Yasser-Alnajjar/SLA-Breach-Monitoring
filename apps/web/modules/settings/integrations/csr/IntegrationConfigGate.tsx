@@ -16,6 +16,9 @@ interface IntegrationConfigGateProps {
   descriptionClass: string;
   /** Rendered instead of the config form once `config.configured` is true — the existing connect/connected UI for this provider. */
   children: ReactNode;
+  /** Optional link to where an admin registers this provider's OAuth app and gets a client id/secret — shown in the unconfigured state, before "Configure" is clicked. */
+  helpUrl?: string;
+  helpLabel?: string;
 }
 
 /**
@@ -34,6 +37,8 @@ export function IntegrationConfigGate({
   config,
   descriptionClass,
   children,
+  helpUrl,
+  helpLabel,
 }: IntegrationConfigGateProps) {
   console.log(providerLabel, {
     provider,
@@ -53,6 +58,16 @@ export function IntegrationConfigGate({
           Integration not configured. Configure this integration before
           connecting.
         </p>
+        {helpUrl && (
+          <a
+            href={helpUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 self-start text-xs text-primary underline-offset-2 hover:underline"
+          >
+            {helpLabel ?? "Get your client ID and secret"}
+          </a>
+        )}
         <div className="mt-auto pt-6">
           {configuring ? (
             <IntegrationConfigForm

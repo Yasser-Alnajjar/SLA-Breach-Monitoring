@@ -167,8 +167,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     zendeskConfig,
     jira,
     jiraConfig,
-    // linear,
-    // linearConfig,
+    linear,
+    linearConfig,
     intercom,
     intercomConfig,
     slack,
@@ -290,7 +290,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           </IntegrationCard>
 
           {/* Linear  this is disabled for now */}
-          {/* <IntegrationCard
+          <IntegrationCard
             delay={0.1}
             icon={<Workflow className="size-4" />}
             tone="engineering"
@@ -337,7 +337,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 </div>
               )}
             </IntegrationConfigGate>
-          </IntegrationCard> */}
+          </IntegrationCard>
 
           {/* Intercom */}
           <IntegrationCard
@@ -365,6 +365,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Intercom"
               config={intercomConfig}
               descriptionClass={descriptionClass}
+              helpUrl="https://developers.intercom.com/"
+              helpLabel="Get your Intercom OAuth app credentials"
             >
               {intercom.connected ? (
                 <ConnectedCardBody
@@ -375,9 +377,9 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               ) : (
                 <div className="flex flex-1 flex-col">
                   <p className={descriptionClass}>
-                    Read-only access — no conversations, contacts, or fields
-                    are ever written back to Intercom. An alternative ticket
-                    source alongside Zendesk, not a replacement.
+                    Read-only access — no conversations, contacts, or fields are
+                    ever written back to Intercom. An alternative ticket source
+                    alongside Zendesk, not a replacement.
                     {intercom.disconnectedAt &&
                       ` Disconnected ${formatDateTime(intercom.disconnectedAt)}.`}
                   </p>

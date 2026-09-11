@@ -3,6 +3,8 @@ import { Fraunces, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import { MotionProvider } from "@/components/motion-provider";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ui/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const fontSans = Inter({
   subsets: ["latin"],
@@ -31,7 +33,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>
-        <MotionProvider>{children}</MotionProvider>
+        <ThemeProvider>
+          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { BrandMark } from "@/components/shared/brand-mark";
 import { authOptions } from "@/lib/auth";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export async function AppShell({
   title,
@@ -29,9 +30,12 @@ export async function AppShell({
       <div className="lg:pl-60">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:px-6">
           <MobileNav />
-          <h1 className="font-display text-lg font-medium tracking-tight">{title}</h1>
+          <h1 className="font-display text-lg font-medium tracking-tight">
+            {title}
+          </h1>
           <div className="ml-auto flex items-center gap-3">
             {actions}
+            <ThemeToggle />
             <UserMenu email={session?.user?.email} />
           </div>
         </header>

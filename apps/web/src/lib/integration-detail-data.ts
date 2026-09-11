@@ -35,6 +35,8 @@ export async function getIntegrationDetailData(
   const credentials = integration.credentials as {
     reauthRequired?: boolean;
     subdomain?: string;
+    owner?: string;
+    repo?: string;
   };
   const cursor = integration.cursor as {
     backfillCompletedAt?: Date | null;
@@ -50,5 +52,9 @@ export async function getIntegrationDetailData(
     backfillCompletedAt: cursor?.backfillCompletedAt ?? null,
     webhookSecret: integration.webhookSecret,
     subdomain: provider === "zendesk" ? credentials.subdomain : undefined,
+    repo:
+      provider === "github" && credentials.owner && credentials.repo
+        ? `${credentials.owner}/${credentials.repo}`
+        : undefined,
   };
 }

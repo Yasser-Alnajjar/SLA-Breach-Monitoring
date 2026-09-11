@@ -3,6 +3,7 @@ import type { CommitmentKind } from "@sla/core";
 import type { OnboardingStatus } from "@/lib/types/onboarding";
 import type {
   ConfigurableIntegrationProvider,
+  GithubBackfillResult,
   IntegrationConfigStatus,
   IntegrationProvider,
   IntercomBackfillResult,
@@ -84,6 +85,11 @@ export const Actions = {
     async runIntercomBackfill() {
       return postJSON<{ backfill: IntercomBackfillResult }>(
         "/api/integrations/intercom/backfill",
+      );
+    },
+    async runGithubBackfill() {
+      return postJSON<{ backfill: GithubBackfillResult }>(
+        "/api/integrations/github/backfill",
       );
     },
     async loadSlackChannels() {

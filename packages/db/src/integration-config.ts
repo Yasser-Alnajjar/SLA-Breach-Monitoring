@@ -17,7 +17,8 @@ export type ConfigurableIntegrationProvider =
   | "jira"
   | "slack"
   | "linear"
-  | "intercom";
+  | "intercom"
+  | "github";
 
 const CONFIGURABLE_PROVIDERS: ConfigurableIntegrationProvider[] = [
   "zendesk",
@@ -25,6 +26,7 @@ const CONFIGURABLE_PROVIDERS: ConfigurableIntegrationProvider[] = [
   "linear",
   "slack",
   "intercom",
+  "github",
 ];
 
 export function isConfigurableIntegrationProvider(

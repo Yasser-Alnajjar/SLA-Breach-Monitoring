@@ -134,7 +134,8 @@ export function deriveLegSpans(
         event.toState
       ) {
         if (event.system === "zendesk" || event.system === "intercom") zendeskState = event.toState;
-        if (event.system === "jira" || event.system === "linear") engineeringState = event.toState;
+        if (event.system === "jira" || event.system === "linear" || event.system === "github")
+          engineeringState = event.toState;
       }
       if (event.type === "issue_linked") linkedIssueCount++;
       if (event.type === "issue_unlinked")

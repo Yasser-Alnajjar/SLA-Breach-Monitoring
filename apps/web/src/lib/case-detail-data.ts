@@ -285,10 +285,11 @@ export async function getCaseDetailData(
   // guard stays honest about the full IntegrationProvider union.
   const links: CaseLinkDetail[] = caseRow.caseLinks
     .filter(
-      (link): link is typeof link & { system: "jira" | "zendesk" | "linear" } =>
+      (link): link is typeof link & { system: "jira" | "zendesk" | "linear" | "github" } =>
         link.system === "jira" ||
         link.system === "zendesk" ||
-        link.system === "linear",
+        link.system === "linear" ||
+        link.system === "github",
     )
     .map((link) => ({
       system: link.system,
@@ -307,7 +308,12 @@ export async function getCaseDetailData(
                 // captures the issue's own `url` into evidence at link time.
                 ((link.evidence as { issueUrl?: string } | null)?.issueUrl ??
                 null)
-              : null,
+              : link.system === "github"
+                ? // Unlike Linear, a GitHub CaseLink's externalId itself
+                  // (`owner/repo#number`) is enough to build the PR URL —
+                  // no credential lookup or evidence capture needed.
+                  `https://github.com/${link.externalId.replace("#", "/pull/")}`
+                : null,
       // Jira's live status name (e.g. "In Progress") is stashed into
       // evidence by runJiraNormalization on every run — the timeline itself
       // only carries the coarse new/in_progress/resolved category.

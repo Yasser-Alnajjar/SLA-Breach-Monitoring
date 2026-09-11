@@ -21,7 +21,7 @@ export type NormalizedState =
 
 export type Actor = "customer" | "agent" | "system";
 
-export type SourceSystem = "zendesk" | "jira" | "linear" | "intercom";
+export type SourceSystem = "zendesk" | "jira" | "linear" | "intercom" | "github";
 
 export type NormalizedEventType =
   | "case_created"

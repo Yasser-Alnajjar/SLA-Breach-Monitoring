@@ -481,11 +481,56 @@ file gets checked off and committed as each step lands.
       already-running dev `next` and `worker` processes picking up the new
       code through their own hot reload.
 
-- [ ] **23 — GitHub integration**
-      Engineering-leg source alongside Jira/Linear: PR and commit events
-      correlated to a `Case` via the same deterministic-link tier, giving a
-      third option for teams that track engineering work in GitHub Issues/PRs
-      rather than a dedicated tracker.
+- [x] **23 — GitHub integration**
+      New `packages/github` as a third engineering-leg tracker alongside
+      Jira/Linear. GitHub has no first-party structured "link to Zendesk"
+      object the way Jira remote-links/Linear attachments do, so correlation
+      works transitively instead: `runGithubCorrelation` extracts a
+      Jira/Linear-shaped issue identifier (`TEAM-123`) from a pull request's
+      title or branch name, and if that identifier already has a `certain`
+      Jira/Linear `CaseLink`, mints a matching `github` `CaseLink` on the
+      same `Case` — `method: "pattern"`, an enum value the schema had
+      anticipated but neither Jira nor Linear ever used. Needs no Zendesk
+      knowledge inside the package at all. Pull requests are the unit of
+      work (mirrors Jira/Linear's issue), scoped to PR-centric ingestion
+      only — deliberately excludes standalone commits pushed outside any PR,
+      which have no open/resolve lifecycle to hang a leg off of. `client.ts`
+      is GraphQL (`api.github.com/graphql`), mirroring Linear's shape rather
+      than Jira's REST client; `searchPullRequests` goes through GitHub's
+      `search` API with a `repo:{owner}/{repo} is:pr updated:>={date}` query
+      since the plain `pullRequests` connection has no "since" filter.
+      `normalize.ts` maps GitHub's own small fixed PR-state vocabulary
+      (`ReadyForReviewEvent`/`ReviewRequestedEvent`/`PullRequestReview` ->
+      `in_progress`, `MergedEvent` -> `resolved`, `ClosedEvent` -> `closed`,
+      `ReopenedEvent` -> `open`) directly off each timeline item — no
+      separate site-wide lookup needed, simpler even than Linear's per-team
+      `type`. Actor resolution deliberately diverges from Jira/Linear's
+      "author === reporter -> customer" heuristic: a GitHub PR participant is
+      always an engineer, never the customer who filed the originating
+      ticket, so it's just `null actor -> system`, else `agent`.
+      `packages/core`'s `SourceSystem`/`deriveLegSpans` widen the same way
+      Jira/Linear already share one engineering branch. GitHub OAuth Apps
+      have no single "workspace" the way a Jira site or Linear workspace
+      does, so the org picks one `owner/repo` explicitly at connect time
+      (`GithubConnectForm`, mirroring Zendesk's subdomain-input pattern) —
+      multi-repo support is a clear future extension, not built here. GitHub
+      OAuth App tokens, like Linear's, carry no refresh token and don't
+      expire, so `tokenLifecycle.ts` mirrors Linear's shape exactly, not
+      Jira's. No settings UI beyond the connect card and no onboarding
+      wiring — mirrors Linear's/Intercom's own settings-only connect flow.
+      No webhook receiver: matches the precedent both Linear (step 14) and
+      Intercom (step 22) set for a provider joining outside its own
+      dedicated webhook step (step 20), even though GitHub — unlike Jira's
+      signing workaround — supports proper HMAC-signed webhooks, a clean
+      future addition. `apps/worker/src/cycle.ts`'s previously-implicit
+      `else` branch (silently catching "anything that isn't
+      zendesk/jira/linear" as Intercom) is now an explicit
+      `else if (integration.provider === "intercom")` plus a new `github`
+      branch, with integrations sorted so `jira`/`linear` process before
+      `github` in the same cycle — GitHub correlation depends on that org's
+      Jira/Linear `CaseLink`s already existing, and this avoids an
+      unnecessary extra cycle's delay on a miss (still self-heals via the
+      next poll either way, upsert-based like every other correlator here).
 
 - [ ] **24 — Custom business calendars per customer**
       Extends step 13's calendar engine: today one `BusinessCalendar` covers

@@ -28,9 +28,9 @@ const TOP_ACCOUNTS_LIMIT = 5;
  * engine functions the dashboard and case detail page use, rather than
  * persisted `Commitment` status, so it's accurate immediately after backfill
  * and doesn't wait on the worker's next evaluation cycle. "Escalated" means
- * linked to either engineering tracker (Jira or Linear, roadmap step 15) —
- * a case doesn't stop counting just because a customer uses Linear instead
- * of Jira.
+ * linked to any engineering tracker (Jira, Linear, or GitHub) — a case
+ * doesn't stop counting just because a customer uses one tracker over
+ * another.
  */
 export async function getFindingsData(
   prisma: PrismaClient,
@@ -44,7 +44,7 @@ export async function getFindingsData(
     where: {
       organizationId,
       openedAt: { gte: periodStart },
-      caseLinks: { some: { system: { in: ["jira", "linear"] } } },
+      caseLinks: { some: { system: { in: ["jira", "linear", "github"] } } },
     },
     include: { customer: true, commitments: true },
   });

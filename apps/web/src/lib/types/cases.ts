@@ -41,7 +41,7 @@ export interface CommitmentDetail {
 }
 
 export interface CaseLinkDetail {
-  system: "zendesk" | "jira" | "linear";
+  system: "zendesk" | "jira" | "linear" | "github";
   externalId: string;
   url: string | null;
   method: string;

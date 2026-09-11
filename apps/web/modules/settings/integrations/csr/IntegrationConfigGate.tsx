@@ -68,6 +68,7 @@ export function IntegrationConfigGate({
               providerLabel={providerLabel}
               onSaved={() => router.refresh()}
               onCancel={() => setConfiguring(false)}
+              open={configuring}
             />
           ) : (
             <Button
@@ -95,6 +96,7 @@ export function IntegrationConfigGate({
             router.refresh();
           }}
           onCancel={() => setEditing(false)}
+          open={editing}
         />
       </div>
     );

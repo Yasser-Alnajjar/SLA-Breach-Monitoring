@@ -1,6 +1,19 @@
 "use client";
 
-import { ArrowLeft, ExternalLink, Inbox, Layers, ListTree } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  CheckCircle2,
+  CirclePlus,
+  ExternalLink,
+  HelpCircle,
+  Inbox,
+  Layers,
+  Link2,
+  ListTree,
+  Unlink,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Reveal } from "@/components/shared/reveal";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -8,16 +21,104 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  formatActor,
   formatCaseLinkMethod,
   formatDateTime,
-  formatEventDescription,
   formatLeg,
   formatMinutes,
+  formatNormalizedState,
+  NORMALIZED_STATE_DESCRIPTIONS,
 } from "@/lib/format";
-import { LEG_BG_CLASS } from "@/lib/status-styles";
-import type { CaseDetailData } from "@/lib/types/cases";
+import { LEG_BG_CLASS, NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
+import { INTEGRATION_PROVIDER_LABELS } from "@/lib/types/integrations";
+import type { CaseDetailData, TimelineEventDetail } from "@/lib/types/cases";
 import { CommitmentCard } from "./CommitmentCard";
 import Link from "next/link";
+
+const EVENT_TYPE_ICON: Record<string, ReactNode> = {
+  case_created: <CirclePlus className="size-3" />,
+  state_changed: <ArrowRightLeft className="size-3" />,
+  issue_linked: <Link2 className="size-3" />,
+  issue_unlinked: <Unlink className="size-3" />,
+  case_closed: <CheckCircle2 className="size-3" />,
+};
+
+function StateBadge({ state }: { state: string }) {
+  return (
+    <Badge variant={NORMALIZED_STATE_VARIANT[state] ?? "default"}>
+      {formatNormalizedState(state)}
+    </Badge>
+  );
+}
+
+/** What actually changed for one timeline row — states rendered as colored badges rather than plain text, since that's the part users find opaque. */
+function TimelineEventBody({ event }: { event: TimelineEventDetail }) {
+  if (event.type === "state_changed" && event.fromState && event.toState) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1.5">
+        <StateBadge state={event.fromState} />
+        <span className="text-muted-foreground">→</span>
+        <StateBadge state={event.toState} />
+      </div>
+    );
+  }
+  if (event.type === "case_created" && event.toState) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1.5">
+        Opened as <StateBadge state={event.toState} />
+      </div>
+    );
+  }
+  const EVENT_TYPE_TEXT: Record<string, string> = {
+    issue_linked: "Issue linked",
+    issue_unlinked: "Issue unlinked",
+    case_closed: "Case closed",
+  };
+  return <>{EVENT_TYPE_TEXT[event.type] ?? event.type}</>;
+}
+
+/** Explains the app's own state vocabulary — these are normalized across providers, never a provider's literal status text. */
+function TimelineGlossary() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="What do these states mean?"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <HelpCircle className="size-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80">
+        <div className="flex flex-wrap items-baseline gap-1 text-xs text-muted-foreground">
+          <span>
+            These states are this app&apos;s own vocabulary, normalized across
+            providers — e.g. a Zendesk &quot;Pending&quot; and a Jira
+            &quot;Waiting on Customer&quot; both show up here as
+          </span>
+          <StateBadge state="pending_customer" />
+          <span>.</span>
+        </div>
+        <ul className="mt-3 space-y-2">
+          {Object.entries(NORMALIZED_STATE_DESCRIPTIONS).map(
+            ([state, description]) => (
+              <li key={state} className="flex items-start gap-2 text-xs">
+                <StateBadge state={state} />
+                <span className="text-muted-foreground">{description}</span>
+              </li>
+            ),
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface CaseDetailViewProps {
   data: CaseDetailData;
@@ -145,6 +246,7 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
           <CardHeader className="flex-row items-center gap-2 space-y-0">
             <ListTree className="size-4 text-muted-foreground" />
             <CardTitle className="text-base">Timeline</CardTitle>
+            <TimelineGlossary />
           </CardHeader>
           <CardContent>
             {data.legSpans.length === 0 ? (
@@ -199,24 +301,39 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
                   </span>
                 </p>
 
-                <ol className="mt-4 max-h-90 space-y-2 overflow-y-auto border-t border-border pt-3">
-                  {data.timeline.map((e) => (
-                    <li
-                      key={e.id}
-                      className="grid grid-cols-[7rem_5rem_5rem_1fr] items-baseline gap-3 text-sm"
-                    >
-                      <time className="tabular-nums text-xs text-muted-foreground">
-                        {formatDateTime(e.occurredAt)}
-                      </time>
-                      <span className="text-xs text-muted-foreground">
-                        {e.actor}
+                <ol className="mt-4 max-h-90 space-y-4 overflow-y-auto border-t border-border pl-5 pt-4">
+                  {data.timeline.map((e, i) => (
+                    <li key={e.id} className="relative">
+                      {i < data.timeline.length - 1 && (
+                        <span
+                          aria-hidden
+                          className="absolute -left-5 top-5 -bottom-4 w-px bg-border"
+                        />
+                      )}
+                      <span className="absolute -left-5 top-0.5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+                        {EVENT_TYPE_ICON[e.type] ?? (
+                          <span className="size-1.5 rounded-full bg-current" />
+                        )}
                       </span>
-                      <Badge variant="outline" className="w-fit">
-                        {e.system}
-                      </Badge>
-                      <span className="text-foreground">
-                        {formatEventDescription(e)}
-                      </span>
+
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <time className="tabular-nums">
+                          {formatDateTime(e.occurredAt)}
+                        </time>
+                        <span aria-hidden>·</span>
+                        <span>{formatActor(e.actor)}</span>
+                        <Badge variant="outline" className="w-fit">
+                          {(
+                            INTEGRATION_PROVIDER_LABELS as Record<
+                              string,
+                              string
+                            >
+                          )[e.system] ?? e.system}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-sm text-foreground">
+                        <TimelineEventBody event={e} />
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -262,7 +379,9 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
                         ? "Jira"
                         : link.system === "linear"
                           ? "Linear"
-                          : "Zendesk"}{" "}
+                          : link.system === "github"
+                            ? "GitHub"
+                            : "Zendesk"}{" "}
                       {link.externalId}
                       <ExternalLink className="size-3.5" />
                     </a>
@@ -272,7 +391,9 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
                         ? "Jira"
                         : link.system === "linear"
                           ? "Linear"
-                          : "Zendesk"}{" "}
+                          : link.system === "github"
+                            ? "GitHub"
+                            : "Zendesk"}{" "}
                       {link.externalId}
                     </span>
                   )}

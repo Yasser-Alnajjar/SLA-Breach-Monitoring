@@ -4,6 +4,7 @@ import type {
 } from "@sla/db";
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
 import type { SlackChannel } from "@sla/slack";
+import type { BackfillResult as GithubBackfillResult } from "@sla/github";
 import type { BackfillResult as IntercomBackfillResult } from "@sla/intercom";
 import type { BackfillResult as JiraBackfillResult } from "@sla/jira";
 import type { BackfillResult as LinearBackfillResult } from "@sla/linear";
@@ -57,6 +58,8 @@ export interface IntegrationsPageData {
   linearConfig: IntegrationConfigStatus;
   intercom: IntegrationConnectionView;
   intercomConfig: IntegrationConfigStatus;
+  github: IntegrationConnectionView;
+  githubConfig: IntegrationConfigStatus;
   slack: SlackConnectionView;
   zendeskConfig: IntegrationConfigStatus;
   jiraConfig: IntegrationConfigStatus;
@@ -72,15 +75,16 @@ export interface ZendeskSyncResult {
   normalization: NormalizationResult;
 }
 
-export type { SlackChannel, IntercomBackfillResult, JiraBackfillResult, LinearBackfillResult };
+export type { SlackChannel, GithubBackfillResult, IntercomBackfillResult, JiraBackfillResult, LinearBackfillResult };
 
-export type IntegrationProvider = "zendesk" | "jira" | "linear" | "intercom";
+export type IntegrationProvider = "zendesk" | "jira" | "linear" | "intercom" | "github";
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   "zendesk",
   "jira",
   "linear",
   "intercom",
+  "github",
 ];
 
 export function isIntegrationProvider(
@@ -95,6 +99,7 @@ export const INTEGRATION_PROVIDER_LABELS: Record<IntegrationProvider, string> =
     jira: "Jira",
     linear: "Linear",
     intercom: "Intercom",
+    github: "GitHub",
   };
 
 /**
@@ -118,4 +123,6 @@ export interface IntegrationDetailData {
   webhookSecret: string | null;
   /** Zendesk only. */
   subdomain?: string;
+  /** GitHub only — the single `owner/repo` this integration is scoped to. */
+  repo?: string;
 }

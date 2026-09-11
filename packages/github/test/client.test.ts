@@ -1,0 +1,156 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GithubApiError, GithubClient } from "../src/client";
+import type { GithubCredentials } from "../src/types";
+
+const baseCredentials: GithubCredentials = {
+  accessToken: "stale-token",
+  tokenType: "bearer",
+  scope: "repo",
+  owner: "acme",
+  repo: "widgets",
+};
+
+function jsonResponse(status: number, body: unknown, headers?: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+const emptySearchPage = { data: { search: { nodes: [], pageInfo: { hasNextPage: false } } } };
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("GithubClient 401 handling", () => {
+  it("refreshes once and retries the request on a single 401", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(401, { message: "Bad credentials" }))
+      .mockResolvedValueOnce(jsonResponse(200, emptySearchPage));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onUnauthorized = vi.fn().mockResolvedValue({ ...baseCredentials, accessToken: "fresh-token" });
+    const client = new GithubClient(baseCredentials, { onUnauthorized });
+
+    const result = await client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z");
+
+    expect(result).toEqual({ nodes: [], pageInfo: { hasNextPage: false } });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledWith(baseCredentials);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      headers: expect.objectContaining({ Authorization: "Bearer fresh-token" }),
+    });
+  });
+
+  it("does not retry indefinitely when the refreshed token also gets a 401", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(401, { message: "Bad credentials" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onUnauthorized = vi.fn().mockResolvedValue({ ...baseCredentials, accessToken: "fresh-token" });
+    const client = new GithubClient(baseCredentials, { onUnauthorized });
+
+    await expect(
+      client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
+    ).rejects.toBeInstanceOf(GithubApiError);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("GithubClient rate-limit handling", () => {
+  it("waits out a 403 with a Retry-After header and retries", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(403, { message: "secondary rate limit" }, { "Retry-After": "1" }))
+      .mockResolvedValueOnce(jsonResponse(200, emptySearchPage));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new GithubClient(baseCredentials);
+    const promise = client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z");
+
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await promise;
+
+    expect(result).toEqual({ nodes: [], pageInfo: { hasNextPage: false } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("does not retry a plain 403 with no Retry-After header", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(403, { message: "insufficient scope" })));
+    const client = new GithubClient(baseCredentials);
+
+    await expect(
+      client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
+    ).rejects.toBeInstanceOf(GithubApiError);
+  });
+});
+
+describe("GithubClient GraphQL error handling", () => {
+  it("throws GithubApiError when the response carries a top-level errors array", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(200, { errors: [{ message: "Something went wrong" }] })),
+    );
+    const client = new GithubClient(baseCredentials);
+
+    await expect(
+      client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
+    ).rejects.toBeInstanceOf(GithubApiError);
+  });
+});
+
+describe("GithubClient search filtering", () => {
+  it("builds a repo-scoped, date-windowed search query and filters non-PullRequest nodes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          search: {
+            nodes: [
+              {},
+              {
+                id: "pr-1",
+                number: 42,
+                title: "Fix thing",
+                url: "https://github.com/acme/widgets/pull/42",
+                state: "OPEN",
+                merged: false,
+                headRefName: "fix-thing",
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                mergedAt: null,
+                closedAt: null,
+                author: { login: "octocat" },
+              },
+            ],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new GithubClient(baseCredentials);
+    const result = await client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z");
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0]?.number).toBe(42);
+
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string) as {
+      variables: { query: string };
+    };
+    expect(body.variables.query).toBe("repo:acme/widgets is:pr updated:>=2026-01-01");
+  });
+});
+
+describe("GithubClient empty sub-connections", () => {
+  it("returns an empty connection when a timeline query resolves no node", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { data: { node: null } })));
+    const client = new GithubClient(baseCredentials);
+
+    const result = await client.fetchTimelineItems("pr-1");
+
+    expect(result).toEqual({ nodes: [], pageInfo: { hasNextPage: false } });
+  });
+});

@@ -77,27 +77,33 @@ export function formatNormalizedState(state: string): string {
   return NORMALIZED_STATE_LABELS[state] ?? state;
 }
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  case_created: "Case created",
-  state_changed: "State changed",
-  issue_linked: "Issue linked",
-  issue_unlinked: "Issue unlinked",
-  case_closed: "Case closed",
+/**
+ * These are the engine's own semantic states, not any provider's literal
+ * status text — a Zendesk "Pending" and a Jira "Waiting on Customer" both
+ * normalize to `pending_customer` (see packages/core/src/types.ts). Shown in
+ * the case timeline's glossary popover so "Open → Pending customer" reads as
+ * more than an opaque state code.
+ */
+export const NORMALIZED_STATE_DESCRIPTIONS: Record<string, string> = {
+  new: "Case just created — no status update from the source system yet.",
+  open: "Actively open and owned by support or engineering.",
+  in_progress: "Being actively worked, per the linked engineering tracker.",
+  pending_customer:
+    "Waiting on the customer to respond. Whichever provider drives this, it puts the case on the \"waiting on customer\" leg.",
+  pending_internal: "Waiting on something internal — not the customer.",
+  escalated: "Flagged as escalated or high urgency.",
+  resolved: "Marked resolved by the team, ahead of a final close.",
+  closed: "Fully closed.",
 };
 
-/** One-line description of a NormalizedEvent for the case timeline. */
-export function formatEventDescription(event: {
-  type: string;
-  fromState: string | null;
-  toState: string | null;
-}): string {
-  if (event.type === "state_changed" && event.fromState && event.toState) {
-    return `${formatNormalizedState(event.fromState)} → ${formatNormalizedState(event.toState)}`;
-  }
-  if (event.type === "case_created" && event.toState) {
-    return `Opened as ${formatNormalizedState(event.toState)}`;
-  }
-  return EVENT_TYPE_LABELS[event.type] ?? event.type;
+const ACTOR_LABELS: Record<string, string> = {
+  customer: "Customer",
+  agent: "Agent",
+  system: "System",
+};
+
+export function formatActor(actor: string): string {
+  return ACTOR_LABELS[actor] ?? actor;
 }
 
 export function formatDateTime(iso: string): string {

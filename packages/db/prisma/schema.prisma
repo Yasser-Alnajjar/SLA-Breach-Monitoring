@@ -396,6 +396,7 @@ enum IntegrationProvider {
   jira
   linear
   intercom
+  github
 }
 
 enum IntegrationStatus {

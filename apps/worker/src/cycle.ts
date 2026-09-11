@@ -5,6 +5,7 @@ import {
   type EvaluationScope,
 } from "@sla/commitments";
 import { getIntegrationConfig, type PrismaClient } from "@sla/db";
+import { GithubReauthRequiredError, runGithubBackfill, runGithubCorrelation, runGithubNormalization } from "@sla/github";
 import { IntercomReauthRequiredError, runIntercomBackfill, runIntercomNormalization } from "@sla/intercom";
 import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
 import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
@@ -45,6 +46,16 @@ const SCOPE_BY_KIND: Record<CycleKind, EvaluationScope> = {
 };
 
 /**
+ * GitHub's correlator depends on that organization's Jira/Linear CaseLinks
+ * already existing (it links transitively through them — see
+ * packages/github/src/correlate.ts), so within one organization's
+ * integrations, github is processed after jira/linear where possible. A
+ * miss just self-heals on the next poll either way (upsert-based), but
+ * same-cycle ordering avoids an unnecessary extra cycle's delay.
+ */
+const PROVIDER_CYCLE_PRIORITY: Partial<Record<string, number>> = { github: 1 };
+
+/**
  * One polling cycle across every organization: pull what changed from each
  * connected provider, project it into cases/commitments, then evaluate and
  * persist Evaluation rows (Phase 16). Failures are recorded per organization
@@ -83,7 +94,11 @@ export async function runCycle(
   for (const organization of organizations) {
     result.organizationsProcessed += 1;
 
-    for (const integration of organization.integrations) {
+    const orderedIntegrations = [...organization.integrations].sort(
+      (a, b) => (PROVIDER_CYCLE_PRIORITY[a.provider] ?? 0) - (PROVIDER_CYCLE_PRIORITY[b.provider] ?? 0),
+    );
+
+    for (const integration of orderedIntegrations) {
       let syncError: string | null = null;
       let reauthRequired = false;
 
@@ -115,7 +130,7 @@ export async function runCycle(
           await runLinearBackfill(prisma, integration.id);
           await runLinearCorrelation(prisma, integration.id);
           await runLinearNormalization(prisma, integration.id);
-        } else {
+        } else if (integration.provider === "intercom") {
           // Intercom's backfill needs no OAuth client config to run either
           // (roadmap step 22: like Linear, its tokens carry no refresh
           // dance) — only the connect/callback routes need the app's
@@ -124,6 +139,16 @@ export async function runCycle(
           // source that links onto one.
           await runIntercomBackfill(prisma, integration.id);
           await runIntercomNormalization(prisma, integration.id);
+        } else {
+          // GitHub's backfill needs no OAuth client config to run either
+          // (like Linear/Intercom, its tokens carry no refresh dance) —
+          // only the connect/callback routes need the app's client
+          // id/secret. Correlation links transitively through this org's
+          // existing Jira/Linear CaseLinks (roadmap step 23) rather than
+          // any direct Zendesk knowledge.
+          await runGithubBackfill(prisma, integration.id);
+          await runGithubCorrelation(prisma, integration.id);
+          await runGithubNormalization(prisma, integration.id);
         }
       } catch (error) {
         // Every path here — not configured, an undecryptable config
@@ -136,7 +161,8 @@ export async function runCycle(
           error instanceof ZendeskReauthRequiredError ||
           error instanceof JiraReauthRequiredError ||
           error instanceof LinearReauthRequiredError ||
-          error instanceof IntercomReauthRequiredError;
+          error instanceof IntercomReauthRequiredError ||
+          error instanceof GithubReauthRequiredError;
         syncError = reauthRequired
           ? `${integration.provider[0]!.toUpperCase()}${integration.provider.slice(1)} needs to be reconnected`
           : error instanceof Error

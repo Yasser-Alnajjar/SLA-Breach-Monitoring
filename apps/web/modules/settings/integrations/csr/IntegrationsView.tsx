@@ -3,6 +3,7 @@
 import {
   ChevronRight,
   GitBranch,
+  GitPullRequest,
   LifeBuoy,
   MessageSquare,
   SlidersHorizontal,
@@ -19,6 +20,7 @@ import { ZendeskConnectForm } from "./ZendeskCard";
 import { JiraConnectButton } from "./JiraCard";
 import { LinearConnectButton } from "./LinearCard";
 import { IntercomConnectButton } from "./IntercomCard";
+import { GithubConnectForm } from "./GithubCard";
 import {
   SlackConnectButton,
   SlackChannelPicker,
@@ -137,7 +139,7 @@ function ConnectedCardBody({
   connectedAt,
   disconnectHint,
 }: {
-  provider: "zendesk" | "jira" | "linear" | "intercom";
+  provider: "zendesk" | "jira" | "linear" | "intercom" | "github";
   providerLabel: string;
   connectedAt: Date;
   disconnectHint?: string;
@@ -172,6 +174,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     linearConfig,
     intercom,
     intercomConfig,
+    github,
+    githubConfig,
     slack,
     slackConfig,
     engineeringLegTargetMinutes,
@@ -393,6 +397,60 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
 
                   <div className="mt-auto pt-6">
                     <IntercomConnectButton />
+                  </div>
+                </div>
+              )}
+            </IntegrationConfigGate>
+          </IntegrationCard>
+
+          {/* GitHub */}
+          <IntegrationCard
+            delay={0.1}
+            icon={<GitPullRequest className="size-4" />}
+            tone="engineering"
+            title="GitHub"
+            status={
+              githubConfig.configured &&
+              (github.connected ? (
+                github.reauthRequired ? (
+                  <StatusIndicator tone="warning" label="Needs reconnect" />
+                ) : (
+                  <StatusIndicator tone="success" label="Connected" />
+                )
+              ) : (
+                github.disconnectedAt && (
+                  <StatusIndicator tone="muted" label="Disconnected" />
+                )
+              ))
+            }
+          >
+            <IntegrationConfigGate
+              provider="github"
+              providerLabel="GitHub"
+              config={githubConfig}
+              descriptionClass={descriptionClass}
+              helpUrl="https://github.com/settings/developers"
+              helpLabel="Get your GitHub OAuth app credentials"
+            >
+              {github.connected ? (
+                <ConnectedCardBody
+                  provider="github"
+                  providerLabel="GitHub"
+                  connectedAt={github.connectedAt!}
+                />
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <p className={descriptionClass}>
+                    Read-only access — no pull requests, reviews, or code are
+                    ever written back to GitHub. An engineering-leg source
+                    alongside Jira/Linear, correlated through whichever issue
+                    a pull request already references.
+                    {github.disconnectedAt &&
+                      ` Disconnected ${formatDateTime(github.disconnectedAt)}.`}
+                  </p>
+
+                  <div className="mt-auto pt-6">
+                    <GithubConnectForm />
                   </div>
                 </div>
               )}

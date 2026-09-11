@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ExternalLink,
   GitBranch,
+  GitPullRequest,
   LifeBuoy,
   RefreshCw,
   Ticket,
@@ -23,6 +24,7 @@ import { ZendeskBackfillButton } from "../../integrations/csr/ZendeskCard";
 import { JiraBackfillButton } from "../../integrations/csr/JiraCard";
 import { LinearBackfillButton } from "../../integrations/csr/LinearCard";
 import { IntercomBackfillButton } from "../../integrations/csr/IntercomCard";
+import { GithubBackfillButton } from "../../integrations/csr/GithubCard";
 import { WebhookInfo } from "../../integrations/csr/WebhookInfo";
 import Link from "next/link";
 
@@ -31,6 +33,7 @@ const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
   jira: <GitBranch className="size-4" />,
   linear: <Workflow className="size-4" />,
   intercom: <LifeBuoy className="size-4" />,
+  github: <GitPullRequest className="size-4" />,
 };
 
 const iconWrapper =
@@ -81,6 +84,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     backfillCompletedAt,
     webhookSecret,
     subdomain,
+    repo,
   } = data;
 
   /** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
@@ -89,6 +93,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     jira: "https://www.atlassian.com/software/jira?referer=jira.com",
     linear: "https://linear.app",
     intercom: "https://intercom.com",
+    github: repo ? `https://github.com/${repo}` : "https://github.com",
   };
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -189,6 +194,10 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
 
           {provider === "intercom" && (
             <IntercomBackfillButton initialReauthRequired={reauthRequired} />
+          )}
+
+          {provider === "github" && (
+            <GithubBackfillButton repo={repo ?? ""} initialReauthRequired={reauthRequired} />
           )}
         </SectionCard>
       </Reveal>

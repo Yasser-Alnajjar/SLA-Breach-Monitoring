@@ -1,0 +1,43 @@
+import { randomBytes } from "node:crypto";
+import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
+import { buildAuthorizeUrl } from "@sla/github";
+import { authOptions } from "@/lib/auth";
+import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
+
+const OWNER_REPO_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
+
+export async function GET(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const repo = new URL(request.url).searchParams.get("repo")?.trim() ?? "";
+  if (!OWNER_REPO_PATTERN.test(repo)) {
+    return NextResponse.json({ error: "Enter a valid owner/repo" }, { status: 400 });
+  }
+
+  let config;
+  try {
+    config = await getGithubOAuthConfig(session.user.organizationId);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "GitHub OAuth is not configured" },
+      { status: 500 },
+    );
+  }
+
+  const nonce = randomBytes(16).toString("hex");
+  const state = Buffer.from(
+    JSON.stringify({ nonce, repo, organizationId: session.user.organizationId }),
+  ).toString("base64url");
+
+  const response = NextResponse.redirect(buildAuthorizeUrl(config, state));
+  response.cookies.set(GITHUB_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600,
+    path: "/",
+  });
+  return response;
+}

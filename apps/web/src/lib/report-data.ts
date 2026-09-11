@@ -21,6 +21,7 @@ export interface ComplianceReportRow {
   zendeskUrl: string | null;
   jiraIssueKeys: string[];
   linearIssueKeys: string[];
+  githubPullRequestKeys: string[];
   kind: CommitmentKind;
   status: CommitmentStatus;
   targetMinutes: number;
@@ -132,6 +133,7 @@ export async function getComplianceReportRows(
   function toRow(row: (typeof commitmentRows)[number]): ComplianceReportRow {
     const jiraIssueKeys = row.case.caseLinks.filter((l) => l.system === "jira").map((l) => l.externalId);
     const linearIssueKeys = row.case.caseLinks.filter((l) => l.system === "linear").map((l) => l.externalId);
+    const githubPullRequestKeys = row.case.caseLinks.filter((l) => l.system === "github").map((l) => l.externalId);
     // Gated on row.case.system (roadmap step 22), not just "is Zendesk
     // connected" — see case-detail-data.ts for why. Intercom-sourced rows
     // get no outbound link here (same gap @sla/linear already has).
@@ -146,6 +148,7 @@ export async function getComplianceReportRows(
       zendeskUrl,
       jiraIssueKeys,
       linearIssueKeys,
+      githubPullRequestKeys,
       kind: row.kind,
       targetMinutes: row.targetMinutes,
       openedAt: row.case.openedAt.toISOString(),
@@ -189,6 +192,7 @@ const CSV_HEADER = [
   "Zendesk URL",
   "Jira issues",
   "Linear issues",
+  "GitHub pull requests",
   "Commitment",
   "Status",
   "Target",
@@ -208,6 +212,7 @@ export function complianceReportToCsv(rows: ComplianceReportRow[]): string {
       row.zendeskUrl,
       row.jiraIssueKeys.join(" "),
       row.linearIssueKeys.join(" "),
+      row.githubPullRequestKeys.join(" "),
       formatCommitmentKind(row.kind),
       formatCommitmentStatus(row.status),
       formatMinutes(row.targetMinutes),

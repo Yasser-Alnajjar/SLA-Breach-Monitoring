@@ -16,13 +16,19 @@ export const LEG_BG_CLASS: Record<string, string> = {
 /** Badge variant per NormalizedState — one consistent color per state everywhere it's shown (timeline, glossary). */
 export const NORMALIZED_STATE_VARIANT: Record<
   string,
-  "default" | "primary" | "secondary" | "warning" | "success" | "destructive" | "outline"
+  | "default"
+  | "primary"
+  | "secondary"
+  | "warning"
+  | "success"
+  | "destructive"
+  | "outline"
 > = {
   new: "default",
   open: "primary",
   in_progress: "primary",
   pending_customer: "warning",
-  pending_internal: "secondary",
+  pending_internal: "default",
   escalated: "destructive",
   resolved: "success",
   closed: "outline",

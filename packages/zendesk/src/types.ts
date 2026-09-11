@@ -23,6 +23,7 @@ export interface ZendeskTicket {
   id: number;
   url: string;
   external_id: string | null;
+  subject: string | null;
   created_at: string;
   updated_at: string;
   status: string;

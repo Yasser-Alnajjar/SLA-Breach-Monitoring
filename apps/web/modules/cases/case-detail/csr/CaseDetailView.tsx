@@ -135,7 +135,7 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
     data.legTotals.reduce((sum, t) => sum + t.minutes, 0) || 1;
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -147,9 +147,18 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
       <Reveal delay={0.05}>
         <header className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="font-display text-2xl font-medium tracking-tight">
-              {data.case.customerName ?? "—"} · #{data.case.externalId}
+            <h1
+              className="font-display text-2xl font-medium tracking-tight min-w-0 max-w-100"
+              title={data?.case?.subject ?? `#${data?.case?.externalId}`}
+            >
+              {data.case.subject ??
+                `${data.case.customerName ?? "—"} · #${data.case.externalId}`}
             </h1>
+            {data.case.subject && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {data.case.customerName ?? "—"} · #{data.case.externalId}
+              </p>
+            )}
             <p className="mt-1 text-sm text-muted-foreground">
               {[data.case.priority, data.case.tier, data.case.channel]
                 .filter(Boolean)
@@ -301,7 +310,7 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
                   </span>
                 </p>
 
-                <ol className="mt-4 max-h-90 space-y-4 overflow-y-auto border-t border-border pl-5 pt-4">
+                <ol className="mt-4 grid place-content-center max-h-90 space-y-4 overflow-y-auto border-t border-border pl-5 pt-4">
                   {data.timeline.map((e, i) => (
                     <li key={e.id} className="relative">
                       {i < data.timeline.length - 1 && (
@@ -310,7 +319,7 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
                           className="absolute -left-5 top-5 -bottom-4 w-px bg-border"
                         />
                       )}
-                      <span className="absolute -left-5 top-0.5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+                      <span className="absolute -left-7 top-0.5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
                         {EVENT_TYPE_ICON[e.type] ?? (
                           <span className="size-1.5 rounded-full bg-current" />
                         )}

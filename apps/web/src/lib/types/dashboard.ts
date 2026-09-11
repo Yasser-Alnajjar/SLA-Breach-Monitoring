@@ -4,6 +4,7 @@ export interface AtRiskRow {
   commitmentId: string;
   caseId: string;
   externalId: string;
+  subject: string | null;
   customerName: string | null;
   kind: CommitmentKind;
   remainingMinutes: number;

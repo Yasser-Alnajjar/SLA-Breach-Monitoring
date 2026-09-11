@@ -266,6 +266,7 @@ export async function runZendeskNormalization(
         where: { organizationId_externalId: { organizationId, externalId: String(ticket.id) } },
         update: {
           customerId: customer?.id ?? null,
+          subject: ticket.subject,
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
           closedAt,
@@ -275,6 +276,7 @@ export async function runZendeskNormalization(
           customerId: customer?.id ?? null,
           externalId: String(ticket.id),
           system: "zendesk",
+          subject: ticket.subject,
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
           openedAt: new Date(ticket.created_at),

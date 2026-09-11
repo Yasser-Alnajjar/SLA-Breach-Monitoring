@@ -11,6 +11,7 @@ const ticket: ZendeskTicket = {
   id: 42,
   url: "https://acme.zendesk.com/api/v2/tickets/42.json",
   external_id: null,
+  subject: "Cannot log in to account",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   status: "open",

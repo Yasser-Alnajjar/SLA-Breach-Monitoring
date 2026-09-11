@@ -336,6 +336,7 @@ export async function getCaseDetailData(
     case: {
       id: caseRow.id,
       externalId: caseRow.externalId,
+      subject: caseRow.subject,
       priority: caseRow.priority,
       tier: caseRow.tier,
       channel: caseRow.channel,

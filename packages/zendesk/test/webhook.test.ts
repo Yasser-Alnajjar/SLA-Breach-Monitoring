@@ -25,6 +25,7 @@ function ticket(id: number): ZendeskTicket {
     id,
     url: `https://acme.zendesk.com/api/v2/tickets/${id}.json`,
     external_id: null,
+    subject: "Cannot log in to account",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     status: "open",

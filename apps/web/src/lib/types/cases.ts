@@ -67,6 +67,7 @@ export interface LegTotal {
 export interface CaseListRow {
   caseId: string;
   externalId: string;
+  subject: string | null;
   customerName: string | null;
   priority: string | null;
   tier: string | null;
@@ -87,6 +88,7 @@ export interface CaseDetailData {
   case: {
     id: string;
     externalId: string;
+    subject: string | null;
     priority: string | null;
     tier: string | null;
     channel: string | null;

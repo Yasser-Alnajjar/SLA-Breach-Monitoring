@@ -13,15 +13,23 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     cell: ({ row }) => row.original.customerName ?? "—",
   },
   {
-    accessorKey: "externalId",
-    header: "Ticket",
+    accessorKey: "subject",
+    header: "Case",
     cell: ({ row }) => (
       <Link
         href={`/cases/${row.original.caseId}`}
-        className="text-primary hover:underline"
+        className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
+        title={row.original.subject ?? `#${row.original.externalId}`}
       >
-        #{row.original.externalId}
+        {row.original.subject ?? `#${row.original.externalId}`}
       </Link>
+    ),
+  },
+  {
+    accessorKey: "externalId",
+    header: "Ticket",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">#{row.original.externalId}</span>
     ),
   },
   {

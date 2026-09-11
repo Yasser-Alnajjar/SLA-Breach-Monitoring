@@ -29,6 +29,7 @@ export async function getCaseListData(prisma: PrismaClient, organizationId: stri
   const cases: CaseListRow[] = rows.map((row) => ({
     caseId: row.id,
     externalId: row.externalId,
+    subject: row.subject,
     customerName: row.customer?.name ?? null,
     priority: row.priority,
     tier: row.tier,

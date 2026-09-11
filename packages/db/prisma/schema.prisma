@@ -167,6 +167,11 @@ model Case {
   /// Intercom as alternatives, not both at once — plans/02), not one this
   /// column tries to prevent.
   system           IntegrationProvider @default(zendesk)
+  /// The source ticket's subject/title (e.g. Zendesk's `subject` field).
+  /// Display-only — never used for matching or correlation. Null for cases
+  /// whose source system was ingested before this column existed, or whose
+  /// ticket-source normalizer doesn't populate it yet.
+  subject          String?
   priority         String?
   tier             String?
   channel          String?

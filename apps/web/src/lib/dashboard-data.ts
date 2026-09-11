@@ -17,7 +17,12 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
-import type { AgingEscalationRow, AtRiskRow, BreachedCaseRow, DashboardData } from "./types/dashboard";
+import type {
+  AgingEscalationRow,
+  AtRiskRow,
+  BreachedCaseRow,
+  DashboardData,
+} from "./types/dashboard";
 
 // "Period" for the two reporting metrics (breach count, compliance %) is a
 // trailing 30-day window rather than a calendar month — it needs no
@@ -55,58 +60,87 @@ export async function getDashboardData(
 ): Promise<DashboardData> {
   const asOf = asOfDate.toISOString();
   const periodStart = new Date(asOfDate.getTime() - PERIOD_DAYS * 86_400_000);
-  const previousPeriodStart = new Date(periodStart.getTime() - PERIOD_DAYS * 86_400_000);
+  const previousPeriodStart = new Date(
+    periodStart.getTime() - PERIOD_DAYS * 86_400_000,
+  );
 
-  const [openCommitmentRows, breachedEvaluationRows, currentPeriodClosedRows, previousPeriodClosedRows, organization] =
-    await Promise.all([
-      prisma.commitment.findMany({
-        where: { case: { organizationId }, closedAt: null },
-        include: { case: { include: { customer: true } } },
-      }),
-      prisma.evaluation.findMany({
-        where: { status: "breached", evaluatedAt: { gte: periodStart }, commitment: { case: { organizationId } } },
-        distinct: ["commitmentId"],
-        select: { commitmentId: true },
-      }),
-      prisma.commitment.findMany({
-        where: {
-          case: { organizationId },
-          closedAt: { gte: periodStart, lte: asOfDate },
-          status: { in: ["met", "breached"] },
-        },
-        select: { status: true },
-      }),
-      prisma.commitment.findMany({
-        where: {
-          case: { organizationId },
-          closedAt: { gte: previousPeriodStart, lt: periodStart },
-          status: { in: ["met", "breached"] },
-        },
-        select: { status: true },
-      }),
-      prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { engineeringLegTargetMinutes: true },
-      }),
-    ]);
+  const [
+    openCommitmentRows,
+    breachedEvaluationRows,
+    currentPeriodClosedRows,
+    previousPeriodClosedRows,
+    organization,
+  ] = await Promise.all([
+    prisma.commitment.findMany({
+      where: { case: { organizationId }, closedAt: null },
+      include: { case: { include: { customer: true } } },
+    }),
+    prisma.evaluation.findMany({
+      where: {
+        status: "breached",
+        evaluatedAt: { gte: periodStart },
+        commitment: { case: { organizationId } },
+      },
+      distinct: ["commitmentId"],
+      select: { commitmentId: true },
+    }),
+    prisma.commitment.findMany({
+      where: {
+        case: { organizationId },
+        closedAt: { gte: periodStart, lte: asOfDate },
+        status: { in: ["met", "breached"] },
+      },
+      select: { status: true },
+    }),
+    prisma.commitment.findMany({
+      where: {
+        case: { organizationId },
+        closedAt: { gte: previousPeriodStart, lt: periodStart },
+        status: { in: ["met", "breached"] },
+      },
+      select: { status: true },
+    }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { engineeringLegTargetMinutes: true },
+    }),
+  ]);
 
-  const engineeringLegTargetMinutes = organization?.engineeringLegTargetMinutes ?? null;
+  const engineeringLegTargetMinutes =
+    organization?.engineeringLegTargetMinutes ?? null;
 
-  const policyVersionIds = [...new Set(openCommitmentRows.map((c) => c.policyVersionId))];
-  const calendarVersionIds = [...new Set(openCommitmentRows.map((c) => c.calendarVersionId))];
+  const policyVersionIds = [
+    ...new Set(openCommitmentRows.map((c) => c.policyVersionId)),
+  ];
+  const calendarVersionIds = [
+    ...new Set(openCommitmentRows.map((c) => c.calendarVersionId)),
+  ];
   const caseIds = [...new Set(openCommitmentRows.map((c) => c.caseId))];
 
-  const [policyVersionRows, calendarVersionRows, eventRows, breachedCommitmentRows] = await Promise.all([
+  const [
+    policyVersionRows,
+    calendarVersionRows,
+    eventRows,
+    breachedCommitmentRows,
+  ] = await Promise.all([
     policyVersionIds.length > 0
-      ? prisma.sLAPolicyVersion.findMany({ where: { id: { in: policyVersionIds } } })
+      ? prisma.sLAPolicyVersion.findMany({
+          where: { id: { in: policyVersionIds } },
+        })
       : Promise.resolve([]),
     calendarVersionIds.length > 0
-      ? prisma.businessCalendarVersion.findMany({ where: { id: { in: calendarVersionIds } } })
+      ? prisma.businessCalendarVersion.findMany({
+          where: { id: { in: calendarVersionIds } },
+        })
       : Promise.resolve([]),
-    caseIds.length > 0 ? prisma.normalizedEvent.findMany({ where: { caseId: { in: caseIds } } }) : Promise.resolve([]),
+    caseIds.length > 0
+      ? prisma.normalizedEvent.findMany({ where: { caseId: { in: caseIds } } })
+      : Promise.resolve([]),
     breachedEvaluationRows.length > 0
       ? prisma.commitment.findMany({
-          where: { id: { in: breachedEvaluationRows.map((e) => e.commitmentId) } },
+          where: {
+            id: { in: breachedEvaluationRows.map((e) => e.commitmentId) },
+          },
           include: { case: { include: { customer: true } } },
         })
       : Promise.resolve([]),
@@ -173,17 +207,30 @@ export async function getDashboardData(
     if (!policyVersion || !calendar) continue;
 
     const events = eventsByCaseId.get(row.caseId) ?? [];
-    const evaluation = evaluateCommitment(toCommitmentDomain(row), events, policyVersion, calendar, asOf);
+    const evaluation = evaluateCommitment(
+      toCommitmentDomain(row),
+      events,
+      policyVersion,
+      calendar,
+      asOf,
+    );
     const spans = legSpansFor(row.caseId, row.case.openedAt);
     const currentSpan = spans[spans.length - 1];
     const currentLeg: Leg = currentSpan?.leg ?? "unknown";
-    const minutesInCurrentLeg = currentSpan ? minutesBetween(currentSpan.startedAt, asOfDate) : 0;
+    const minutesInCurrentLeg = currentSpan
+      ? minutesBetween(currentSpan.startedAt, asOfDate)
+      : 0;
 
-    if (evaluation.status === "on_track" || evaluation.status === "at_risk" || evaluation.status === "breached") {
+    if (
+      evaluation.status === "on_track" ||
+      evaluation.status === "at_risk" ||
+      evaluation.status === "breached"
+    ) {
       atRisk.push({
         commitmentId: row.id,
         caseId: row.caseId,
         externalId: row.case.externalId,
+        subject: row.case.subject,
         customerName: row.case.customer?.name ?? null,
         kind: row.kind,
         remainingMinutes: evaluation.remainingMinutes,
@@ -196,6 +243,7 @@ export async function getDashboardData(
         commitmentId: row.id,
         caseId: row.caseId,
         externalId: row.case.externalId,
+        subject: row.case.subject,
         customerName: row.case.customer?.name ?? null,
         kind: row.kind,
         remainingMinutes: evaluation.remainingMinutes,
@@ -228,14 +276,18 @@ export async function getDashboardData(
   }
 
   atRisk.sort((a, b) => a.remainingMinutes - b.remainingMinutes);
-  agingInEngineering.sort((a, b) => b.minutesInCurrentLeg - a.minutesInCurrentLeg);
+  agingInEngineering.sort(
+    (a, b) => b.minutesInCurrentLeg - a.minutesInCurrentLeg,
+  );
 
-  const breachedThisPeriod: BreachedCaseRow[] = breachedCommitmentRows.map((row) => ({
-    caseId: row.caseId,
-    externalId: row.case.externalId,
-    customerName: row.case.customer?.name ?? null,
-    kind: row.kind,
-  }));
+  const breachedThisPeriod: BreachedCaseRow[] = breachedCommitmentRows.map(
+    (row) => ({
+      caseId: row.caseId,
+      externalId: row.case.externalId,
+      customerName: row.case.customer?.name ?? null,
+      kind: row.kind,
+    }),
+  );
 
   return {
     asOf,

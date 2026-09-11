@@ -18,6 +18,7 @@ import {
 import { Utils } from "@/lib/utils";
 import type { CaseListData } from "@/lib/types/cases";
 import { useCaseListColumns } from "./columns";
+import { Card } from "@/components/ui/card";
 
 interface CaseListViewProps {
   data: CaseListData;
@@ -39,71 +40,73 @@ export const CaseListView = ({ data }: CaseListViewProps) => {
   }
 
   return (
-    <DataTable
-      title="All cases"
-      columns={columns}
-      data={data.cases}
-      globalFilter={globalFilter}
-      setGlobalFilter={setGlobalFilter}
-      header={({ table }) => (
-        <>
-          <h3 className="text-sm font-semibold">
-            All cases ({data.cases.length})
-          </h3>
+    <Card>
+      <DataTable
+        title="All cases"
+        columns={columns}
+        data={data.cases}
+        globalFilter={globalFilter}
+        setGlobalFilter={setGlobalFilter}
+        header={({ table }) => (
+          <>
+            <h3 className="text-sm font-semibold">
+              All cases ({data.cases.length})
+            </h3>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Input
-                placeholder="Search..."
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="h-6 w-64 pe-10"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Input
+                  placeholder="Search..."
+                  value={globalFilter}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="h-6 w-64 pe-10"
+                />
 
-              <Search
-                size={14}
-                className="absolute inset-e-3 top-1/2 -translate-y-1/2 text-foreground"
-              />
+                <Search
+                  size={14}
+                  className="absolute inset-e-3 top-1/2 -translate-y-1/2 text-foreground"
+                />
+              </div>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        const exportRows = table
+                          .getFilteredRowModel()
+                          .rows.map((row) => row.original);
+
+                        Utils.exportToCsv("all-cases.csv", exportRows);
+                      }}
+                    >
+                      <Download size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Export Csv</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        router.refresh();
+                      }}
+                    >
+                      <RefreshCcw size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Refresh</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      const exportRows = table
-                        .getFilteredRowModel()
-                        .rows.map((row) => row.original);
-
-                      Utils.exportToCsv("all-cases.csv", exportRows);
-                    }}
-                  >
-                    <Download size={14} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export Csv</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      router.refresh();
-                    }}
-                  >
-                    <RefreshCcw size={14} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Refresh</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </>
-      )}
-    />
+          </>
+        )}
+      />
+    </Card>
   );
 };

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../styles/colors.css";
 
 @source "../**/*.{ts,tsx}";
 
@@ -10,32 +11,45 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
+
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
+
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
+
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
+
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
+
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
+
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+
   --color-elevated: hsl(var(--elevated));
   --color-interactive: hsl(var(--interactive));
+
   --color-leg-support: hsl(var(--leg-support));
   --color-leg-engineering: hsl(var(--leg-engineering));
   --color-leg-waiting: hsl(var(--leg-waiting));
   --color-leg-unknown: hsl(var(--leg-unknown));
+
   --color-clock-running: hsl(var(--clock-running));
   --color-clock-paused: hsl(var(--clock-paused));
 
@@ -44,98 +58,10 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.2);
-  --shadow-panel:
-    0 4px 16px -4px rgb(0 0 0 / 0.4), 0 2px 6px -2px rgb(0 0 0 / 0.3);
-  --shadow-elevated:
-    0 12px 32px -8px rgb(0 0 0 / 0.5), 0 4px 12px -4px rgb(0 0 0 / 0.35);
-  --shadow-glow:
-    0 0 0 1px hsl(var(--primary) / 0.15),
-    0 0 24px -4px hsl(var(--primary) / 0.35);
-}
-
-@layer base {
-  :root {
-    /* =========================================================
-       SLA OPERATIONS — DARK THEME
-       ========================================================= */
-
-    /* Surfaces */
-    --background: 222 20% 7%;
-    --card: 222 18% 10%;
-    --card-foreground: 210 20% 96%;
-
-    --elevated: 222 17% 13%;
-    --interactive: 222 16% 16%;
-
-    --popover: 222 18% 12%;
-    --popover-foreground: 210 20% 96%;
-
-    /* Borders / Inputs */
-    --border: 217 16% 20%;
-    --input: 217 16% 23%;
-    --ring: 187 72% 48%;
-
-    /* =========================================================
-       TEXT
-       ========================================================= */
-
-    --foreground: 210 20% 96%;
-    --muted: 222 16% 15%;
-    --muted-foreground: 215 14% 62%;
-
-    /* =========================================================
-       BRAND / INTERACTION
-       Teal = operational / live / service
-       ========================================================= */
-
-    --primary: 187 72% 48%;
-    --primary-foreground: 222 25% 8%;
-
-    --secondary: 217 16% 20%;
-    --secondary-foreground: 210 20% 94%;
-
-    --accent: 187 35% 16%;
-    --accent-foreground: 187 80% 75%;
-
-    /* =========================================================
-       SLA STATUS
-       ========================================================= */
-
-    /* Breached */
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 210 20% 98%;
-
-    /* At Risk / Warning */
-    --warning: 38 92% 56%;
-    --warning-foreground: 222 25% 8%;
-
-    /* On Track / Met */
-    --success: 158 64% 45%;
-    --success-foreground: 222 25% 8%;
-
-    /* =========================================================
-       SLA TIMELINE
-       ========================================================= */
-
-    /* Support */
-    --leg-support: 199 82% 55%;
-
-    /* Engineering */
-    --leg-engineering: 268 65% 68%;
-
-    /* Waiting */
-    --leg-waiting: 38 92% 56%;
-
-    /* Unknown / Neutral */
-    --leg-unknown: 215 12% 43%;
-
-    /* SLA Clock */
-    --clock-running: 158 64% 45%;
-    --clock-paused: 215 12% 38%;
-
-    --radius: 0.625rem;
-  }
+  --shadow-soft: var(--shadow-soft-value);
+  --shadow-panel: var(--shadow-panel-value);
+  --shadow-elevated: var(--shadow-elevated-value);
+  --shadow-glow: var(--shadow-glow-value);
 }
 
 @layer base {
@@ -144,6 +70,10 @@
   }
 
   html {
+    color-scheme: light;
+  }
+
+  html.dark {
     color-scheme: dark;
   }
 

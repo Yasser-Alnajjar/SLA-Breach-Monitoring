@@ -24,20 +24,13 @@ import { JiraBackfillButton } from "../../integrations/csr/JiraCard";
 import { LinearBackfillButton } from "../../integrations/csr/LinearCard";
 import { IntercomBackfillButton } from "../../integrations/csr/IntercomCard";
 import { WebhookInfo } from "../../integrations/csr/WebhookInfo";
+import Link from "next/link";
 
 const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
   zendesk: <Ticket className="size-4" />,
   jira: <GitBranch className="size-4" />,
   linear: <Workflow className="size-4" />,
   intercom: <LifeBuoy className="size-4" />,
-};
-
-/** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
-const PROVIDER_APP_URLS: Record<IntegrationDetailData["provider"], string> = {
-  zendesk: "https://developer.zendesk.com/api-reference/ticketing/oauth/creating-oauth-clients/",
-  jira: "https://developer.atlassian.com/console/myapps/",
-  linear: "https://linear.app/settings/api",
-  intercom: "https://developers.intercom.com/",
 };
 
 const iconWrapper =
@@ -90,15 +83,22 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     subdomain,
   } = data;
 
+  /** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
+  const PROVIDER_APP_URLS: Record<IntegrationDetailData["provider"], string> = {
+    zendesk: `https://${subdomain}.zendesk.com`,
+    jira: "https://www.atlassian.com/software/jira?referer=jira.com",
+    linear: "https://linear.app",
+    intercom: "https://intercom.com",
+  };
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <a
+      <Link
         href="/settings/integrations"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
         Integrations
-      </a>
+      </Link>
 
       <Reveal>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -131,7 +131,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
             rel="noreferrer"
             className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
           >
-            {INTEGRATION_PROVIDER_LABELS[provider]} developer hub
+            Open {INTEGRATION_PROVIDER_LABELS[provider]}
             <ExternalLink className="size-3" />
           </a>
         )}

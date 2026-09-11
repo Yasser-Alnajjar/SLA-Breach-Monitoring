@@ -17,6 +17,7 @@ import {
 import { LEG_BG_CLASS } from "@/lib/status-styles";
 import type { CaseDetailData } from "@/lib/types/cases";
 import { CommitmentCard } from "./CommitmentCard";
+import Link from "next/link";
 
 interface CaseDetailViewProps {
   data: CaseDetailData;
@@ -35,13 +36,13 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <a
+      <Link
         href="/dashboard"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
         Dashboard
-      </a>
+      </Link>
 
       <Reveal delay={0.05}>
         <header className="mt-4 flex flex-wrap items-start justify-between gap-3">

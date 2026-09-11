@@ -1,0 +1,116 @@
+@layer base {
+  :root {
+    /* =========================================================
+       LIGHT
+       ========================================================= */
+
+    --background: 220 20% 97%;
+    --foreground: 222 22% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 22% 12%;
+
+    --muted: 220 16% 94%;
+    --muted-foreground: 220 10% 46%;
+
+    --border: 220 14% 88%;
+    --input: 220 14% 84%;
+    --ring: 217 91% 55%;
+
+    /* Brand */
+    --primary: 217 91% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 222 20% 18%;
+
+    --accent: 217 80% 95%;
+    --accent-foreground: 217 75% 38%;
+
+    /* Status */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 35 92% 50%;
+    --warning-foreground: 30 80% 15%;
+
+    --success: 152 60% 38%;
+    --success-foreground: 0 0% 100%;
+
+    /* SLA Timeline */
+    --leg-support: 204 80% 48%;
+    --leg-engineering: 230 65% 55%;
+    --leg-waiting: 35 92% 50%;
+    --leg-unknown: 220 10% 55%;
+
+    --clock-running: 152 60% 38%;
+    --clock-paused: 220 10% 55%;
+
+    --radius: 0.5rem;
+
+    --shadow-soft-value: 0 1px 2px rgb(15 23 42 / 0.06);
+    --shadow-panel-value: 0 4px 12px rgb(15 23 42 / 0.08);
+    --shadow-elevated-value: 0 8px 20px rgb(15 23 42 / 0.1);
+    --shadow-glow-value: 0 0 16px hsl(var(--primary) / 0.12);
+  }
+
+  .dark {
+    /* =========================================================
+       DARK
+       ========================================================= */
+
+    --background: 222 22% 8%;
+    --foreground: 220 18% 94%;
+
+    --card: 222 20% 11%;
+    --card-foreground: 220 18% 94%;
+
+    --popover: 222 20% 12%;
+    --popover-foreground: 220 18% 94%;
+
+    --muted: 222 16% 15%;
+    --muted-foreground: 220 10% 62%;
+
+    --border: 222 14% 20%;
+    --input: 222 14% 23%;
+    --ring: 217 91% 60%;
+
+    /* Brand */
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 25% 8%;
+
+    --secondary: 222 14% 19%;
+    --secondary-foreground: 220 18% 92%;
+
+    --accent: 217 45% 17%;
+    --accent-foreground: 217 90% 78%;
+
+    /* Status */
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 35 92% 58%;
+    --warning-foreground: 30 80% 10%;
+
+    --success: 152 60% 46%;
+    --success-foreground: 222 25% 8%;
+
+    /* SLA Timeline */
+    --leg-support: 204 80% 58%;
+    --leg-engineering: 230 65% 68%;
+    --leg-waiting: 35 92% 58%;
+    --leg-unknown: 220 10% 45%;
+
+    --clock-running: 152 60% 46%;
+    --clock-paused: 220 10% 45%;
+
+    --radius: 0.5rem;
+    --shadow-soft-value: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-panel-value: 0 4px 12px rgb(0 0 0 / 0.3);
+    --shadow-elevated-value: 0 8px 20px rgb(0 0 0 / 0.4);
+    --shadow-glow-value: 0 0 16px hsl(var(--primary) / 0.25);
+  }
+}

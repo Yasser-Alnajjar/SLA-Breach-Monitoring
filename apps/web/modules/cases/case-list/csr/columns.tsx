@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import type { CaseListRow } from "@/lib/types/cases";
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
   {
@@ -18,19 +19,21 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
     accessorKey: "externalId",
     header: "Ticket",
     cell: ({ row }) => (
-      <a
+      <Link
         href={`/cases/${row.original.caseId}`}
         className="text-primary hover:underline"
       >
         #{row.original.externalId}
-      </a>
+      </Link>
     ),
   },
   {
     accessorKey: "priority",
     header: "Priority",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.priority ?? "—"}</span>
+      <span className="text-muted-foreground">
+        {row.original.priority ?? "—"}
+      </span>
     ),
   },
   {
@@ -44,7 +47,9 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
     accessorKey: "channel",
     header: "Channel",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.channel ?? "—"}</span>
+      <span className="text-muted-foreground">
+        {row.original.channel ?? "—"}
+      </span>
     ),
   },
   {
@@ -71,7 +76,9 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
     accessorKey: "openedAt",
     header: "Opened",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{formatDateTime(row.original.openedAt)}</span>
+      <span className="text-muted-foreground">
+        {formatDateTime(row.original.openedAt)}
+      </span>
     ),
     sortingFn: "datetime",
   },

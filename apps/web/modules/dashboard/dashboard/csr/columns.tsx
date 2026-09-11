@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCommitmentKind, formatLeg, formatMinutes } from "@/lib/format";
 import { AtRiskRow } from "@/lib/types/dashboard";
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
   {
@@ -15,12 +16,12 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     accessorKey: "externalId",
     header: "Ticket",
     cell: ({ row }) => (
-      <a
+      <Link
         href={`/cases/${row.original.caseId}`}
         className="text-primary hover:underline"
       >
         #{row.original.externalId}
-      </a>
+      </Link>
     ),
   },
   {
@@ -86,12 +87,12 @@ export const useOtherCasesColumns = (): ColumnDef<AtRiskRow>[] => [
     accessorKey: "externalId",
     header: "Ticket",
     cell: ({ row }) => (
-      <a
+      <Link
         href={`/cases/${row.original.caseId}`}
         className="text-primary hover:underline"
       >
         #{row.original.externalId}
-      </a>
+      </Link>
     ),
   },
   {

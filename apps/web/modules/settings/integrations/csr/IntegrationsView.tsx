@@ -28,6 +28,7 @@ import { EngineeringTargetForm } from "./EngineeringTargetForm";
 import { SlaPoliciesCard } from "./SlaPoliciesCard";
 import { DisconnectButton } from "./DisconnectButton";
 import { IntegrationConfigGate } from "./IntegrationConfigGate";
+import Link from "next/link";
 
 interface IntegrationsViewProps {
   data: IntegrationsPageData;
@@ -151,10 +152,10 @@ function ConnectedCardBody({
       <div className="mt-auto pt-6 flex items-center gap-2">
         <DisconnectButton provider={provider} providerLabel={providerLabel} />
         <Button variant="outline" className="text-nowrap" size="sm" asChild>
-          <a href={`/settings/integrations/${provider}`}>
+          <Link href={`/settings/integrations/${provider}`}>
             Manage
             <ChevronRight className="size-3.5" />
-          </a>
+          </Link>
         </Button>
       </div>
     </div>
@@ -215,7 +216,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Zendesk"
               config={zendeskConfig}
               descriptionClass={descriptionClass}
-              helpUrl="https://developer.zendesk.com/api-reference/ticketing/oauth/creating-oauth-clients/"
+              helpUrl="https://support.zendesk.com/hc/en-us/articles/4408845965210-Using-OAuth-authentication-with-your-application"
               helpLabel="Get your Zendesk OAuth app credentials"
             >
               {zendesk.connected ? (
@@ -371,7 +372,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Intercom"
               config={intercomConfig}
               descriptionClass={descriptionClass}
-              helpUrl="https://developers.intercom.com/"
+              helpUrl="https://developers.intercom.com/docs/build-an-integration/learn-more/authentication/setting-up-oauth?utm_source=chatgpt.com"
               helpLabel="Get your Intercom OAuth app credentials"
             >
               {intercom.connected ? (

@@ -82,25 +82,12 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Reveal delay={0.15} className="lg:col-span-2">
           <Card>
-            <CardHeader>
-              <CardTitle>At risk now</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.atRisk.length === 0 ? (
-                <EmptyState
-                  icon={ListChecks}
-                  title="No open commitments"
-                  description="Everything currently tracked is closed."
-                />
-              ) : (
-                <AtRiskList data={data.atRisk} />
-              )}
-              {data.atRiskOverflowCount > 0 && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  +{data.atRiskOverflowCount} more open commitment(s) not shown.
-                </p>
-              )}
-            </CardContent>
+            <AtRiskList data={data.atRisk} />
+            {data.atRiskOverflowCount > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                +{data.atRiskOverflowCount} more open commitment(s) not shown.
+              </p>
+            )}
           </Card>
         </Reveal>
 

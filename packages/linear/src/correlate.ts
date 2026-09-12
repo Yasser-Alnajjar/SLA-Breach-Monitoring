@@ -157,7 +157,7 @@ export async function runLinearCorrelation(prisma: PrismaClient, integrationId: 
     const zendeskCase = await prisma.case.findUnique({
       where: { organizationId_externalId: { organizationId, externalId: ticketId } },
     });
-    if (!zendeskCase) {
+    if (!zendeskCase || zendeskCase.deletedAt) {
       result.unmatchedNoCase += 1;
       continue;
     }

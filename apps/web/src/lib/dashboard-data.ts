@@ -72,21 +72,21 @@ export async function getDashboardData(
     organization,
   ] = await Promise.all([
     prisma.commitment.findMany({
-      where: { case: { organizationId }, closedAt: null },
+      where: { case: { organizationId, deletedAt: null }, closedAt: null },
       include: { case: { include: { customer: true } } },
     }),
     prisma.evaluation.findMany({
       where: {
         status: "breached",
         evaluatedAt: { gte: periodStart },
-        commitment: { case: { organizationId } },
+        commitment: { case: { organizationId, deletedAt: null } },
       },
       distinct: ["commitmentId"],
       select: { commitmentId: true },
     }),
     prisma.commitment.findMany({
       where: {
-        case: { organizationId },
+        case: { organizationId, deletedAt: null },
         closedAt: { gte: periodStart, lte: asOfDate },
         status: { in: ["met", "breached"] },
       },
@@ -94,7 +94,7 @@ export async function getDashboardData(
     }),
     prisma.commitment.findMany({
       where: {
-        case: { organizationId },
+        case: { organizationId, deletedAt: null },
         closedAt: { gte: previousPeriodStart, lt: periodStart },
         status: { in: ["met", "breached"] },
       },

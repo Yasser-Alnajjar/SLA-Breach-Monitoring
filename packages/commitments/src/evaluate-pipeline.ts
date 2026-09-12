@@ -184,7 +184,7 @@ export async function runEvaluationPipeline(
 
   const commitmentRows = await prisma.commitment.findMany({
     where: {
-      case: { organizationId },
+      case: { organizationId, deletedAt: null },
       ...(scope === "active" ? { closedAt: null } : {}),
     },
   });

@@ -73,7 +73,7 @@ export async function runNotificationPipeline(
   if (toSend.length === 0) return result;
 
   const caseRows = await prisma.case.findMany({
-    where: { id: { in: [...new Set(toSend.map((c) => c.caseId))] } },
+    where: { id: { in: [...new Set(toSend.map((c) => c.caseId))] }, deletedAt: null },
     select: { id: true, externalId: true, customer: { select: { name: true } } },
   });
   const caseById = new Map(caseRows.map((c) => [c.id, c]));

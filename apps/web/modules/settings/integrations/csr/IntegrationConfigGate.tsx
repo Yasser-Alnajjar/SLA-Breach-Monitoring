@@ -19,6 +19,14 @@ interface IntegrationConfigGateProps {
   /** Optional link to where an admin registers this provider's OAuth app and gets a client id/secret — shown in the unconfigured state, before "Configure" is clicked. */
   helpUrl?: string;
   helpLabel?: string;
+  /**
+   * Called after the config form saves successfully, in addition to
+   * `router.refresh()`. Callers that hold their own client-side copy of
+   * server data (e.g. onboarding's `useOnboardingBackfill`) need this since
+   * `router.refresh()` alone re-renders the server tree but won't update
+   * state a child already initialized from its previous props.
+   */
+  onConfigured?: () => void;
 }
 
 /**
@@ -39,12 +47,18 @@ export function IntegrationConfigGate({
   children,
   helpUrl,
   helpLabel,
+  onConfigured,
 }: IntegrationConfigGateProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [configuring, setConfiguring] = useState(false);
 
-  if (!config?.configured) {
+  const handleSaved = () => {
+    router.refresh();
+    onConfigured?.();
+  };
+
+  if (!config.configured) {
     return (
       <div className="flex flex-1 flex-col">
         <p className={descriptionClass}>
@@ -66,7 +80,7 @@ export function IntegrationConfigGate({
             <IntegrationConfigForm
               provider={provider}
               providerLabel={providerLabel}
-              onSaved={() => router.refresh()}
+              onSaved={handleSaved}
               onCancel={() => setConfiguring(false)}
               open={configuring}
             />
@@ -93,7 +107,7 @@ export function IntegrationConfigGate({
           initialClientId={config.clientId}
           onSaved={() => {
             setEditing(false);
-            router.refresh();
+            handleSaved();
           }}
           onCancel={() => setEditing(false)}
           open={editing}

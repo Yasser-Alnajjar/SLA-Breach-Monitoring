@@ -11,6 +11,7 @@ import {
   type RawEventInput,
 } from "./rawEvents";
 import { loadFreshZendeskCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
+import { markCaseDeletedForTicket } from "./webhook";
 import type {
   ZendeskCursor,
   ZendeskIncrementalOrganizationExport,
@@ -82,11 +83,24 @@ export async function runZendeskBackfill(
         ? await client.fetchTicketsNextPage(nextPageUrl)
         : await client.fetchTicketsPage(startTime);
 
-      const rawEvents: RawEventInput[] = page.tickets.map(mapTicketToRawEvent);
-      await writeRawEvents(rawEvents);
-      result.ticketsFetched += page.tickets.length;
+      // Zendesk keeps deleted tickets in the incremental export for a period,
+      // reduced to just `{id, status: "deleted", ...}` — the only signal this
+      // stream ever gives that a previously-seen ticket is now gone. They
+      // carry no meaningful audit history, so route them straight to
+      // soft-deleting their Case instead of through the normal RawEvent path
+      // (normalizeZendeskStatus has no mapping for "deleted" and would throw).
+      const deletedTickets = page.tickets.filter((ticket) => ticket.status === "deleted");
+      const liveTickets = page.tickets.filter((ticket) => ticket.status !== "deleted");
 
-      for (const ticket of page.tickets) {
+      for (const ticket of deletedTickets) {
+        await markCaseDeletedForTicket(prisma, integrationId, ticket.id);
+      }
+
+      const rawEvents: RawEventInput[] = liveTickets.map(mapTicketToRawEvent);
+      await writeRawEvents(rawEvents);
+      result.ticketsFetched += liveTickets.length;
+
+      for (const ticket of liveTickets) {
         result.ticketAuditsFetched += await backfillAuditsForTicket(ticket.id);
       }
 
@@ -113,7 +127,8 @@ export async function runZendeskBackfill(
         // audits — Zendesk returns 404 for that case. Skip this ticket's audits
         // rather than aborting the whole backfill run over one unreachable ticket.
         if (error instanceof ZendeskApiError && error.status === 404) {
-          console.warn(`Zendesk backfill: ticket ${ticketId} audits not found (404), skipping`);
+          console.warn(`Zendesk backfill: ticket ${ticketId} audits not found (404), marking case deleted`);
+          await markCaseDeletedForTicket(prisma, integrationId, ticketId);
           return count;
         }
         throw error;

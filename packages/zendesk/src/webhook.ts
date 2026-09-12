@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "@sla/db";
-import { ZendeskClient } from "./client";
+import { ZendeskApiError, ZendeskClient } from "./client";
 import type { ZendeskOAuthConfig } from "./oauth";
 import { mapAuditToRawEvent, mapTicketToRawEvent, type RawEventInput } from "./rawEvents";
 import { loadFreshZendeskCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
@@ -57,6 +57,28 @@ export function extractZendeskWebhookTicketId(payload: unknown): number | null {
 export interface WebhookIngestResult {
   ticketsFetched: number;
   ticketAuditsFetched: number;
+  /** True when this call found the ticket gone (deleted, merged away) and soft-deleted its Case instead of ingesting. */
+  ticketDeleted?: boolean;
+}
+
+/**
+ * Marks the Case for `ticketId` (if one exists and isn't already marked) as
+ * deleted. Used whenever a direct Zendesk fetch reports the ticket gone —
+ * that 404 is the only reliable "this ticket no longer exists" signal we
+ * have, since a webhook payload's event type isn't inspected (see
+ * `extractZendeskWebhookTicketId`'s doc comment) and Zendesk's own deletion
+ * webhooks carry no more than the same ticket id.
+ */
+export async function markCaseDeletedForTicket(
+  prisma: PrismaClient,
+  integrationId: string,
+  ticketId: number,
+): Promise<void> {
+  const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+  await prisma.case.updateMany({
+    where: { organizationId: integration.organizationId, externalId: String(ticketId), deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
 }
 
 /**
@@ -80,7 +102,16 @@ export async function runZendeskWebhookIngest(
     onUnauthorized: (failed) => refreshAfterUnauthorized(prisma, integrationId, config, failed),
   });
 
-  const { ticket } = await client.fetchTicket(ticketId);
+  let ticket;
+  try {
+    ({ ticket } = await client.fetchTicket(ticketId));
+  } catch (error) {
+    if (error instanceof ZendeskApiError && error.status === 404) {
+      await markCaseDeletedForTicket(prisma, integrationId, ticketId);
+      return { ticketsFetched: 0, ticketAuditsFetched: 0, ticketDeleted: true };
+    }
+    throw error;
+  }
   const rawEvents: RawEventInput[] = [mapTicketToRawEvent(ticket)];
 
   let ticketAuditsFetched = 0;

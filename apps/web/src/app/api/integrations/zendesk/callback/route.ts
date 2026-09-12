@@ -56,7 +56,9 @@ export async function GET(request: Request) {
     },
   });
 
-  const response = NextResponse.redirect(new URL("/onboarding", request.url));
+  const response = NextResponse.redirect(
+    new URL("/onboarding?connected=zendesk", request.url),
+  );
   response.cookies.delete(ZENDESK_STATE_COOKIE);
   return response;
 }

@@ -1,6 +1,6 @@
-import { OnboardingShell } from "@/components/shared/onboarding-shell";
 import { Actions } from "@/actions";
 import { OnboardingFlow } from "../csr/OnboardingFlow";
+import { OnboardingShell } from "@/components/shared/onboarding-shell";
 
 export const Onboarding = async () => {
   const { status, zendeskSubdomain } = await Actions.Onboarding.getData();

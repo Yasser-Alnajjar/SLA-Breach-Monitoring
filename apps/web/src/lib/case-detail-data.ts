@@ -77,7 +77,7 @@ export async function getCaseDetailData(
   const asOf = asOfDate.toISOString();
 
   const caseRow = await prisma.case.findFirst({
-    where: { id: caseId, organizationId },
+    where: { id: caseId, organizationId, deletedAt: null },
     include: { customer: true, caseLinks: true, commitments: true },
   });
   if (!caseRow) return null;

@@ -35,9 +35,10 @@ function ticket(id: number): ZendeskTicket {
 }
 
 function createFakePrisma(cursor: ZendeskCursor | null = null) {
-  const row: { credentials: ZendeskCredentials; cursor: ZendeskCursor | null } = {
+  const row: { credentials: ZendeskCredentials; cursor: ZendeskCursor | null; organizationId: string } = {
     credentials: structuredClone(credentials),
     cursor,
+    organizationId: "org-1",
   };
   const rawEvents: { integrationId: string; providerEventId: string }[] = [];
   return {
@@ -52,6 +53,9 @@ function createFakePrisma(cursor: ZendeskCursor | null = null) {
         rawEvents.push(...data);
         return { count: data.length };
       }),
+    },
+    case: {
+      updateMany: vi.fn(async () => ({ count: 1 })),
     },
     _rawEvents: rawEvents,
   } as const;
@@ -147,5 +151,26 @@ describe("runZendeskWebhookIngest", () => {
       expect.arrayContaining([expect.stringContaining("ticket:42:"), "ticket_audit:1", "ticket_audit:2"]),
     );
     expect(prisma.integration.update).not.toHaveBeenCalled();
+  });
+
+  it("soft-deletes the Case and skips ingestion when the ticket 404s", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (url.includes("/api/v2/tickets/42.json")) {
+        return jsonResponse(404, { error: "RecordNotFound" });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prisma = createFakePrisma();
+    const result = await runZendeskWebhookIngest(prisma as never, "integration-1", config, 42);
+
+    expect(result).toEqual({ ticketsFetched: 0, ticketAuditsFetched: 0, ticketDeleted: true });
+    expect(prisma.case.updateMany).toHaveBeenCalledWith({
+      where: { organizationId: "org-1", externalId: "42", deletedAt: null },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(prisma._rawEvents).toHaveLength(0);
   });
 });

@@ -243,6 +243,18 @@ export async function runZendeskNormalization(
 
   for (const { rawEventId: ticketRawEventId, value: ticket } of latestTickets.values()) {
     try {
+      // Defense in depth: `runZendeskBackfill` routes "deleted"-status tickets
+      // to soft-delete directly and never writes them as RawEvents, but a row
+      // ingested before that filter existed could still be sitting here —
+      // normalizeZendeskStatus has no mapping for "deleted" and would throw.
+      if (ticket.status === "deleted") {
+        await prisma.case.updateMany({
+          where: { organizationId, externalId: String(ticket.id), deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+        continue;
+      }
+
       const customer =
         ticket.organization_id != null
           ? await prisma.customer.findUnique({

@@ -72,14 +72,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
   }
 
   try {
-    await runZendeskWebhookIngest(prisma, integration.id, config, ticketId);
-    await runZendeskNormalization(prisma, integration.id);
-    const pipeline = await runWebhookPipelineTail(prisma, integration.organizationId);
+    const ingest = await runZendeskWebhookIngest(prisma, integration.id, config, ticketId);
 
     await prisma.integration.update({
       where: { id: integration.id },
       data: { lastSyncAt: new Date(), lastSyncError: null },
     });
+
+    // The ticket is gone: its Case was just soft-deleted, there's nothing new
+    // to normalize, and the pipeline tail would only re-evaluate commitments
+    // that the now-excluded case no longer contributes to.
+    if (ingest.ticketDeleted) {
+      return NextResponse.json({ status: "deleted", ticketId });
+    }
+
+    await runZendeskNormalization(prisma, integration.id);
+    const pipeline = await runWebhookPipelineTail(prisma, integration.organizationId);
 
     return NextResponse.json({ status: "processed", ticketId, ...pipeline });
   } catch (error) {

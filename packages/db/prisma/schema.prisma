@@ -177,6 +177,11 @@ model Case {
   channel          String?
   openedAt         DateTime
   closedAt         DateTime?
+  /// Set when the source ticket no longer exists in the ticket-source system
+  /// (Zendesk deletion webhook, or a 404 on direct refetch). The row and its
+  /// history are kept for audit purposes but excluded from SLA evaluation and
+  /// default case views.
+  deletedAt        DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   caseLinks        CaseLink[]

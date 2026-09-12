@@ -50,7 +50,7 @@ export async function getComplianceReportRows(
 
   const [commitmentRows, zendeskIntegration, jiraIntegration] = await Promise.all([
     prisma.commitment.findMany({
-      where: { case: { organizationId } },
+      where: { case: { organizationId, deletedAt: null } },
       include: { case: { include: { customer: true, caseLinks: true } } },
     }),
     prisma.integration.findUnique({ where: { organizationId_provider: { organizationId, provider: "zendesk" } } }),

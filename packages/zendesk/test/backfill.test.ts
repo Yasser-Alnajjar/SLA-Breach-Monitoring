@@ -19,7 +19,7 @@ function createFakePrisma(cursor: ZendeskCursor | null = null) {
   const rawEvents: unknown[] = [];
   return {
     integration: {
-      findUniqueOrThrow: vi.fn(async () => structuredClone(row)),
+      findUniqueOrThrow: vi.fn(async () => ({ ...structuredClone(row), organizationId: "org-1" })),
       update: vi.fn(async ({ data }: { data: { cursor: ZendeskCursor } }) => {
         row = { ...row, cursor: data.cursor };
         return structuredClone(row);
@@ -30,6 +30,9 @@ function createFakePrisma(cursor: ZendeskCursor | null = null) {
         rawEvents.push(...data);
         return { count: data.length };
       }),
+    },
+    case: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
     },
     _rawEvents: rawEvents,
   } as const;
@@ -93,5 +96,44 @@ describe("runZendeskBackfill", () => {
     expect(result.ticketsFetched).toBe(2);
     expect(result.ticketAuditsFetched).toBe(1);
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("ticket 1"));
+  });
+
+  it("soft-deletes the Case for a ticket the incremental export reports as deleted, without fetching its audits", async () => {
+    const deletedTicket: ZendeskTicket = { ...ticket(3), status: "deleted" };
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (url.includes("/api/v2/incremental/tickets.json")) {
+        return jsonResponse(200, { tickets: [deletedTicket, ticket(4)], end_time: 1000, next_page: null, count: 2 });
+      }
+      if (url.includes("/api/v2/tickets/4/audits.json")) {
+        return jsonResponse(200, {
+          audits: [{ id: 900, ticket_id: 4, created_at: "2026-01-01T00:00:00Z", author_id: 1, events: [] }],
+          next_page: null,
+        });
+      }
+      if (url.includes("/api/v2/incremental/organizations.json")) {
+        return jsonResponse(200, { organizations: [], end_time: 1000, next_page: null, count: 0 });
+      }
+      if (url.includes("/api/v2/slas/policies.json")) {
+        return jsonResponse(200, { sla_policies: [], next_page: null });
+      }
+      if (url.includes("/api/v2/business_hours/schedules.json")) {
+        return jsonResponse(200, { schedules: [] });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prisma = createFakePrisma();
+    const result = await runZendeskBackfill(prisma as never, "integration-1", config);
+
+    expect(result.ticketsFetched).toBe(1);
+    expect(prisma.case.updateMany).toHaveBeenCalledWith({
+      where: { organizationId: "org-1", externalId: "3", deletedAt: null },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(prisma._rawEvents.some((e) => (e as { providerEventId: string }).providerEventId.startsWith("ticket:3:"))).toBe(
+      false,
+    );
   });
 });

@@ -43,6 +43,7 @@ export async function getFindingsData(
   const escalatedCases = await prisma.case.findMany({
     where: {
       organizationId,
+      deletedAt: null,
       openedAt: { gte: periodStart },
       caseLinks: { some: { system: { in: ["jira", "linear", "github"] } } },
     },

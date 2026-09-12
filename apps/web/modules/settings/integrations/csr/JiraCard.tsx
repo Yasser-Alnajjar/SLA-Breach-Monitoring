@@ -10,12 +10,12 @@ import { Button } from "@/components/ui/button";
 import type { JiraBackfillResult } from "@/lib/types/integrations";
 
 export function JiraConnectButton() {
+  const handleConnect = () => {
+    window.location.assign("/api/integrations/jira/connect");
+  };
+
   return (
-    <Button
-      type="button"
-      size="sm"
-      onClick={() => (window.location.href = "/api/integrations/jira/connect")}
-    >
+    <Button type="button" size="sm" onClick={handleConnect}>
       Connect Jira
     </Button>
   );

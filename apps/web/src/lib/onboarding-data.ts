@@ -33,7 +33,7 @@ export async function getOnboardingStatus(
     prisma.rawEvent.count({
       where: { integration: { organizationId, provider: "zendesk" }, providerEventId: { startsWith: "ticket:" } },
     }),
-    prisma.case.count({ where: { organizationId, caseLinks: { some: { system: "jira" } } } }),
+    prisma.case.count({ where: { organizationId, deletedAt: null, caseLinks: { some: { system: "jira" } } } }),
     prisma.caseLink.count({ where: { case: { organizationId }, system: "jira" } }),
     getIntegrationConfigStatus(prisma, organizationId, "zendesk"),
     getIntegrationConfigStatus(prisma, organizationId, "jira"),

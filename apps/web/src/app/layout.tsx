@@ -5,6 +5,7 @@ import { MotionProvider } from "@/components/motion-provider";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 
 const fontSans = Inter({
   subsets: ["latin"],
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <body suppressHydrationWarning>
         <ThemeProvider>
+          <SlaAutoRefreshProvider />
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
         </ThemeProvider>
       </body>

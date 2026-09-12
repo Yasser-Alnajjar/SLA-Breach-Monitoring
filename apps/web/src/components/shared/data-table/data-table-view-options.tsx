@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
-} from "@radix-ui/react-dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
@@ -26,7 +26,7 @@ export function DataTableViewOptions<TData>({
           Customize
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent className="w-56">
         {table
           .getAllColumns()
           .filter((column) => column.getCanHide())

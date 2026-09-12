@@ -159,15 +159,13 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {caseData.priority && (
-              <Badge variant="secondary">{caseData.priority}</Badge>
+              <Badge variant="default">{caseData.priority}</Badge>
             )}
 
-            {caseData.tier && (
-              <Badge variant="secondary">{caseData.tier}</Badge>
-            )}
+            {caseData.tier && <Badge variant="default">{caseData.tier}</Badge>}
 
             {caseData.channel && (
-              <Badge variant="secondary">{caseData.channel}</Badge>
+              <Badge variant="default">{caseData.channel}</Badge>
             )}
           </div>
 
@@ -348,12 +346,12 @@ function ActivityTimeline({ data }: { data: CaseDetailData }) {
             {data.timeline.map((event, index) => (
               <li
                 key={event.id}
-                className="relative py-4 pl-8 first:pt-5 last:pb-1"
+                className="relative py-4 ps-8 first:pt-5 last:pb-1"
               >
                 {index < data.timeline.length - 1 && (
                   <span
                     aria-hidden
-                    className="absolute bottom-0 left-2.5 top-10 w-px bg-border"
+                    className="absolute bottom-0 left-2.5 top-10 w-px bg-border h-full"
                   />
                 )}
 
@@ -461,7 +459,7 @@ function LinkedRecords({ data }: { data: CaseDetailData }) {
                       </Badge>
 
                       {link.statusName && (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="outline" className="text-[10px]">
                           {link.statusName}
                         </Badge>
                       )}

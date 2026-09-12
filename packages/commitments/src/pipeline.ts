@@ -127,7 +127,7 @@ export async function runCommitmentPipeline(
   );
 
   const cases = await prisma.case.findMany({
-    where: { organizationId },
+    where: { organizationId, deletedAt: null },
     select: {
       id: true,
       priority: true,

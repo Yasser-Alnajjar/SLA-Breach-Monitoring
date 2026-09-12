@@ -21,7 +21,7 @@ function worstStatus(statuses: CommitmentStatus[]): CommitmentStatus | null {
  */
 export async function getCaseListData(prisma: PrismaClient, organizationId: string): Promise<CaseListData> {
   const rows = await prisma.case.findMany({
-    where: { organizationId },
+    where: { organizationId, deletedAt: null },
     include: { customer: true, commitments: { select: { status: true } } },
     orderBy: { openedAt: "desc" },
   });

@@ -2,7 +2,6 @@ import type {
   ConfigurableIntegrationProvider,
   IntegrationConfigStatus,
 } from "@sla/db";
-import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
 import type { SlackChannel } from "@sla/slack";
 import type { BackfillResult as GithubBackfillResult } from "@sla/github";
 import type { BackfillResult as IntercomBackfillResult } from "@sla/intercom";
@@ -12,33 +11,6 @@ import type {
   BackfillResult as ZendeskBackfillResult,
   NormalizationResult,
 } from "@sla/zendesk";
-
-export interface SlaPolicySummary {
-  id: string;
-  name: string;
-  /** Non-null `SLAPolicy.externalId` means it was imported from Zendesk rather than created manually. */
-  imported: boolean;
-  version: number;
-  effectiveFrom: string;
-  match: SLAPolicyMatch;
-  targets: { kind: CommitmentKind; minutes: number }[];
-}
-
-/** One `BusinessCalendar` an org already has (imported from Zendesk, or the always-open default) — selectable as a customer's override (roadmap step 24). */
-export interface BusinessCalendarOption {
-  id: string;
-  name: string;
-  alwaysOpen: boolean;
-  timezone: string;
-}
-
-/** A customer and its current calendar override, if any, for the settings picker (roadmap step 24). */
-export interface CustomerCalendarSummary {
-  id: string;
-  name: string;
-  tier: string | null;
-  calendarId: string | null;
-}
 
 /**
  * Narrow, display-only view of one Zendesk/Jira/Linear `Integration` row for
@@ -80,10 +52,6 @@ export interface IntegrationsPageData {
   zendeskConfig: IntegrationConfigStatus;
   jiraConfig: IntegrationConfigStatus;
   slackConfig: IntegrationConfigStatus;
-  engineeringLegTargetMinutes: number | null;
-  slaPolicies: SlaPolicySummary[];
-  businessCalendars: BusinessCalendarOption[];
-  customerCalendars: CustomerCalendarSummary[];
 }
 
 export type { ConfigurableIntegrationProvider, IntegrationConfigStatus };

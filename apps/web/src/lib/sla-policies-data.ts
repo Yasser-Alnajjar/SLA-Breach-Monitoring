@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@sla/db";
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
-import type { SlaPolicySummary } from "./types/integrations";
+import type { SlaPolicySummary } from "./types/sla-configuration";
 
 /** SLA policies with their current (latest) version, for the settings override UI (roadmap step 19). */
 export async function getSlaPolicies(prisma: PrismaClient, organizationId: string): Promise<SlaPolicySummary[]> {

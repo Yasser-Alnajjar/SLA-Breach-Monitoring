@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCommitmentKind, formatMinutes, formatPolicyMatch } from "@/lib/format";
-import type { SlaPolicySummary } from "@/lib/types/integrations";
+import type { SlaPolicySummary } from "@/lib/types/sla-configuration";
 
 /** Edit form for one policy's targets — same shape as `EngineeringTargetForm`'s set/clear pattern, minus "clear" (a policy always needs targets). */
 function PolicyTargetsForm({ policy, onCancel }: { policy: SlaPolicySummary; onCancel: () => void }) {
@@ -30,7 +30,7 @@ function PolicyTargetsForm({ policy, onCancel }: { policy: SlaPolicySummary; onC
     setSaving(true);
     setError(null);
 
-    const { ok, body } = await Actions.Integrations.overridePolicyTargets(policy.id, targets);
+    const { ok, body } = await Actions.SlaConfiguration.overridePolicyTargets(policy.id, targets);
     setSaving(false);
 
     if (!ok) {

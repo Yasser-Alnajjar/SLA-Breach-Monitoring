@@ -1,20 +1,17 @@
 "use client";
 
 import {
-  CalendarClock,
   ChevronRight,
   GitBranch,
   GitPullRequest,
   LifeBuoy,
   MessageSquare,
-  SlidersHorizontal,
   Ticket,
-  Timer,
   Workflow,
 } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { IntegrationsPageData } from "@/lib/types/integrations";
 import { ZendeskConnectForm } from "./ZendeskCard";
@@ -27,9 +24,6 @@ import {
   SlackChannelPicker,
   SlackChannelChangeButton,
 } from "./SlackCard";
-import { EngineeringTargetForm } from "./EngineeringTargetForm";
-import { SlaPoliciesCard } from "./SlaPoliciesCard";
-import { CustomerCalendarsCard } from "./CustomerCalendarsCard";
 import { DisconnectButton } from "./DisconnectButton";
 import { IntegrationConfigGate } from "./IntegrationConfigGate";
 import Link from "next/link";
@@ -37,9 +31,6 @@ import Link from "next/link";
 interface IntegrationsViewProps {
   data: IntegrationsPageData;
 }
-
-const iconWrapper =
-  "flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground";
 
 const descriptionClass = "text-sm leading-6 text-muted-foreground";
 
@@ -180,10 +171,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     githubConfig,
     slack,
     slackConfig,
-    engineeringLegTargetMinutes,
-    slaPolicies,
-    businessCalendars,
-    customerCalendars,
   } = data;
 
   return (
@@ -519,122 +506,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               )}
             </IntegrationConfigGate>
           </IntegrationCard>
-        </div>
-      </section>
-
-      {/* Configuration */}
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold">Configuration</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure engineering targets and SLA behavior.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {/* Engineering target */}
-          <Reveal delay={0.2}>
-            <Card className="h-full overflow-hidden">
-              <CardHeader className="border-b bg-muted/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className={iconWrapper}>
-                    <Timer className="size-4" />
-                  </span>
-
-                  <div>
-                    <CardTitle className="text-sm font-semibold">
-                      Engineering leg target
-                    </CardTitle>
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Team-wide engineering response target
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-5 px-5 py-5">
-                <p className={descriptionClass}>
-                  Optional. When set, a case sitting in the engineering leg past
-                  this duration shows as at-risk or breached — not a policy
-                  builder, just one target for the whole team.
-                </p>
-
-                <EngineeringTargetForm
-                  initialTargetMinutes={engineeringLegTargetMinutes}
-                />
-              </CardContent>
-            </Card>
-          </Reveal>
-
-          {/* SLA policies */}
-          <Reveal delay={0.25}>
-            <Card className="h-full overflow-hidden">
-              <CardHeader className="border-b bg-muted/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className={iconWrapper}>
-                    <SlidersHorizontal className="size-4" />
-                  </span>
-
-                  <div>
-                    <CardTitle className="text-sm font-semibold">
-                      SLA policy overrides
-                    </CardTitle>
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Override targets for matched policies
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-5 px-5 py-5">
-                <p className={descriptionClass}>
-                  Manually adjust a matched policy&apos;s targets. This creates
-                  a new policy version — existing commitments keep the version
-                  they were created under, only new cases pick up the override.
-                </p>
-
-                <SlaPoliciesCard policies={slaPolicies} />
-              </CardContent>
-            </Card>
-          </Reveal>
-
-          {/* Customer calendar overrides */}
-          <Reveal delay={0.3}>
-            <Card className="h-full overflow-hidden">
-              <CardHeader className="border-b bg-muted/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className={iconWrapper}>
-                    <CalendarClock className="size-4" />
-                  </span>
-
-                  <div>
-                    <CardTitle className="text-sm font-semibold">
-                      Customer calendars
-                    </CardTitle>
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Per-customer business hours override
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-5 px-5 py-5">
-                <p className={descriptionClass}>
-                  Pin a customer to one of the org&apos;s existing calendars —
-                  e.g. an always-open 24/7 calendar for an enterprise tier —
-                  instead of whatever their matched SLA policy would
-                  otherwise resolve to. Only new commitments pick up the
-                  change.
-                </p>
-
-                <CustomerCalendarsCard customers={customerCalendars} calendars={businessCalendars} />
-              </CardContent>
-            </Card>
-          </Reveal>
         </div>
       </section>
     </div>

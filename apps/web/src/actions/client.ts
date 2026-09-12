@@ -107,6 +107,29 @@ export const Actions = {
         { channelId, channelName },
       );
     },
+    async saveIntegrationConfig(
+      provider: ConfigurableIntegrationProvider,
+      input: { clientId: string; clientSecret?: string },
+    ) {
+      return postJSON<IntegrationConfigStatus>(
+        `/api/integrations/${provider}/config`,
+        input,
+      );
+    },
+    async disconnect(provider: IntegrationProvider) {
+      const response = await fetch(`/api/integrations/${provider}/disconnect`, {
+        method: "POST",
+      });
+      if (response.ok) return { ok: true as const };
+      const body = await response.json().catch(() => null);
+      return {
+        ok: false as const,
+        error: (body?.error as string | undefined) ?? "Failed to disconnect",
+      };
+    },
+  },
+
+  SlaConfiguration: {
     async setEngineeringTarget(targetMinutes: number) {
       return postJSON<Record<string, never>>(
         "/api/settings/engineering-target",
@@ -127,26 +150,6 @@ export const Actions = {
     },
     async setCustomerCalendar(customerId: string, calendarId: string | null) {
       return postJSON<{ ok: boolean }>("/api/settings/customer-calendars", { customerId, calendarId });
-    },
-    async saveIntegrationConfig(
-      provider: ConfigurableIntegrationProvider,
-      input: { clientId: string; clientSecret?: string },
-    ) {
-      return postJSON<IntegrationConfigStatus>(
-        `/api/integrations/${provider}/config`,
-        input,
-      );
-    },
-    async disconnect(provider: IntegrationProvider) {
-      const response = await fetch(`/api/integrations/${provider}/disconnect`, {
-        method: "POST",
-      });
-      if (response.ok) return { ok: true as const };
-      const body = await response.json().catch(() => null);
-      return {
-        ok: false as const,
-        error: (body?.error as string | undefined) ?? "Failed to disconnect",
-      };
     },
   },
 };

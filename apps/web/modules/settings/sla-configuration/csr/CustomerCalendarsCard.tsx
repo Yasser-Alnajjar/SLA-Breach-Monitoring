@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { BusinessCalendarOption, CustomerCalendarSummary } from "@/lib/types/integrations";
+import type { BusinessCalendarOption, CustomerCalendarSummary } from "@/lib/types/sla-configuration";
 
 const DEFAULT_VALUE = "__default__";
 
@@ -28,7 +28,7 @@ function CustomerRow({ customer, calendars }: { customer: CustomerCalendarSummar
     setSaving(true);
     setError(null);
 
-    const { ok, body } = await Actions.Integrations.setCustomerCalendar(
+    const { ok, body } = await Actions.SlaConfiguration.setCustomerCalendar(
       customer.id,
       selected === DEFAULT_VALUE ? null : selected,
     );

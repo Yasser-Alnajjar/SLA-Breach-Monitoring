@@ -29,7 +29,7 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
     setSaving(true);
     setError(null);
 
-    const { ok, body } = await Actions.Integrations.setEngineeringTarget(Math.round(parsedHours * 60));
+    const { ok, body } = await Actions.SlaConfiguration.setEngineeringTarget(Math.round(parsedHours * 60));
     setSaving(false);
 
     if (!ok) {
@@ -45,7 +45,7 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
     setSaving(true);
     setError(null);
 
-    const { ok } = await Actions.Integrations.clearEngineeringTarget();
+    const { ok } = await Actions.SlaConfiguration.clearEngineeringTarget();
     setSaving(false);
 
     if (!ok) {

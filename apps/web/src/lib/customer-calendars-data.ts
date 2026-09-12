@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@sla/db";
-import type { BusinessCalendarOption, CustomerCalendarSummary } from "./types/integrations";
+import type { BusinessCalendarOption, CustomerCalendarSummary } from "./types/sla-configuration";
 
 /** Every `BusinessCalendar` an org already has — imported Zendesk schedules plus the always-open default — for the customer calendar override picker (roadmap step 24). Calendars with no version yet are excluded; they have nothing a commitment could anchor to. */
 export async function getBusinessCalendars(prisma: PrismaClient, organizationId: string): Promise<BusinessCalendarOption[]> {

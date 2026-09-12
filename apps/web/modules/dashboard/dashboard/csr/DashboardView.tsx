@@ -45,8 +45,9 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                     </span>{" "}
                     · {formatCommitmentKind(row.kind)} is running{" "}
                     <span className="font-medium">{row.direction}</span> than
-                    usual: recent median {formatMinutes(row.recentMedianMinutes)}{" "}
-                    vs. baseline {formatMinutes(row.baselineMedianMinutes)} (
+                    usual: recent median{" "}
+                    {formatMinutes(row.recentMedianMinutes)} vs. baseline{" "}
+                    {formatMinutes(row.baselineMedianMinutes)} (
                     {row.recentCount} recent of {row.baselineCount} historical
                     cases).
                   </li>
@@ -107,9 +108,12 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
         </Reveal>
       </div>
 
-      <ProjectAnalyticsSection data={data.analytics} periodDays={data.periodDays} />
+      <ProjectAnalyticsSection
+        data={data.analytics}
+        periodDays={data.periodDays}
+      />
 
-      <div className="mt-8">
+      <div className="mt-4">
         <Reveal delay={0.3}>
           <SectionHeading>Operational Attention</SectionHeading>
         </Reveal>

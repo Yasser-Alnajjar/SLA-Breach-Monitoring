@@ -1,17 +1,26 @@
 "use client";
 
 import { Layers } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatLeg } from "@/lib/format";
 import type { BreachesByStageRow } from "@/lib/types/dashboard";
 
 const LEG_COLORS: Record<string, string> = {
-  support: "hsl(var(--leg-support))",
-  engineering: "hsl(var(--leg-engineering))",
-  waiting_customer: "hsl(var(--leg-waiting))",
-  unknown: "hsl(var(--leg-unknown))",
+  support: "var(--leg-support)",
+  engineering: "var(--leg-engineering)",
+  waiting_customer: "var(--leg-waiting)",
+  unknown: "var(--leg-unknown)",
 };
 
 export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
@@ -43,11 +52,15 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                 layout="vertical"
                 margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border)"
+                  horizontal={false}
+                />
                 <XAxis
                   type="number"
                   allowDecimals={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -55,24 +68,32 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                   type="category"
                   dataKey="label"
                   width={120}
-                  tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }}
+                  tick={{ fill: "var(--foreground)", fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <Tooltip
                   formatter={(value) => [value, "Breaches"]}
-                  cursor={{ fill: "hsl(var(--interactive))" }}
+                  cursor={{ fill: "var(--interactive)" }}
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    borderColor: "hsl(var(--border))",
+                    background: "var(--popover)",
+                    borderColor: "var(--border)",
                     borderRadius: 8,
-                    color: "hsl(var(--popover-foreground))",
+                    color: "var(--popover-foreground)",
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="count" name="Breaches" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                <Bar
+                  dataKey="count"
+                  name="Breaches"
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={28}
+                >
                   {chartData.map((entry) => (
-                    <Cell key={entry.leg} fill={LEG_COLORS[entry.leg] ?? "hsl(var(--primary))"} />
+                    <Cell
+                      key={entry.leg}
+                      fill={LEG_COLORS[entry.leg] ?? "var(--primary)"}
+                    />
                   ))}
                 </Bar>
               </BarChart>

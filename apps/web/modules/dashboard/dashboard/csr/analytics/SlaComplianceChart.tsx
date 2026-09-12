@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SlaComplianceBreakdown } from "@/lib/types/dashboard";
 
 const SEGMENTS = [
-  { key: "metSla", label: "Met SLA", color: "hsl(var(--success))" },
-  { key: "atRisk", label: "At Risk", color: "hsl(var(--warning))" },
-  { key: "breached", label: "Breached", color: "hsl(var(--destructive))" },
+  { key: "metSla", label: "Met SLA", color: "var(--success)" },
+  { key: "atRisk", label: "At Risk", color: "var(--warning)" },
+  { key: "breached", label: "Breached", color: "var(--destructive)" },
 ] as const;
 
 export function SlaComplianceChart({ data }: { data: SlaComplianceBreakdown }) {
@@ -58,10 +58,10 @@ export function SlaComplianceChart({ data }: { data: SlaComplianceBreakdown }) {
                       name,
                     ]}
                     contentStyle={{
-                      background: "hsl(var(--popover))",
-                      borderColor: "hsl(var(--border))",
+                      background: "var(--popover)",
+                      borderColor: "var(--border)",
                       borderRadius: 8,
-                      color: "hsl(var(--popover-foreground))",
+                      color: "var(--popover-foreground)",
                       fontSize: 12,
                     }}
                   />
@@ -80,7 +80,10 @@ export function SlaComplianceChart({ data }: { data: SlaComplianceBreakdown }) {
                 const value = data[segment.key];
                 const percent = Math.round((value / data.total) * 100);
                 return (
-                  <div key={segment.key} className="flex items-center justify-between gap-3">
+                  <div
+                    key={segment.key}
+                    className="flex items-center justify-between gap-3"
+                  >
                     <span className="flex items-center gap-2 text-muted-foreground">
                       <span
                         className="size-2.5 shrink-0 rounded-full"
@@ -90,7 +93,9 @@ export function SlaComplianceChart({ data }: { data: SlaComplianceBreakdown }) {
                     </span>
                     <span className="font-medium text-foreground">
                       {value}{" "}
-                      <span className="font-normal text-muted-foreground">({percent}%)</span>
+                      <span className="font-normal text-muted-foreground">
+                        ({percent}%)
+                      </span>
                     </span>
                   </div>
                 );

@@ -18,7 +18,9 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
 
         const prisma = getPrismaClient();
         const user = await prisma.user.findUnique({
@@ -26,14 +28,19 @@ export const authOptions: NextAuthOptions = {
         });
         if (!user) return null;
 
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        const valid = await bcrypt.compare(
+          credentials.password,
+          user.passwordHash,
+        );
         if (!valid) return null;
 
         return {
           id: user.id,
           email: user.email,
-          name: user.name ?? undefined,
+          name: user.name ?? null,
+          image: user.image ?? null,
           organizationId: user.organizationId,
+          createdAt: user.createdAt,
         };
       },
     }),
@@ -43,12 +50,14 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.userId = user.id;
         token.organizationId = user.organizationId;
+        token.image = user.image;
       }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.userId;
       session.user.organizationId = token.organizationId;
+      session.user.image = token.image ?? null;
       return session;
     },
   },

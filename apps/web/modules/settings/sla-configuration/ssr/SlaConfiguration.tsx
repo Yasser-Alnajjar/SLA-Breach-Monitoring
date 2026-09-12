@@ -1,5 +1,5 @@
 import { Actions } from "@/actions";
-import { AppShell } from "@/components/layout/app-shell";
+
 import { SlaConfigurationView } from "../csr/SlaConfigurationView";
 
 /**
@@ -11,9 +11,5 @@ import { SlaConfigurationView } from "../csr/SlaConfigurationView";
 export const SlaConfiguration = async () => {
   const data = await Actions.SlaConfiguration.getData();
 
-  return (
-    <AppShell title="SLA Configuration">
-      <SlaConfigurationView data={data} />
-    </AppShell>
-  );
+  return <SlaConfigurationView data={data} />;
 };

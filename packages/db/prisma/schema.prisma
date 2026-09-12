@@ -44,6 +44,7 @@ model User {
   email          String       @unique
   passwordHash   String
   name           String?
+  image          String?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

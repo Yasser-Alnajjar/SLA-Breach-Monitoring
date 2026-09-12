@@ -1,10 +1,9 @@
-import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardLoading() {
   return (
-    <AppShell title="Dashboard">
+    <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[0, 1, 2].map((i) => (
           <Card key={i} className="p-5">
@@ -68,6 +67,6 @@ export default function DashboardLoading() {
           </Card>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

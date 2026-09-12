@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 import { Actions } from "@/actions";
-import { AppShell } from "@/components/layout/app-shell";
+
 import { Button } from "@/components/ui/button";
 import { DashboardView } from "../csr/DashboardView";
 
@@ -13,9 +13,5 @@ import { DashboardView } from "../csr/DashboardView";
 export const Dashboard = async () => {
   const data = await Actions.Dashboard.getData();
 
-  return (
-    <AppShell title="Dashboard">
-      <DashboardView data={data} />
-    </AppShell>
-  );
+  return <DashboardView data={data} />;
 };

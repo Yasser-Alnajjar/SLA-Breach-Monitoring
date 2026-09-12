@@ -1,5 +1,5 @@
 import { Actions } from "@/actions";
-import { AppShell } from "@/components/layout/app-shell";
+
 import { IntegrationsView } from "../csr/IntegrationsView";
 
 /**
@@ -11,9 +11,5 @@ import { IntegrationsView } from "../csr/IntegrationsView";
 export const Integrations = async () => {
   const data = await Actions.Integrations.getData();
 
-  return (
-    <AppShell title="Integrations">
-      <IntegrationsView data={data} />
-    </AppShell>
-  );
+  return <IntegrationsView data={data} />;
 };

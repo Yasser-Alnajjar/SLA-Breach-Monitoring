@@ -48,19 +48,26 @@ export function BreachesOverTimeChart({
         ) : (
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <LineChart
+                data={data}
+                margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border)"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDayLabel}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  axisLine={{ stroke: "var(--border)" }}
                   tickLine={false}
                   minTickGap={24}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
                   width={32}
@@ -69,10 +76,10 @@ export function BreachesOverTimeChart({
                   labelFormatter={(label) => formatDayLabel(String(label))}
                   formatter={(value) => [value, "Breaches"]}
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    borderColor: "hsl(var(--border))",
+                    background: "var(--popover)",
+                    borderColor: "var(--border)",
                     borderRadius: 8,
-                    color: "hsl(var(--popover-foreground))",
+                    color: "var(--popover-foreground)",
                     fontSize: 12,
                   }}
                 />
@@ -80,7 +87,7 @@ export function BreachesOverTimeChart({
                   type="monotone"
                   dataKey="count"
                   name="Breaches"
-                  stroke="hsl(var(--destructive))"
+                  stroke="var(--destructive)"
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4 }}

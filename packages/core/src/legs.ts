@@ -205,6 +205,23 @@ export function sumLegMinutes(spans: LegSpan[], leg: Leg, asOf: string): number 
 }
 
 /**
+ * The leg that owned the case at a specific instant — e.g. "which leg was
+ * this in when it breached", as opposed to `sumLegMinutes`'s cumulative
+ * question. `unknown` when `at` falls outside every span (before the first
+ * or after the last, which for a still-open case never happens for
+ * `endedAt: null`).
+ */
+export function legAtTime(spans: LegSpan[], at: string): Leg {
+  const atMs = new Date(at).getTime();
+  for (const span of spans) {
+    const startMs = new Date(span.startedAt).getTime();
+    const endMs = span.endedAt ? new Date(span.endedAt).getTime() : Infinity;
+    if (atMs >= startMs && atMs < endMs) return span.leg;
+  }
+  return "unknown";
+}
+
+/**
  * Checks a list of leg spans for structural impossibilities — negative
  * duration or overlap with the next span. These arise from human
  * configuration error (e.g. a manually corrected span) rather than from

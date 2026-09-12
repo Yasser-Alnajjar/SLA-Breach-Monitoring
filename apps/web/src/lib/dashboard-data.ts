@@ -18,6 +18,7 @@ import {
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import { getCycleTimeAnomalies } from "./anomaly-data";
+import { getProjectAnalytics } from "./analytics-data";
 import type {
   AgingEscalationRow,
   AtRiskRow,
@@ -92,7 +93,7 @@ export async function getDashboardData(
         closedAt: { gte: periodStart, lte: asOfDate },
         status: { in: ["met", "breached"] },
       },
-      select: { status: true },
+      select: { caseId: true, status: true },
     }),
     prisma.commitment.findMany({
       where: {
@@ -283,6 +284,18 @@ export async function getDashboardData(
     (a, b) => b.minutesInCurrentLeg - a.minutesInCurrentLeg,
   );
 
+  const analytics = await getProjectAnalytics(
+    prisma,
+    organizationId,
+    periodStart,
+    asOfDate,
+    [...atRisk, ...otherOpenCommitments].map((row) => ({
+      caseId: row.caseId,
+      status: row.status,
+    })),
+    currentPeriodClosedRows,
+  );
+
   const breachedThisPeriod: BreachedCaseRow[] = breachedCommitmentRows.map(
     (row) => ({
       caseId: row.caseId,
@@ -306,5 +319,6 @@ export async function getDashboardData(
       previous: complianceOf(previousPeriodClosedRows),
     },
     cycleTimeAnomalies,
+    analytics,
   };
 }

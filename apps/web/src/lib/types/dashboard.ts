@@ -40,6 +40,32 @@ export interface CycleTimeAnomalyRow {
   direction: "slower" | "faster";
 }
 
+/** Distribution of cases by worst commitment status, for the SLA Compliance chart (roadmap: Project Analytics). */
+export interface SlaComplianceBreakdown {
+  metSla: number;
+  atRisk: number;
+  breached: number;
+  total: number;
+}
+
+/** One day's new-breach count for the Breaches Over Time chart. */
+export interface BreachesOverTimePoint {
+  date: string;
+  count: number;
+}
+
+/** Breach count for one leg, for the Breaches by Stage chart. */
+export interface BreachesByStageRow {
+  leg: Leg;
+  count: number;
+}
+
+export interface ProjectAnalyticsData {
+  compliance: SlaComplianceBreakdown;
+  breachesOverTime: BreachesOverTimePoint[];
+  breachesByStage: BreachesByStageRow[];
+}
+
 export interface DashboardData {
   asOf: string;
   periodDays: number;
@@ -51,4 +77,5 @@ export interface DashboardData {
   agingOverflowCount: number;
   compliance: { current: number | null; previous: number | null };
   cycleTimeAnomalies: CycleTimeAnomalyRow[];
+  analytics: ProjectAnalyticsData;
 }

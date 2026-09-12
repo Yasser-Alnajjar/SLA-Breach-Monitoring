@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveLegSpans, sumLegMinutes, validateLegSpans } from "../src/legs.js";
+import { deriveLegSpans, legAtTime, sumLegMinutes, validateLegSpans } from "../src/legs.js";
 import type { LegSpan, NormalizedEvent } from "../src/types";
 
 let seq = 0;
@@ -396,5 +396,48 @@ describe("sumLegMinutes", () => {
       },
     ];
     expect(sumLegMinutes(spans, "engineering", "2026-09-07T12:00:00.000Z")).toBe(0);
+  });
+});
+
+describe("legAtTime", () => {
+  const spans: LegSpan[] = [
+    {
+      leg: "support",
+      confidence: "certain",
+      startedAt: "2026-09-07T09:00:00.000Z",
+      endedAt: "2026-09-07T10:00:00.000Z",
+    },
+    {
+      leg: "engineering",
+      confidence: "certain",
+      startedAt: "2026-09-07T10:00:00.000Z",
+      endedAt: "2026-09-07T11:00:00.000Z",
+    },
+    {
+      leg: "waiting_customer",
+      confidence: "certain",
+      startedAt: "2026-09-07T11:00:00.000Z",
+      endedAt: null,
+    },
+  ];
+
+  it("returns the leg whose span contains the instant", () => {
+    expect(legAtTime(spans, "2026-09-07T10:30:00.000Z")).toBe("engineering");
+  });
+
+  it("treats a span boundary as belonging to the span that starts there", () => {
+    expect(legAtTime(spans, "2026-09-07T10:00:00.000Z")).toBe("engineering");
+  });
+
+  it("resolves into the still-open final span", () => {
+    expect(legAtTime(spans, "2026-09-08T00:00:00.000Z")).toBe("waiting_customer");
+  });
+
+  it("returns unknown when the instant is before every span", () => {
+    expect(legAtTime(spans, "2026-09-07T08:00:00.000Z")).toBe("unknown");
+  });
+
+  it("returns unknown for an empty span list", () => {
+    expect(legAtTime([], "2026-09-07T10:00:00.000Z")).toBe("unknown");
   });
 });

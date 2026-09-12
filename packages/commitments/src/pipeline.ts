@@ -64,6 +64,20 @@ export function missingCommitmentKinds(existingKinds: CommitmentKind[]): Commitm
   return COMMITMENT_KINDS.filter((kind) => !existing.has(kind));
 }
 
+/**
+ * Which `BusinessCalendarVersion` a new commitment anchors to (roadmap step
+ * 24): a customer-specific override, when the case's customer has one,
+ * otherwise whatever the matched `SLAPolicyVersion` already specifies. Same
+ * `Commitment.calendarVersionId` field and freeze-at-creation guarantee as
+ * before — this only changes which version gets frozen in.
+ */
+export function resolveCommitmentCalendarVersion(
+  policyCalendarVersion: BusinessCalendarVersion,
+  customerCalendarVersion: BusinessCalendarVersion | undefined,
+): BusinessCalendarVersion {
+  return customerCalendarVersion ?? policyCalendarVersion;
+}
+
 export interface CommitmentPipelineResult {
   casesConsidered: number;
   commitmentsCreated: number;
@@ -126,6 +140,24 @@ export async function runCommitmentPipeline(
     ]),
   );
 
+  const customersWithCalendarOverride = await prisma.customer.findMany({
+    where: { organizationId, calendarId: { not: null } },
+    select: { id: true, calendar: { select: { versions: { orderBy: { version: "desc" }, take: 1 } } } },
+  });
+  const customerCalendarVersionByCustomerId = new Map<string, BusinessCalendarVersion>();
+  for (const customer of customersWithCalendarOverride) {
+    const version = customer.calendar?.versions[0];
+    if (!version) continue;
+    customerCalendarVersionByCustomerId.set(customer.id, {
+      id: version.id,
+      version: version.version,
+      timezone: version.timezone,
+      weekly: version.weekly as unknown as WeeklyWindow[],
+      holidays: version.holidays,
+      alwaysOpen: version.alwaysOpen,
+    });
+  }
+
   const cases = await prisma.case.findMany({
     where: { organizationId, deletedAt: null },
     select: {
@@ -149,8 +181,12 @@ export async function runCommitmentPipeline(
         result.casesWithNoMatchingPolicy += 1;
         continue;
       }
-      const calendarVersion = calendarsById.get(policyVersion.calendarVersionId);
-      if (!calendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${policyVersion.calendarVersionId}`);
+      const policyCalendarVersion = calendarsById.get(policyVersion.calendarVersionId);
+      if (!policyCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${policyVersion.calendarVersionId}`);
+      const calendarVersion = resolveCommitmentCalendarVersion(
+        policyCalendarVersion,
+        caseRow.customerId ? customerCalendarVersionByCustomerId.get(caseRow.customerId) : undefined,
+      );
 
       for (const kind of missingKinds) {
         if (!policyVersion.targets.some((t) => t.kind === kind)) continue;

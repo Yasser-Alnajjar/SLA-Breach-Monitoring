@@ -2,6 +2,7 @@ import type { PrismaClient } from "@sla/db";
 import { getIntegrationConfigStatus } from "@sla/db";
 import type { ZendeskCredentials } from "@sla/zendesk";
 import { getSlaPolicies } from "./sla-policies-data";
+import { getBusinessCalendars, getCustomerCalendarSummaries } from "./customer-calendars-data";
 import type {
   IntegrationConnectionView,
   IntegrationsPageData,
@@ -50,6 +51,8 @@ export async function getIntegrationsData(
     slackIntegration,
     organization,
     slaPolicies,
+    businessCalendars,
+    customerCalendars,
     zendeskConfig,
     linearConfig,
     jiraConfig,
@@ -99,6 +102,8 @@ export async function getIntegrationsData(
       select: { engineeringLegTargetMinutes: true },
     }),
     getSlaPolicies(prisma, organizationId),
+    getBusinessCalendars(prisma, organizationId),
+    getCustomerCalendarSummaries(prisma, organizationId),
     getIntegrationConfigStatus(prisma, organizationId, "zendesk"),
     getIntegrationConfigStatus(prisma, organizationId, "linear"),
     getIntegrationConfigStatus(prisma, organizationId, "jira"),
@@ -135,5 +140,7 @@ export async function getIntegrationsData(
     engineeringLegTargetMinutes:
       organization?.engineeringLegTargetMinutes ?? null,
     slaPolicies,
+    businessCalendars,
+    customerCalendars,
   };
 }

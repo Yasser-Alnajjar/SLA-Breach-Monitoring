@@ -137,9 +137,18 @@ model Customer {
   /// row just because they reused the same upstream numeric id.
   intercomCompanyId String?
   tier              String?
+  /// Optional override (roadmap step 24): which `BusinessCalendar` this
+  /// customer's commitments are anchored to, in place of whatever the
+  /// matched `SLAPolicyVersion` would otherwise resolve to — e.g. a
+  /// contractually 24/7 enterprise tier calendar instead of the org's
+  /// standard-hours schedule. Null means no override; resolution stays
+  /// per-org exactly as before. Must reference a `BusinessCalendar` in the
+  /// same organization (enforced in `packages/commitments`, not the schema).
+  calendarId        String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   cases             Case[]
+  calendar          BusinessCalendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, zendeskOrgId])
@@ -258,6 +267,9 @@ model BusinessCalendar {
   externalId     String?
   versions       BusinessCalendarVersion[]
   organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Customers whose commitments are pinned to this calendar instead of
+  /// whatever their matched policy would otherwise resolve to (roadmap step 24).
+  customers      Customer[]
 
   @@unique([organizationId, externalId])
   @@map("business_calendars")

@@ -1,6 +1,7 @@
 export {
   latestVersionPerPolicy,
   missingCommitmentKinds,
+  resolveCommitmentCalendarVersion,
   runCommitmentPipeline,
   toCaseAttributes,
 } from "./pipeline";
@@ -22,3 +23,4 @@ export type {
 } from "./evaluate-pipeline";
 export { overridePolicyTargets, PolicyNotFoundError } from "./override";
 export type { PolicyOverrideResult } from "./override";
+export { CalendarNotFoundError, CustomerNotFoundError, setCustomerCalendar } from "./customer-calendar";

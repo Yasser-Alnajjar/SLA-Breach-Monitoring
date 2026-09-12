@@ -125,6 +125,9 @@ export const Actions = {
         { policyId, targets },
       );
     },
+    async setCustomerCalendar(customerId: string, calendarId: string | null) {
+      return postJSON<{ ok: boolean }>("/api/settings/customer-calendars", { customerId, calendarId });
+    },
     async saveIntegrationConfig(
       provider: ConfigurableIntegrationProvider,
       input: { clientId: string; clientSecret?: string },

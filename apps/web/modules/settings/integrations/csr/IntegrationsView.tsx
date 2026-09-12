@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarClock,
   ChevronRight,
   GitBranch,
   GitPullRequest,
@@ -28,6 +29,7 @@ import {
 } from "./SlackCard";
 import { EngineeringTargetForm } from "./EngineeringTargetForm";
 import { SlaPoliciesCard } from "./SlaPoliciesCard";
+import { CustomerCalendarsCard } from "./CustomerCalendarsCard";
 import { DisconnectButton } from "./DisconnectButton";
 import { IntegrationConfigGate } from "./IntegrationConfigGate";
 import Link from "next/link";
@@ -180,6 +182,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     slackConfig,
     engineeringLegTargetMinutes,
     slaPolicies,
+    businessCalendars,
+    customerCalendars,
   } = data;
 
   return (
@@ -528,7 +532,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {/* Engineering target */}
           <Reveal delay={0.2}>
             <Card className="h-full overflow-hidden">
@@ -593,6 +597,41 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 </p>
 
                 <SlaPoliciesCard policies={slaPolicies} />
+              </CardContent>
+            </Card>
+          </Reveal>
+
+          {/* Customer calendar overrides */}
+          <Reveal delay={0.3}>
+            <Card className="h-full overflow-hidden">
+              <CardHeader className="border-b bg-muted/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className={iconWrapper}>
+                    <CalendarClock className="size-4" />
+                  </span>
+
+                  <div>
+                    <CardTitle className="text-sm font-semibold">
+                      Customer calendars
+                    </CardTitle>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Per-customer business hours override
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-5 px-5 py-5">
+                <p className={descriptionClass}>
+                  Pin a customer to one of the org&apos;s existing calendars —
+                  e.g. an always-open 24/7 calendar for an enterprise tier —
+                  instead of whatever their matched SLA policy would
+                  otherwise resolve to. Only new commitments pick up the
+                  change.
+                </p>
+
+                <CustomerCalendarsCard customers={customerCalendars} calendars={businessCalendars} />
               </CardContent>
             </Card>
           </Reveal>

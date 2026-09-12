@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { latestVersionPerPolicy, missingCommitmentKinds, toCaseAttributes, type PolicyVersionRecord } from "../src/pipeline";
+import type { BusinessCalendarVersion } from "@sla/core";
+import {
+  latestVersionPerPolicy,
+  missingCommitmentKinds,
+  resolveCommitmentCalendarVersion,
+  toCaseAttributes,
+  type PolicyVersionRecord,
+} from "../src/pipeline";
 
 function version(overrides: Partial<PolicyVersionRecord> & { id: string; policyId: string; version: number }): PolicyVersionRecord {
   return {
@@ -70,5 +77,22 @@ describe("toCaseAttributes", () => {
         openedAt: new Date(),
       }),
     ).toEqual({ caseId: "case_1", priority: "urgent", customerId: "cust_1", tier: "gold" });
+  });
+});
+
+function calendarVersion(overrides: Partial<BusinessCalendarVersion> & { id: string }): BusinessCalendarVersion {
+  return { version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true, ...overrides };
+}
+
+describe("resolveCommitmentCalendarVersion", () => {
+  it("prefers the customer's calendar override when one is set", () => {
+    const policyCalendar = calendarVersion({ id: "cal_org" });
+    const customerCalendar = calendarVersion({ id: "cal_customer" });
+    expect(resolveCommitmentCalendarVersion(policyCalendar, customerCalendar)).toBe(customerCalendar);
+  });
+
+  it("falls back to the policy's calendar when the customer has no override", () => {
+    const policyCalendar = calendarVersion({ id: "cal_org" });
+    expect(resolveCommitmentCalendarVersion(policyCalendar, undefined)).toBe(policyCalendar);
   });
 });

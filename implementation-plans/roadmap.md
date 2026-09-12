@@ -532,12 +532,40 @@ file gets checked off and committed as each step lands.
       unnecessary extra cycle's delay on a miss (still self-heals via the
       next poll either way, upsert-based like every other correlator here).
 
-- [ ] **24 — Custom business calendars per customer**
+- [x] **24 — Custom business calendars per customer**
       Extends step 13's calendar engine: today one `BusinessCalendar` covers
       an entire organization. This lets a customer with contractually
       different hours (e.g. 24/7 enterprise tier vs. standard business hours)
       get its own calendar version, matched via `Commitment.calendarVersionId`
       same as today, just resolved per-customer instead of per-org.
+      Implemented as a pointer, not a clone: `Customer.calendarId` (new,
+      optional, `SetNull` on delete) references an existing `BusinessCalendar`
+      row directly — the same org-level calendars step 13 already populates
+      (imported Zendesk schedules, plus the always-open default from
+      `ensureDefaultCalendarVersion`) — rather than inventing a second,
+      customer-owned calendar-content model or a manual weekly-hours editor
+      that has no precedent anywhere in this codebase (org calendars have
+      never been hand-built, only imported or defaulted). `runCommitmentPipeline`
+      (`packages/commitments/src/pipeline.ts`) preloads each org's
+      customer-override calendars alongside the policy-matched ones and picks
+      between them with the new `resolveCommitmentCalendarVersion` — customer
+      override wins when set, otherwise the matched `SLAPolicyVersion`'s
+      calendar exactly as before. Still resolves to a `BusinessCalendarVersion`
+      and still freezes onto `Commitment.calendarVersionId` at creation, so
+      existing commitments are untouched and evaluation/worker code needed no
+      changes. New `setCustomerCalendar` (`packages/commitments/src/customer-calendar.ts`)
+      validates the calendar belongs to the same organization as the customer
+      before assigning (or clears it with `null`), mirroring step 19's
+      not-found-error-class pattern. Surfaced as a third card —
+      "Customer calendars" — in the existing Configuration section of
+      `/settings/integrations` (`CustomerCalendarsCard.tsx`), a per-customer
+      select between "Default (from matched policy)" and the org's available
+      calendars; `POST /api/settings/customer-calendars` follows this
+      surface's established flat-route, manual-validation convention like the
+      SLA override route. `getBusinessCalendars`/`getCustomerCalendarSummaries`
+      (new `apps/web/src/lib/customer-calendars-data.ts`) feed the picker,
+      wired into the same `IntegrationsPageData` SSR read model as everything
+      else on this page.
 
 - [ ] **25 — Public API**
       Read-only API exposing dashboard and case-detail data

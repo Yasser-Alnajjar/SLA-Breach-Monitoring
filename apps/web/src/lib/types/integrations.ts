@@ -24,6 +24,22 @@ export interface SlaPolicySummary {
   targets: { kind: CommitmentKind; minutes: number }[];
 }
 
+/** One `BusinessCalendar` an org already has (imported from Zendesk, or the always-open default) — selectable as a customer's override (roadmap step 24). */
+export interface BusinessCalendarOption {
+  id: string;
+  name: string;
+  alwaysOpen: boolean;
+  timezone: string;
+}
+
+/** A customer and its current calendar override, if any, for the settings picker (roadmap step 24). */
+export interface CustomerCalendarSummary {
+  id: string;
+  name: string;
+  tier: string | null;
+  calendarId: string | null;
+}
+
 /**
  * Narrow, display-only view of one Zendesk/Jira/Linear `Integration` row for
  * a client component — never the row itself. `connected` means "has live
@@ -66,6 +82,8 @@ export interface IntegrationsPageData {
   slackConfig: IntegrationConfigStatus;
   engineeringLegTargetMinutes: number | null;
   slaPolicies: SlaPolicySummary[];
+  businessCalendars: BusinessCalendarOption[];
+  customerCalendars: CustomerCalendarSummary[];
 }
 
 export type { ConfigurableIntegrationProvider, IntegrationConfigStatus };

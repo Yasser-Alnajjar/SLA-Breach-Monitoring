@@ -225,7 +225,7 @@ file gets checked off and committed as each step lands.
       `Integration` model had no `status` field, and worker cycle failures
       were logged only to stdout, never persisted anywhere the UI could read.
       `Integration` gains a `status` enum (`connected | disconnected |
-      reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
+reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Disconnect is always a soft state change — credentials cleared to
       `Prisma.JsonNull`, row kept, never `prisma.integration.delete` — since
       `RawEvent.integrationId` cascades on delete and would destroy the
@@ -279,7 +279,7 @@ file gets checked off and committed as each step lands.
       `PASSWORD`, `EMAIL_FROM`) loaded in `apps/worker/src/config.ts`
       exactly like the nullable `zendesk`/`jira` OAuth configs — missing
       credentials mean the channel is skipped, not a crash.
-      `packages/notifications/src/dispatch.ts` sends to *both* configured
+      `packages/notifications/src/dispatch.ts` sends to _both_ configured
       channels per candidate before writing a `Notification` row, rather
       than one row per channel: the `@@unique([commitmentId, threshold])`
       constraint dedups "was this alert dispatched at all", not per-channel,
@@ -356,9 +356,9 @@ file gets checked off and committed as each step lands.
       disconnect/reconnect cycle; integrations connected before this step
       have no secret until they reconnect, and the settings card says so.
       Neither receiver uses HMAC request signing, despite Zendesk documenting
-      one: that scheme needs a secret both sides agree on *before* the
+      one: that scheme needs a secret both sides agree on _before_ the
       webhook exists, but Zendesk's own signing secret is only generated
-      *after* creation, with no field anywhere in its webhook-creation form
+      _after_ creation, with no field anywhere in its webhook-creation form
       to hand Zendesk a secret of our choosing — confirmed against the actual
       creation form, whose only Authentication options are None/API
       key/Basic/Bearer token. So both providers verify the same way, a
@@ -368,7 +368,7 @@ file gets checked off and committed as each step lands.
       Jira's classic webhooks have no auth config at creation at all, so its
       secret rides in the URL as `?secret=`, compared in constant time
       (`verifyJiraWebhookSecret`, `packages/jira/src/webhook.ts`). Each
-      receiver does a *targeted* single-ticket/single-issue refetch
+      receiver does a _targeted_ single-ticket/single-issue refetch
       (`runZendeskWebhookIngest`/`runJiraWebhookIngest`, new client methods
       `fetchTicket`/`fetchIssue`) through the same RawEvent mapping functions
       the poller uses — deliberately never touching `Integration.cursor`,
@@ -376,7 +376,7 @@ file gets checked off and committed as each step lands.
       poller advances, not a one-off refetch. `apps/web` gained `@sla/email`
       and `@sla/notifications` as direct dependencies so the webhook route
       can run `runCommitmentPipeline`/`runEvaluationPipeline({scope:
-      "active"})`/`runNotificationPipeline` itself rather than only waiting
+"active"})`/`runNotificationPipeline` itself rather than only waiting
       for the worker; running concurrently with the worker's own cycle is
       safe by construction — both paths share the same
       `@@unique([commitmentId, threshold])`-guarded dedup. A payload naming a
@@ -567,20 +567,7 @@ file gets checked off and committed as each step lands.
       wired into the same `IntegrationsPageData` SSR read model as everything
       else on this page.
 
-- [ ] **25 — Public API**
-      Read-only API exposing dashboard and case-detail data
-      (`apps/web/src/lib/dashboard-data.ts`, `case-detail-data.ts`) for
-      customers wiring their own BI tools or internal dashboards to it.
-      API-key auth, not OAuth — this is machine-to-machine, not a new user
-      surface.
-
-- [ ] **26 — SSO/SAML**
-      Enterprise auth requirement once deals need it. Layers onto the
-      existing minimal email/OAuth auth (step 1) rather than replacing it;
-      Phase 10 explicitly kept auth minimal for v1, so this only gets built
-      when a specific deal is blocked on it.
-
-- [ ] **27 — Anomaly detection on cycle times**
+- [ ] **25 — Anomaly detection on cycle times**
       Statistical (not AI/LLM — Phase 10's DO NOT BUILD list rules that out)
       detection of unusual cycle-time patterns across `Evaluation` history,
       surfaced as a dashboard callout. Lowest-priority NICE TO HAVE item;

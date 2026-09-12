@@ -1,17 +1,28 @@
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
 
+export interface SlaPolicyTarget {
+  kind: CommitmentKind;
+  minutes: number;
+}
+
 export interface SlaPolicySummary {
   id: string;
   name: string;
-  /** Non-null `SLAPolicy.externalId` means it was imported from Zendesk rather than created manually. */
   imported: boolean;
   version: number;
   effectiveFrom: string;
   match: SLAPolicyMatch;
-  targets: { kind: CommitmentKind; minutes: number }[];
+
+  /** Targets currently effective for new commitments. */
+  targets: SlaPolicyTarget[];
+
+  /** Targets from the original imported policy version. */
+  importedTargets: SlaPolicyTarget[];
+
+  /** True when the current targets differ from the original imported targets. */
+  overridden: boolean;
 }
 
-/** One `BusinessCalendar` an org already has (imported from Zendesk, or the always-open default) — selectable as a customer's override (roadmap step 24). */
 export interface BusinessCalendarOption {
   id: string;
   name: string;
@@ -19,7 +30,6 @@ export interface BusinessCalendarOption {
   timezone: string;
 }
 
-/** A customer and its current calendar override, if any, for the settings picker (roadmap step 24). */
 export interface CustomerCalendarSummary {
   id: string;
   name: string;
@@ -27,12 +37,6 @@ export interface CustomerCalendarSummary {
   calendarId: string | null;
 }
 
-/**
- * Read model for `/settings/sla/configuration`: the org-wide SLA engine
- * settings — engineering leg target, per-policy target overrides, and
- * per-customer calendar overrides — as opposed to provider connection state,
- * which lives in `IntegrationsPageData` instead.
- */
 export interface SlaConfigurationData {
   engineeringLegTargetMinutes: number | null;
   slaPolicies: SlaPolicySummary[];

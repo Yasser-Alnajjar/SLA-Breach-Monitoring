@@ -1,19 +1,69 @@
 import type { PrismaClient } from "@sla/db";
 import type { CommitmentKind, SLAPolicyMatch } from "@sla/core";
-import type { SlaPolicySummary } from "./types/sla-configuration";
+import type {
+  SlaPolicySummary,
+  SlaPolicyTarget,
+} from "./types/sla-configuration";
 
-/** SLA policies with their current (latest) version, for the settings override UI (roadmap step 19). */
-export async function getSlaPolicies(prisma: PrismaClient, organizationId: string): Promise<SlaPolicySummary[]> {
+function normalizeTargets(targets: unknown): SlaPolicyTarget[] {
+  if (!Array.isArray(targets)) {
+    return [];
+  }
+
+  return targets
+    .filter(
+      (target): target is { kind: CommitmentKind; minutes: number } =>
+        typeof target === "object" &&
+        target !== null &&
+        "kind" in target &&
+        "minutes" in target &&
+        typeof target.kind === "string" &&
+        typeof target.minutes === "number",
+    )
+    .map((target) => ({
+      kind: target.kind,
+      minutes: target.minutes,
+    }));
+}
+
+function targetsEqual(a: SlaPolicyTarget[], b: SlaPolicyTarget[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  const left = [...a].sort((x, y) => x.kind.localeCompare(y.kind));
+  const right = [...b].sort((x, y) => x.kind.localeCompare(y.kind));
+
+  return left.every(
+    (target, index) =>
+      target.kind === right[index]?.kind &&
+      target.minutes === right[index]?.minutes,
+  );
+}
+
+export async function getSlaPolicies(
+  prisma: PrismaClient,
+  organizationId: string,
+): Promise<SlaPolicySummary[]> {
   const policies = await prisma.sLAPolicy.findMany({
     where: { organizationId },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+    include: {
+      versions: {
+        orderBy: { version: "asc" },
+      },
+    },
     orderBy: { name: "asc" },
   });
 
   return policies
-    .filter((policy) => policy.versions[0])
+    .filter((policy) => policy.versions.length > 0)
     .map((policy) => {
-      const latest = policy.versions[0]!;
+      const imported = policy.versions[0]!;
+      const latest = policy.versions.at(-1)!;
+
+      const importedTargets = normalizeTargets(imported.targets);
+      const targets = normalizeTargets(latest.targets);
+
       return {
         id: policy.id,
         name: policy.name,
@@ -21,7 +71,9 @@ export async function getSlaPolicies(prisma: PrismaClient, organizationId: strin
         version: latest.version,
         effectiveFrom: latest.effectiveFrom.toISOString(),
         match: latest.match as SLAPolicyMatch,
-        targets: latest.targets as { kind: CommitmentKind; minutes: number }[],
+        targets,
+        importedTargets,
+        overridden: !targetsEqual(targets, importedTargets),
       };
     });
 }

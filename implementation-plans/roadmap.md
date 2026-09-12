@@ -567,12 +567,32 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       wired into the same `IntegrationsPageData` SSR read model as everything
       else on this page.
 
-- [ ] **25 — Anomaly detection on cycle times**
+- [x] **25 — Anomaly detection on cycle times**
       Statistical (not AI/LLM — Phase 10's DO NOT BUILD list rules that out)
       detection of unusual cycle-time patterns across `Evaluation` history,
-      surfaced as a dashboard callout. Lowest-priority NICE TO HAVE item;
-      only worth building once there's enough historical `Evaluation` volume
-      per customer for a baseline to mean anything.
+      surfaced as a dashboard callout. New pure `detectCycleTimeAnomaly`
+      (`packages/core/src/anomaly.ts`) compares a recent run of closed-commitment
+      cycle times against a longer baseline using Iglewicz & Hoaglin's
+      modified z-score (median/MAD, not mean/stddev — cycle times are
+      right-skewed, so a handful of very slow cases would otherwise inflate
+      a stddev check and mask the anomaly). Falls back to mean absolute
+      deviation when the baseline MAD is degenerate (e.g. identical
+      historical times), and returns null below a minimum baseline/recent
+      sample size — the "enough historical volume for a baseline to mean
+      anything" gate this step calls for. New `getCycleTimeAnomalies`
+      (`apps/web/src/lib/anomaly-data.ts`) groups closed commitments
+      (`status` met/breached, `closedAt` set) by customer + commitment kind,
+      takes each commitment's cycle time from its terminal `Evaluation`'s
+      `elapsedWorkingMinutes` (the same row `evaluate-pipeline.ts` persists
+      when it finalizes a commitment, matched by `evaluatedAt <= closedAt`
+      rather than recomputed here), splits the last 5 closed per group as
+      "recent" against everything older as baseline, and runs the detector
+      per group. Wired into the existing `getDashboardData` /
+      `DashboardActions.getData` read model as `cycleTimeAnomalies` — no new
+      route. Surfaced as a warning `Alert` callout at the top of
+      `DashboardView.tsx`, above the existing stat tiles, listing each
+      flagged customer/kind with its recent vs. baseline median and sample
+      counts; renders nothing when the list is empty.
 
 ## Explicitly deferred past v1
 

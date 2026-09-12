@@ -28,6 +28,18 @@ export interface BreachedCaseRow {
   kind: CommitmentKind;
 }
 
+/** A customer/kind pair whose most recent cycle times statistically depart from their own history (roadmap step 25). */
+export interface CycleTimeAnomalyRow {
+  customerName: string;
+  kind: CommitmentKind;
+  baselineMedianMinutes: number;
+  baselineCount: number;
+  recentMedianMinutes: number;
+  recentCount: number;
+  modifiedZScore: number;
+  direction: "slower" | "faster";
+}
+
 export interface DashboardData {
   asOf: string;
   periodDays: number;
@@ -38,4 +50,5 @@ export interface DashboardData {
   agingInEngineering: AgingEscalationRow[];
   agingOverflowCount: number;
   compliance: { current: number | null; previous: number | null };
+  cycleTimeAnomalies: CycleTimeAnomalyRow[];
 }

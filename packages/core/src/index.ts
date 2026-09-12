@@ -14,3 +14,8 @@ export {
   ENGINEERING_LEG_WARN_AT_PERCENT,
 } from "./evaluate";
 export type { EngineeringLegEvaluation } from "./evaluate";
+export { detectCycleTimeAnomaly } from "./anomaly";
+export type {
+  CycleTimeAnomaly,
+  DetectCycleTimeAnomalyOptions,
+} from "./anomaly";

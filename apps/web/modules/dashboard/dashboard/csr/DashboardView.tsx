@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Reveal } from "@/components/shared/reveal";
 import { StatTile } from "@/components/shared/stat-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { DashboardData } from "@/lib/types/dashboard";
@@ -29,8 +30,34 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
 
   return (
     <>
+      {data.cycleTimeAnomalies.length > 0 && (
+        <Reveal delay={0} className="mb-4">
+          <Alert variant="warning">
+            <AlertTriangle />
+            <AlertDescription>
+              <AlertTitle>Unusual cycle times</AlertTitle>
+              <ul className="mt-2 space-y-1">
+                {data.cycleTimeAnomalies.map((row, i) => (
+                  <li key={i}>
+                    <span className="font-medium text-foreground">
+                      {row.customerName}
+                    </span>{" "}
+                    · {formatCommitmentKind(row.kind)} is running{" "}
+                    <span className="font-medium">{row.direction}</span> than
+                    usual: recent median {formatMinutes(row.recentMedianMinutes)}{" "}
+                    vs. baseline {formatMinutes(row.baselineMedianMinutes)} (
+                    {row.recentCount} recent of {row.baselineCount} historical
+                    cases).
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        </Reveal>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Reveal delay={0}>
+        <Reveal delay={0.02}>
           <StatTile
             icon={AlertTriangle}
             label={`Breached · ${data.periodDays}d`}

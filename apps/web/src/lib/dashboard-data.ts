@@ -17,6 +17,7 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
+import { getCycleTimeAnomalies } from "./anomaly-data";
 import type {
   AgingEscalationRow,
   AtRiskRow,
@@ -70,6 +71,7 @@ export async function getDashboardData(
     currentPeriodClosedRows,
     previousPeriodClosedRows,
     organization,
+    cycleTimeAnomalies,
   ] = await Promise.all([
     prisma.commitment.findMany({
       where: { case: { organizationId, deletedAt: null }, closedAt: null },
@@ -104,6 +106,7 @@ export async function getDashboardData(
       where: { id: organizationId },
       select: { engineeringLegTargetMinutes: true },
     }),
+    getCycleTimeAnomalies(prisma, organizationId),
   ]);
 
   const engineeringLegTargetMinutes =
@@ -302,5 +305,6 @@ export async function getDashboardData(
       current: complianceOf(currentPeriodClosedRows),
       previous: complianceOf(previousPeriodClosedRows),
     },
+    cycleTimeAnomalies,
   };
 }

@@ -594,6 +594,80 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       flagged customer/kind with its recent vs. baseline median and sample
       counts; renders nothing when the list is empty.
 
+- [x] **26 — Fix the two confirmed-broken behaviors from the post-roadmap audit**
+      A full post-roadmap product audit (`implementation-plans/prod-roadmap.md`)
+      re-verified steps 0–25 against the actual code rather than trusting
+      prior docs, and found two things that were actively broken rather than
+      merely incomplete. First: `packages/db/test/integration-config.test.ts`
+      asserted `isConfigurableIntegrationProvider("linear")` was `false`, but
+      `CONFIGURABLE_PROVIDERS` (`packages/db/src/integration-config.ts`) has
+      correctly included Linear since GitHub/Intercom shipped — the code was
+      right, the test was stale; fixed the assertion. Second, and more
+      material: `Integration.webhookSecret` (roadmap step 20) was only ever
+      generated on the OAuth callback's `create` branch. Disconnect never
+      deletes the row (soft state change, by design), so reconnecting always
+      hit the `update` branch, which never touched `webhookSecret` — meaning
+      any integration connected before webhook support shipped had a
+      permanently null secret, even though the settings UI
+      (`WebhookInfo.tsx`) told users to "disconnect and reconnect" to fix
+      exactly that. Both `apps/web/src/app/api/integrations/{zendesk,jira}/callback/route.ts`
+      now run a race-safe `updateMany` predicated on `webhookSecret: null`
+      immediately after the upsert, so reconnect actually backfills it —
+      Postgres re-evaluates the predicate after the row lock releases, so a
+      concurrent reconnect can't double-write. `schema.prisma`'s doc comment
+      on `webhookSecret` updated to match (backfilled on reconnect, never
+      rotated once set, null only for Linear which has no webhook receiver).
+      Also removed a stale `{/* Linear — this is disabled for now */}`
+      comment sitting above a fully working Linear card in
+      `IntegrationsView.tsx`, and un-commented Linear/Intercom in the
+      marketing homepage's integration list (`HomeView.tsx`) — both were
+      leftover "not ready yet" markers on integrations that have shipped
+      since roadmap steps 14/15 and 22.
+
+- [ ] **27 — CI pipeline** (typecheck, lint, test, build on push/PR; fix or
+      delete the root `pnpm build` script, which fails on `packages/core`/`packages/slack` today but is dead code nothing consumes).
+- [ ] **28 — Containerize and document deployment** (Dockerfile for
+      `apps/web` and `apps/worker`, a prod compose file, `docs/deployment.md`
+      — targeting Docker + self-host/VPS, not a specific managed host).
+- [ ] **29 — Health checks and observability** (`/api/health`, a worker
+      liveness surface, Sentry or equivalent in both apps, alerting on a
+      stalled worker cycle).
+- [ ] **30 — Inbound abuse protection and webhook replay protection** (rate
+      limiting on the two webhook routes and `/api/sign-up`; a timestamp
+      check alongside the existing constant-time secret verification).
+- [ ] **31 — Fix the notification double-delivery race** (claim the
+      `Notification` row via `create()` before sending Slack/email, not
+      after — closes the window where a webhook-triggered pipeline and a
+      concurrent poll cycle can both send the same alert).
+- [ ] **32 — Detect silent permission loss (403)** across all five
+      `tokenLifecycle.ts` files — today a connecting user losing
+      Browse/Read access degrades ingestion silently, with no
+      `reauthRequired` signal and no operator-visible symptom.
+- [ ] **33 — Security headers and CSRF hardening** (CSP/HSTS/X-Frame-Options/
+      X-Content-Type-Options; an Origin-header check on state-changing
+      `/api/settings/**` and disconnect routes as defense in depth beyond
+      SameSite cookies).
+- [ ] **34 — DST/timezone correctness for the business-hours engine** — fix
+      or bound `calendar.ts`'s self-documented DST approximation, and add the
+      non-UTC/DST-transition test coverage that currently doesn't exist for
+      the one case the code warns about itself.
+- [ ] **35 — Close the remaining UI/trust gaps** (a visible link to the
+      existing full CSV export route, `error.tsx`/`not-found.tsx` boundaries,
+      `loading.tsx` on the routes still missing one).
+- [ ] **36 — Reconcile documentation with shipped integrations** (five
+      `docs/*.md` files still only mention Zendesk/Jira/Slack and predate
+      Linear/GitHub/Intercom; `README.md` is a one-line stub).
+- [ ] **37 — Backup runbook and tenant-isolation regression tests** (document + minimally automate Postgres backup/restore; add regression tests
+      proving the org-scoping pattern the IDOR audit verified by hand
+      actually holds, since nothing currently would catch a future
+      regression in it).
+- [ ] **38 — Minimize GitHub's OAuth scope** — GitHub is the one integration
+      requesting a write-capable scope (`repo`, a Classic OAuth App
+      limitation); evaluate migrating to a GitHub App with read-only,
+      repo-selected installation permissions. Lower urgency than 27–37 since
+      GitHub is a nice-to-have source, not required for the core Zendesk+Jira
+      pilot.
+
 ## Explicitly deferred past v1
 
 Per Phase 10's DO NOT BUILD list: financial/service-credit calculation, any AI

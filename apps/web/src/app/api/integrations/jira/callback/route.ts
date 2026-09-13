@@ -56,6 +56,17 @@ export async function GET(request: Request) {
     },
   });
 
+  // Integrations connected before webhook support shipped (or reconnected
+  // before this fix) have `webhookSecret: null`. Backfill it here so
+  // reconnect actually enables webhooks, as the settings UI already claims
+  // it does. The `webhookSecret: null` predicate makes this safe under a
+  // concurrent reconnect: Postgres re-evaluates it after the row lock
+  // releases, so only the first writer's value sticks.
+  await prisma.integration.updateMany({
+    where: { organizationId: state.organizationId, provider: "jira", webhookSecret: null },
+    data: { webhookSecret: generateWebhookSecret() },
+  });
+
   const response = NextResponse.redirect(
     new URL("/onboarding?connected=jira", request.url),
   );

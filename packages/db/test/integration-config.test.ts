@@ -21,14 +21,16 @@ afterEach(() => {
 });
 
 describe("isConfigurableIntegrationProvider", () => {
-  it("accepts zendesk, jira, and slack", () => {
+  it("accepts zendesk, jira, linear, slack, intercom, and github", () => {
     expect(isConfigurableIntegrationProvider("zendesk")).toBe(true);
     expect(isConfigurableIntegrationProvider("jira")).toBe(true);
+    expect(isConfigurableIntegrationProvider("linear")).toBe(true);
     expect(isConfigurableIntegrationProvider("slack")).toBe(true);
+    expect(isConfigurableIntegrationProvider("intercom")).toBe(true);
+    expect(isConfigurableIntegrationProvider("github")).toBe(true);
   });
 
-  it("rejects linear and unknown values", () => {
-    expect(isConfigurableIntegrationProvider("linear")).toBe(false);
+  it("rejects unknown values", () => {
     expect(isConfigurableIntegrationProvider("bogus")).toBe(false);
   });
 });

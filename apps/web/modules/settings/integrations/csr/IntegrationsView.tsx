@@ -289,7 +289,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             </IntegrationConfigGate>
           </IntegrationCard>
 
-          {/* Linear  this is disabled for now */}
           <IntegrationCard
             delay={0.1}
             icon={<Workflow className="size-4" />}

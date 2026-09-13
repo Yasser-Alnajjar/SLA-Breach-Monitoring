@@ -67,8 +67,8 @@ const STEPS: MarketingStep[] = [
 const INTEGRATIONS = [
   "Zendesk",
   "Jira",
-  // "Linear",
-  // "Intercom",
+  "Linear",
+  "Intercom",
   "GitHub",
   "Slack",
 ];

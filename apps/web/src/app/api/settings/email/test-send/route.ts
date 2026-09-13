@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { getEmailSettings, getPrismaClient } from "@sla/db";
 import { sendEmail } from "@sla/email";
+import { DEFAULT_EMAIL_BRAND_NAME, renderNotificationEmailHtml } from "@sla/notifications";
 import { authOptions } from "@/lib/auth";
 import { emailSettingsInputSchema, smtpErrorMessage } from "@/lib/email-settings";
 
@@ -49,11 +50,22 @@ export async function POST(request: Request) {
     fromName: parsed.data.fromName ?? null,
   };
 
+  const brandName = config.fromName?.trim() || DEFAULT_EMAIL_BRAND_NAME;
+
   try {
     await sendEmail(config, {
       to: [session.user.email],
       subject: "SLA Breach Monitoring — Test Email",
-      text: "This is a test email confirming your SMTP configuration for SLA Breach Monitoring is working correctly.\n\nIf you received this, at-risk and breach alerts will be delivered to this organization's users the same way.",
+      text: "This is a test email confirming your SMTP configuration for SLA Breach Monitoring is working correctly.\n\nIf you received this, at-risk and breach alerts will be delivered to this organization's users the same way, using this branding.",
+      html: renderNotificationEmailHtml({
+        brandName,
+        severity: "at_risk",
+        heading: "Test email",
+        ticketLabel: "#0000",
+        customerName: "Sample Customer",
+        detailLine:
+          "This is a test email confirming your SMTP configuration is working correctly. If you received this, at-risk and breach alerts will be delivered to this organization's users with this same branding.",
+      }),
     });
   } catch (error) {
     return NextResponse.json({ ok: false, error: smtpErrorMessage(error, password) }, { status: 502 });

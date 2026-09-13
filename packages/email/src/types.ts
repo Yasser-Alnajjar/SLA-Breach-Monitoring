@@ -26,4 +26,6 @@ export interface EmailMessage {
   to: string[];
   subject: string;
   text: string;
+  /** Optional HTML body. Nodemailer sends a multipart message when both `text` and `html` are set, so `text` stays the guaranteed fallback for clients that can't render HTML. */
+  html?: string;
 }

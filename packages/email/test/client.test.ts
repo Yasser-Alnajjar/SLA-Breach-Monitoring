@@ -108,6 +108,18 @@ describe("sendEmail", () => {
     );
   });
 
+  it("includes the html body when the message has one", async () => {
+    await sendEmail(baseConfig, { to: ["a@example.com"], subject: "S", text: "B", html: "<p>B</p>" });
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "B", html: "<p>B</p>" }),
+    );
+  });
+
+  it("omits the html field entirely when the message has no html body", async () => {
+    await sendEmail(baseConfig, { to: ["a@example.com"], subject: "S", text: "B" });
+    expect(sendMailMock.mock.calls[0][0]).not.toHaveProperty("html");
+  });
+
   it("propagates a send failure without swallowing it", async () => {
     sendMailMock.mockRejectedValueOnce(new Error("Message rejected: spam"));
     await expect(sendEmail(baseConfig, { to: ["a@example.com"], subject: "S", text: "B" })).rejects.toThrow(

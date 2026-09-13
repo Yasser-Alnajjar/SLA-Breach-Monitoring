@@ -96,7 +96,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     github: repo ? `https://github.com/${repo}` : "https://github.com",
   };
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Link
         href="/settings/integrations"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -197,7 +197,10 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           )}
 
           {provider === "github" && (
-            <GithubBackfillButton repo={repo ?? ""} initialReauthRequired={reauthRequired} />
+            <GithubBackfillButton
+              repo={repo ?? ""}
+              initialReauthRequired={reauthRequired}
+            />
           )}
         </SectionCard>
       </Reveal>

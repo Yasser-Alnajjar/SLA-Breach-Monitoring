@@ -59,10 +59,16 @@ function errorMessage(error: unknown): string {
  * the same as "not configured": still no crash, Slack (if ready) still
  * fires.
  */
+export interface NotificationPipelineOptions {
+  /** Deployment base URL (`NEXTAUTH_URL`) — used only to build a "View ticket" link in the branded HTML email. Omit (or leave unconfigured) and emails send without that link. */
+  appUrl?: string | null;
+}
+
 export async function runNotificationPipeline(
   prisma: PrismaClient,
   organizationId: string,
   candidates: NotificationCandidate[],
+  options: NotificationPipelineOptions = {},
 ): Promise<NotificationPipelineResult> {
   const result: NotificationPipelineResult = { notificationsSent: 0, notificationsSkipped: 0, notificationsFailed: [] };
   if (candidates.length === 0) return result;
@@ -99,7 +105,7 @@ export async function runNotificationPipeline(
 
   const caseRows = await prisma.case.findMany({
     where: { id: { in: [...new Set(toSend.map((c) => c.caseId))] }, deletedAt: null },
-    select: { id: true, externalId: true, customer: { select: { name: true } } },
+    select: { id: true, externalId: true, subject: true, customer: { select: { name: true } } },
   });
   const caseById = new Map(caseRows.map((c) => [c.id, c]));
 
@@ -107,7 +113,7 @@ export async function runNotificationPipeline(
     const caseRow = caseById.get(candidate.caseId);
     if (!caseRow) continue;
 
-    const context = { externalId: caseRow.externalId, customerName: caseRow.customer?.name ?? null };
+    const context = { externalId: caseRow.externalId, customerName: caseRow.customer?.name ?? null, subject: caseRow.subject };
     const delivered: string[] = [];
     const errors: string[] = [];
 
@@ -122,8 +128,12 @@ export async function runNotificationPipeline(
 
     if (emailReady) {
       try {
-        const { subject, text } = formatEmailMessage(candidate, context);
-        await sendEmail(emailConfig!, { to: emailTo, subject, text });
+        const brand = {
+          name: emailConfig!.fromName,
+          caseUrl: options.appUrl ? `${options.appUrl}/cases/${caseRow.id}` : null,
+        };
+        const { subject, text, html } = formatEmailMessage(candidate, context, brand);
+        await sendEmail(emailConfig!, { to: emailTo, subject, text, html });
         delivered.push("email");
       } catch (error) {
         errors.push(`email: ${errorMessage(error)}`);

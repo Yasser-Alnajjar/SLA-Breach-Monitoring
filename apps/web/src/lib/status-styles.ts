@@ -33,3 +33,15 @@ export const NORMALIZED_STATE_VARIANT: Record<
   resolved: "success",
   closed: "outline",
 };
+export type Priority = "none" | "urgent" | "high" | "normal" | "low";
+
+export const PRIORITY_VARIANT: Record<
+  Priority,
+  "default" | "destructive" | "warning" | "outline"
+> = {
+  none: "default",
+  urgent: "destructive",
+  high: "destructive",
+  normal: "warning",
+  low: "outline",
+};

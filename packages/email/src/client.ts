@@ -63,5 +63,6 @@ export async function sendEmail(config: EmailConfig, message: EmailMessage): Pro
     to: message.to,
     subject: message.subject,
     text: message.text,
+    ...(message.html ? { html: message.html } : {}),
   });
 }

@@ -36,7 +36,12 @@ import {
   formatNormalizedState,
   NORMALIZED_STATE_DESCRIPTIONS,
 } from "@/lib/format";
-import { LEG_BG_CLASS, NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
+import {
+  LEG_BG_CLASS,
+  NORMALIZED_STATE_VARIANT,
+  Priority,
+  PRIORITY_VARIANT,
+} from "@/lib/status-styles";
 import { INTEGRATION_PROVIDER_LABELS } from "@/lib/types/integrations";
 import type { CaseDetailData, TimelineEventDetail } from "@/lib/types/cases";
 
@@ -158,7 +163,9 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {caseData.priority && (
-              <Badge variant="default">{caseData.priority}</Badge>
+              <Badge variant={PRIORITY_VARIANT[caseData.priority as Priority]}>
+                {caseData.priority}
+              </Badge>
             )}
 
             {caseData.tier && <Badge variant="default">{caseData.tier}</Badge>}

@@ -54,7 +54,7 @@ interface FakePrismaOptions {
   slack?: { channelId: string | null; accessToken: string } | null;
   users?: { email: string }[];
   existingNotifications?: { commitmentId: string; threshold: number }[];
-  cases?: { id: string; externalId: string; customer: { name: string } | null }[];
+  cases?: { id: string; externalId: string; subject?: string | null; customer: { name: string } | null }[];
   createImpl?: () => Promise<unknown>;
 }
 
@@ -63,7 +63,7 @@ function fakePrisma(options: FakePrismaOptions = {}) {
     slack = null,
     users = [],
     existingNotifications = [],
-    cases = [{ id: "case_1", externalId: "4821", customer: { name: "Acme Co." } }],
+    cases = [{ id: "case_1", externalId: "4821", subject: null, customer: { name: "Acme Co." } }],
     createImpl,
   } = options;
 
@@ -154,12 +154,57 @@ describe("runNotificationPipeline", () => {
     expect(postMessageMock).toHaveBeenCalledTimes(1);
     expect(sendEmailMock).toHaveBeenCalledWith(
       expectedEmailConfig,
-      expect.objectContaining({ to: ["a@example.com", "b@example.com"], subject: expect.stringContaining("#4821") }),
+      expect.objectContaining({
+        to: ["a@example.com", "b@example.com"],
+        subject: expect.stringContaining("#4821"),
+        html: expect.stringContaining("#4821"),
+      }),
     );
     expect(result.notificationsSent).toBe(1);
     expect(prisma.notification.create).toHaveBeenCalledWith({
       data: { commitmentId: "cmt_1", threshold: 80, channel: "slack,email" },
     });
+  });
+
+  it("includes the ticket's subject in the HTML email when the case has one", async () => {
+    getEmailSettingsMock.mockResolvedValue(emailSettings);
+    const prisma = fakePrisma({
+      slack: null,
+      users: [{ email: "a@example.com" }],
+      cases: [{ id: "case_1", externalId: "4821", subject: "Payment webhook failing", customer: { name: "Acme Co." } }],
+    });
+    await runNotificationPipeline(prisma, "org_1", [candidate()]);
+
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expectedEmailConfig,
+      expect.objectContaining({ html: expect.stringContaining("Payment webhook failing") }),
+    );
+  });
+
+  it("links the HTML email to the ticket when an appUrl is configured", async () => {
+    getEmailSettingsMock.mockResolvedValue(emailSettings);
+    const prisma = fakePrisma({
+      slack: null,
+      users: [{ email: "a@example.com" }],
+      cases: [{ id: "case_1", externalId: "4821", customer: { name: "Acme Co." } }],
+    });
+    await runNotificationPipeline(prisma, "org_1", [candidate()], { appUrl: "https://app.example.com" });
+
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expectedEmailConfig,
+      expect.objectContaining({ html: expect.stringContaining("https://app.example.com/cases/case_1") }),
+    );
+  });
+
+  it("omits the ticket link when no appUrl is configured", async () => {
+    getEmailSettingsMock.mockResolvedValue(emailSettings);
+    const prisma = fakePrisma({ slack: null, users: [{ email: "a@example.com" }] });
+    await runNotificationPipeline(prisma, "org_1", [candidate()]);
+
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expectedEmailConfig,
+      expect.objectContaining({ html: expect.not.stringContaining("View ticket") }),
+    );
   });
 
   it("keeps Slack delivery independent of email failing", async () => {

@@ -142,14 +142,20 @@ export const Actions = {
       });
       return { ok: response.ok };
     },
-    async overridePolicyTargets(policyId: string, targets: { kind: CommitmentKind; minutes: number }[]) {
-      return postJSON<{ created: boolean; version: { id: string; version: number } }>(
-        "/api/settings/sla-policies/override",
-        { policyId, targets },
-      );
+    async overridePolicyTargets(
+      policyId: string,
+      targets: { kind: CommitmentKind; minutes: number }[],
+    ) {
+      return postJSON<{
+        created: boolean;
+        version: { id: string; version: number };
+      }>("/api/settings/sla-policies/override", { policyId, targets });
     },
     async setCustomerCalendar(customerId: string, calendarId: string | null) {
-      return postJSON<{ ok: boolean }>("/api/settings/customer-calendars", { customerId, calendarId });
+      return postJSON<{ ok: boolean }>("/api/settings/customer-calendars", {
+        customerId,
+        calendarId,
+      });
     },
   },
 };

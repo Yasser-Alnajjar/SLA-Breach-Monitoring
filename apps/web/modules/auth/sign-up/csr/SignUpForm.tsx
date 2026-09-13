@@ -23,7 +23,11 @@ export const SignUpForm = () => {
     setSubmitting(true);
     setError(null);
 
-    const { ok, body } = await Actions.Auth.signUp({ organizationName, email, password });
+    const { ok, body } = await Actions.Auth.signUp({
+      organizationName,
+      email,
+      password,
+    });
 
     if (!ok) {
       setError(body.error ?? "Something went wrong");
@@ -38,6 +42,8 @@ export const SignUpForm = () => {
       router.push("/sign-in");
       return;
     }
+    console.log("signUp", ok, body);
+    console.log("signInResult", signInResult);
 
     router.push("/onboarding");
   }
@@ -49,7 +55,10 @@ export const SignUpForm = () => {
       footer={
         <p>
           Already have an account?{" "}
-          <a href="/sign-in" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <a
+            href="/sign-in"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Sign in
           </a>
         </p>

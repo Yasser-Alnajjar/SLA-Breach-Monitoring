@@ -24,6 +24,7 @@ export const SignInForm = () => {
 
     const result = await Actions.Auth.signIn(email, password);
     setSubmitting(false);
+    console.log("result", result);
 
     if (result?.error) {
       setError("Incorrect email or password");
@@ -40,7 +41,10 @@ export const SignInForm = () => {
       footer={
         <p>
           Need an account?{" "}
-          <a href="/sign-up" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <a
+            href="/sign-up"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Sign up
           </a>
         </p>

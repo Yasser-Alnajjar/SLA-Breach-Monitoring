@@ -2,27 +2,35 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PAGE_PATHS = [
-  "/",
-  "/docs",
-  "/pricing",
-  "/about",
-  "/sign-in",
-  "/sign-up",
-];
+/**
+ * Pages anyone can reach with no session: the docs site and the two auth
+ * screens. Everything else under the app (dashboard, cases, settings,
+ * onboarding, and their API routes) requires a signed-in user.
+ */
+const PUBLIC_PAGE_PATHS = ["/", "/docs", "/about", "/pricing"];
+const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
+
+/**
+ * API routes that authenticate themselves rather than via the session
+ * cookie: NextAuth's own endpoints (the login mechanism itself), account
+ * creation, and inbound provider webhooks (Zendesk/Jira call these directly
+ * and carry their own bearer token/secret, never a browser session).
+ */
+const PUBLIC_API_PATHS = ["/api/auth", "/api/sign-up", "/api/webhooks"];
 
 function matchesPath(pathname: string, paths: string[]): boolean {
   return paths.some(
-    (path) =>
-      pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)),
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public pages don't require authentication.
-  if (matchesPath(pathname, PUBLIC_PAGE_PATHS)) {
+  if (
+    matchesPath(pathname, PUBLIC_API_PATHS) ||
+    matchesPath(pathname, PUBLIC_PAGE_PATHS)
+  ) {
     return NextResponse.next();
   }
 
@@ -31,10 +39,13 @@ export async function proxy(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Everything else requires authentication.
-  if (token) {
+  if (matchesPath(pathname, AUTH_PAGE_PATHS)) {
+    // A signed-in user doesn't need the sign-in/sign-up screens again.
+    if (token) return NextResponse.redirect(new URL("/dashboard", request.url));
     return NextResponse.next();
   }
+
+  if (token) return NextResponse.next();
 
   if (pathname.startsWith("/api")) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -42,7 +53,6 @@ export async function proxy(request: NextRequest) {
 
   const signInUrl = new URL("/sign-in", request.url);
   signInUrl.searchParams.set("callbackUrl", pathname);
-
   return NextResponse.redirect(signInUrl);
 }
 

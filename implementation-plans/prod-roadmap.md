@@ -308,7 +308,7 @@ worker** (no distributed locking needed) and **Docker + self-host/VPS** as
 the deployment target, per your answers above.
 
 ```md
-- [ ] 26 — Fix the two confirmed-broken behaviors this audit found
+- [x] 26 — Fix the two confirmed-broken behaviors this audit found
 
   Why:
   Two things are not "gaps" — they are actively broken today, and one of

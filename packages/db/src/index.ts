@@ -15,6 +15,20 @@ export type {
   IntegrationOAuthCredentials,
   IntegrationConfigStatus,
 } from "./integration-config";
+export {
+  getEmailSettings,
+  getEmailSettingsStatus,
+  saveEmailSettings,
+  encryptSmtpPassword,
+  decryptSmtpPassword,
+  EmailSettingsUnreadableError,
+} from "./email-settings";
+export type {
+  EmailSecurity,
+  EmailSettingsInput,
+  EmailSettingsCredentials,
+  EmailSettingsStatus,
+} from "./email-settings";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,

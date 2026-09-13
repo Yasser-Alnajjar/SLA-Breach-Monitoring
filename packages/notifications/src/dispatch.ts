@@ -1,8 +1,20 @@
-import type { PrismaClient } from "@sla/db";
+import { getEmailSettings, EmailSettingsUnreadableError, type PrismaClient } from "@sla/db";
 import { postMessage } from "@sla/slack";
 import { sendEmail, type EmailConfig } from "@sla/email";
 import type { NotificationCandidate } from "@sla/commitments";
 import { formatSlackMessage, formatEmailMessage } from "./format";
+
+function toEmailConfig(settings: NonNullable<Awaited<ReturnType<typeof getEmailSettings>>>): EmailConfig {
+  return {
+    host: settings.host,
+    port: settings.port,
+    security: settings.security,
+    user: settings.username,
+    password: settings.password,
+    from: settings.fromEmail,
+    fromName: settings.fromName,
+  };
+}
 
 export interface NotificationPipelineResult {
   notificationsSent: number;
@@ -36,25 +48,38 @@ function errorMessage(error: unknown): string {
  * some other cycle already recorded this exact alert, so it's counted as
  * skipped rather than failed.
  *
- * `emailConfig` is nullable the same way `WorkerConfig.email` is: an
- * unattended worker must not crash-loop an install that never set SMTP
- * credentials, it should just skip that channel.
+ * Email credentials are loaded per organization from `OrganizationEmailSettings`
+ * (the settings UI, roadmap: organization SMTP configuration) rather than a
+ * deployment-wide `.env` — there is no fallback to deployment-level SMTP
+ * variables, matching `SlackIntegration`'s per-organization, nullable
+ * pattern: an organization that hasn't saved SMTP configuration just gets
+ * no email channel, an unattended worker must not crash-loop over it. A row
+ * that exists but can't be decrypted (`EmailSettingsUnreadableError` — a
+ * rotated/missing `SMTP_ENCRYPTION_KEY`, or corrupted ciphertext) is treated
+ * the same as "not configured": still no crash, Slack (if ready) still
+ * fires.
  */
 export async function runNotificationPipeline(
   prisma: PrismaClient,
   organizationId: string,
   candidates: NotificationCandidate[],
-  emailConfig: EmailConfig | null = null,
 ): Promise<NotificationPipelineResult> {
   const result: NotificationPipelineResult = { notificationsSent: 0, notificationsSkipped: 0, notificationsFailed: [] };
   if (candidates.length === 0) return result;
 
-  const [slack, recipients] = await Promise.all([
+  const [slack, emailSettings] = await Promise.all([
     prisma.slackIntegration.findUnique({ where: { organizationId } }),
-    emailConfig ? prisma.user.findMany({ where: { organizationId }, select: { email: true } }) : Promise.resolve([]),
+    getEmailSettings(prisma, organizationId).catch((error) => {
+      if (error instanceof EmailSettingsUnreadableError) return null;
+      throw error;
+    }),
   ]);
 
   const slackReady = Boolean(slack?.channelId);
+  const emailConfig = emailSettings ? toEmailConfig(emailSettings) : null;
+  const recipients = emailConfig
+    ? await prisma.user.findMany({ where: { organizationId }, select: { email: true } })
+    : [];
   const emailTo = recipients.map((r) => r.email);
   const emailReady = Boolean(emailConfig) && emailTo.length > 0;
 

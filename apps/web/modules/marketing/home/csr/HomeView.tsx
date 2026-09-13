@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BellRing, GitBranch, ShieldCheck, Timer } from "lucide-react";
+import {
+  ArrowRight,
+  BellRing,
+  GitBranch,
+  ShieldCheck,
+  Timer,
+} from "lucide-react";
 
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MarketingFeature, MarketingStep } from "@/lib/types/marketing";
+import { useSession } from "next-auth/react";
 
 const FEATURES: MarketingFeature[] = [
   {
@@ -57,16 +64,29 @@ const STEPS: MarketingStep[] = [
   },
 ];
 
-const INTEGRATIONS = ["Zendesk", "Jira", "Linear", "Intercom", "GitHub", "Slack"];
+const INTEGRATIONS = [
+  "Zendesk",
+  "Jira",
+  // "Linear",
+  // "Intercom",
+  "GitHub",
+  "Slack",
+];
 
 export const HomeView = () => {
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
+
   return (
     <main className="flex-1">
       <section className="relative overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-grain" />
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-0 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/10 blur-[120px]"
+          className="pointer-events-none absolute inset-0 bg-grain"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 h-144 w-xl -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/10 blur-[120px]"
         />
 
         <div className="relative mx-auto flex w-full max-w-4xl flex-col items-center px-6 py-24 text-center sm:py-32">
@@ -89,15 +109,15 @@ export const HomeView = () => {
               what&apos;s at risk of breaching — before it does.
             </p>
           </Reveal>
-
           <Reveal delay={0.15}>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
-                <Link href="/sign-up">
-                  Get started
+                <Link href={isAuthenticated ? "/dashboard" : "/sign-up"}>
+                  {isAuthenticated ? "Go to dashboard" : "Get started"}
                   <ArrowRight />
                 </Link>
               </Button>
+
               <Button asChild size="lg" variant="outline">
                 <Link href="/docs">View documentation</Link>
               </Button>
@@ -113,7 +133,10 @@ export const HomeView = () => {
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
             {INTEGRATIONS.map((name) => (
-              <span key={name} className="text-sm font-medium text-muted-foreground/80">
+              <span
+                key={name}
+                className="text-sm font-medium text-muted-foreground/80"
+              >
                 {name}
               </span>
             ))}
@@ -128,9 +151,9 @@ export const HomeView = () => {
               Built for the moment a case starts slipping
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Everything the dashboard shows is derived from data your
-              systems already have — nothing to type in, nothing to keep in
-              sync by hand.
+              Everything the dashboard shows is derived from data your systems
+              already have — nothing to type in, nothing to keep in sync by
+              hand.
             </p>
           </div>
 
@@ -174,7 +197,9 @@ export const HomeView = () => {
                   <span className="font-display text-sm text-muted-foreground">
                     {step.number}
                   </span>
-                  <h3 className="text-lg font-medium tracking-tight">{step.title}</h3>
+                  <h3 className="text-lg font-medium tracking-tight">
+                    {step.title}
+                  </h3>
                   <p className="text-sm leading-6 text-muted-foreground">
                     {step.description}
                   </p>
@@ -195,8 +220,8 @@ export const HomeView = () => {
             dashboard.
           </p>
           <Button asChild size="lg">
-            <Link href="/sign-up">
-              Get started
+            <Link href={isAuthenticated ? "/dashboard" : "/sign-up"}>
+              {isAuthenticated ? "Go to dashboard" : "Get started"}
               <ArrowRight />
             </Link>
           </Button>

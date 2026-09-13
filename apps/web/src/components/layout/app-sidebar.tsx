@@ -66,10 +66,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  pathname?.startsWith(`${item.href}/`);
-
+                const active = isActivePath(pathname, item.href);
                 const Icon = item.icon;
 
                 return (

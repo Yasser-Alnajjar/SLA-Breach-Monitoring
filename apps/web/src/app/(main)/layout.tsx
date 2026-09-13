@@ -8,6 +8,8 @@ import {
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -29,6 +31,10 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         <header className="border-border bg-background/80 sticky top-0 z-40 flex h-16 items-center gap-2 border-b px-4 backdrop-blur-md">
           <SidebarTrigger />
           <div className="flex-1" />
+
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/docs">Documentation</Link>
+          </Button>
         </header>
         <main className="mx-auto min-w-0 w-full max-w-7xl flex-1 px-4 py-4">
           {children}

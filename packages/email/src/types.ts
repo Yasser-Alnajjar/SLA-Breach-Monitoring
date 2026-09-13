@@ -1,12 +1,25 @@
-/** SMTP credentials for the org-independent, ops-configured email transport. */
+/**
+ * Tri-state SMTP security, mirroring @sla/db's `EmailSecurity` — kept as a
+ * distinct local type (rather than importing @sla/db here) so this package
+ * stays a plain Nodemailer wrapper with no dependency on the DB layer.
+ * "starttls" negotiates encryption after a plaintext connect (`secure:
+ * false`, the normal choice on port 587); "ssl_tls" is implicit encryption
+ * from the first byte (`secure: true`, the normal choice on port 465);
+ * "none" sends over an unencrypted connection with no STARTTLS upgrade
+ * attempted at all. Never inferred from the port — operators run any of the
+ * three on any port.
+ */
+export type EmailSecurity = "none" | "starttls" | "ssl_tls";
+
+/** Per-organization SMTP credentials, resolved by the caller (decrypted from `OrganizationEmailSettings`). */
 export interface EmailConfig {
   host: string;
   port: number;
-  /** True for an implicit-TLS port (typically 465); false negotiates STARTTLS on ports like 587. */
-  secure: boolean;
+  security: EmailSecurity;
   user: string;
   password: string;
   from: string;
+  fromName?: string | null;
 }
 
 export interface EmailMessage {

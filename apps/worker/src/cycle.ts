@@ -216,8 +216,15 @@ export async function runCycle(
     // A commitment that fails to notify never blocks another organization's
     // cycle.
     try {
-      const notifications = await runNotificationPipeline(prisma, organization.id, notificationCandidates, config.email);
+      const notifications = await runNotificationPipeline(prisma, organization.id, notificationCandidates);
       result.notificationsSent += notifications.notificationsSent;
+      for (const failed of notifications.notificationsFailed) {
+        result.failures.push({
+          organizationId: organization.id,
+          stage: "notifications",
+          error: `commitment ${failed.commitmentId} threshold ${failed.threshold}: ${failed.error}`,
+        });
+      }
     } catch (error) {
       result.failures.push({
         organizationId: organization.id,

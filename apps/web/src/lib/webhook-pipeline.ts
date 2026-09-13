@@ -1,7 +1,6 @@
 import { runCommitmentPipeline, runEvaluationPipeline } from "@sla/commitments";
 import { runNotificationPipeline } from "@sla/notifications";
 import type { PrismaClient } from "@sla/db";
-import { getEmailConfig } from "./email-env";
 
 export interface WebhookPipelineResult {
   commitmentsCreated: number;
@@ -9,6 +8,7 @@ export interface WebhookPipelineResult {
   evaluationsCreated: number;
   commitmentsFinalized: number;
   notificationsSent: number;
+  notificationsFailed: { commitmentId: string; threshold: number; error: string }[];
 }
 
 /**
@@ -29,12 +29,7 @@ export async function runWebhookPipelineTail(
 ): Promise<WebhookPipelineResult> {
   const commitments = await runCommitmentPipeline(prisma, organizationId);
   const evaluations = await runEvaluationPipeline(prisma, organizationId, { scope: "active" });
-  const notifications = await runNotificationPipeline(
-    prisma,
-    organizationId,
-    evaluations.notificationCandidates,
-    getEmailConfig(),
-  );
+  const notifications = await runNotificationPipeline(prisma, organizationId, evaluations.notificationCandidates);
 
   return {
     commitmentsCreated: commitments.commitmentsCreated,
@@ -42,5 +37,6 @@ export async function runWebhookPipelineTail(
     evaluationsCreated: evaluations.evaluationsCreated,
     commitmentsFinalized: evaluations.commitmentsFinalized,
     notificationsSent: notifications.notificationsSent,
+    notificationsFailed: notifications.notificationsFailed,
   };
 }

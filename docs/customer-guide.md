@@ -147,7 +147,7 @@ The product connects to two kinds of systems: **ticket sources**, which create C
 | Linear | Engineering source (alternative to Jira) | OAuth2, read-only | Poll only | No |
 | GitHub | Engineering source (pull requests) | OAuth2 | Poll only | No |
 | Slack | Alert channel | OAuth2 (bot token) | Outbound only | — |
-| Email | Alert channel | SMTP (deployment-configured) | Outbound only | — |
+| Email | Alert channel | SMTP (self-service, per organization) | Outbound only | — |
 
 Every connection shares the same shape:
 
@@ -471,7 +471,7 @@ There are two notification channels, and only one is self-service today.
 
 Email alerts use the same trigger and deduplication logic as Slack and go to **every user in your organization** — there is currently no per-user opt-out or preference and no way to route email differently from Slack.
 
-**Important:** email requires SMTP server details (host, port, credentials, from-address) configured at the hosting/deployment level by whoever operates this product for your organization — it is **not** a self-service setting you configure from within the app the way Slack is. If you want email alerts and don't see a way to turn them on in Settings, that's expected; ask your account contact whether SMTP has been configured for your deployment.
+**Configuring it:** from Settings → Integrations → Notifications, enter your SMTP host, port, security mode (None/STARTTLS/SSL-TLS), username, password, and from-address. Use **Test Connection** to check authentication and **Send Test Email** to confirm delivery before saving — each organization brings its own SMTP server, there is no shared deployment-level fallback. The password is encrypted at rest and never shown again once saved; leave it blank when editing other fields to keep the current one.
 
 ---
 
@@ -801,7 +801,7 @@ That case detail page — timeline, leg breakdown, calculation disclosure, and l
 - [ ] Review imported SLA policies and business calendars under Settings → SLA
 - [ ] Set an engineering-leg target, if desired
 - [ ] Connect Slack and choose an alert channel, if desired
-- [ ] Ask your account contact to configure SMTP if you want email alerts too
+- [ ] Configure SMTP under Settings → Integrations → Notifications if you want email alerts too
 
 ### Validation
 - [ ] Confirm your customer list under Settings → SLA → Customer calendars matches your actual accounts

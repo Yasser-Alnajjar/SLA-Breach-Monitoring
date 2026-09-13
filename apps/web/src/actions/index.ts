@@ -5,6 +5,7 @@ import { OnboardingActions } from "./onboarding";
 import { FindingsActions } from "./findings";
 import { IntegrationsActions } from "./integrations";
 import { SlaConfigurationActions } from "./sla-configuration";
+import { NotificationsActions } from "./notifications";
 
 /**
  * Server-only data layer, imported exclusively by `ssr/` (async server)
@@ -19,4 +20,5 @@ export const Actions = {
   Findings: FindingsActions,
   Integrations: IntegrationsActions,
   SlaConfiguration: SlaConfigurationActions,
+  Notifications: NotificationsActions,
 };

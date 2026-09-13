@@ -90,18 +90,33 @@ function createFakePrisma() {
       }
       return projected;
     },
-    async upsert({
+    // `create`/`update` (not `upsert`) — mirrors real Prisma, which
+    // validates a `create` argument's required fields (`clientSecret`
+    // included) even when an `upsert` would actually run its `update`
+    // branch. A fake that only modeled `upsert` couldn't have caught that:
+    // it let `create.clientSecret` be `undefined` and merged it into
+    // `update`'s result unnoticed, silently passing while real Prisma threw
+    // "Argument clientSecret is missing." at runtime.
+    async create({ data }: { data: Omit<Row, "id"> }) {
+      if (data.clientSecret === undefined) {
+        throw new Error("Argument `clientSecret` is missing.");
+      }
+      const k = key(data.organizationId, data.provider);
+      const row: Row = { id: `cfg-${++nextId}`, ...data };
+      rows.set(k, row);
+      return { ...row };
+    },
+    async update({
       where,
-      create,
-      update,
+      data,
     }: {
       where: { organizationId_provider: { organizationId: string; provider: string } };
-      create: Omit<Row, "id">;
-      update: Partial<Row>;
+      data: Partial<Row>;
     }) {
       const k = key(where.organizationId_provider.organizationId, where.organizationId_provider.provider);
       const existing = rows.get(k);
-      const next: Row = existing ? { ...existing, ...update } : { id: `cfg-${++nextId}`, ...create };
+      if (!existing) throw new Error("Record to update not found.");
+      const next: Row = { ...existing, ...data };
       rows.set(k, next);
       return { ...next };
     },
@@ -155,6 +170,20 @@ describe("tenant isolation", () => {
     expect(await getIntegrationConfig(prisma, "org-a", "slack")).toEqual({
       clientId: "slack-client",
       clientSecret: "slack-secret",
+    });
+  });
+});
+
+describe("saveIntegrationConfig", () => {
+  it("updates clientId on an existing row without a clientSecret, keeping the old secret", async () => {
+    const { prisma } = createFakePrisma();
+    await saveIntegrationConfig(prisma, "org-a", "jira", { clientId: "client-a", clientSecret: "secret-a" });
+
+    await saveIntegrationConfig(prisma, "org-a", "jira", { clientId: "client-a-renamed" });
+
+    expect(await getIntegrationConfig(prisma, "org-a", "jira")).toEqual({
+      clientId: "client-a-renamed",
+      clientSecret: "secret-a",
     });
   });
 });

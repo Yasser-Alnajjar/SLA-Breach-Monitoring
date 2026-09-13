@@ -1,2 +1,2 @@
-export { sendEmail } from "./client";
-export type { EmailConfig, EmailMessage } from "./types";
+export { sendEmail, verifyEmailConfig } from "./client";
+export type { EmailConfig, EmailMessage, EmailSecurity } from "./types";

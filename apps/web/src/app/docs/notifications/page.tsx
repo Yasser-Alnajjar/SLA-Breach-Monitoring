@@ -37,24 +37,25 @@ export default function NotificationsPage() {
           <h2 className="text-2xl font-semibold tracking-tight">Channels</h2>
 
           <p className="leading-7 text-muted-foreground">
-            There are two notification channels, and only one is self-service
-            today. Slack does not become a source of truth for SLA timing in the
-            core model — it is purely an outbound alert channel.
+            Both notification channels are self-service, configured per
+            organization from Settings → Integrations. Slack does not become a
+            source of truth for SLA timing in the core model — it is purely an
+            outbound alert channel, and neither is email.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg border p-4">
               <p className="text-sm font-semibold">Slack</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Self-service. Connect from Settings → Integrations and pick one
-                alert channel.
+                Connect from Settings → Integrations and pick one alert
+                channel.
               </p>
             </div>
             <div className="rounded-lg border p-4">
               <p className="text-sm font-semibold">Email</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Requires SMTP configured at the deployment level — not a
-                self-service setting inside the app.
+                Add your SMTP server under Settings → Integrations →
+                Notifications — no deployment-level configuration needed.
               </p>
             </div>
           </div>
@@ -129,14 +130,13 @@ export default function NotificationsPage() {
 
           <Alert variant="warning">
             <Info className="size-4" />
-            <AlertTitle>Email is deployment-configured</AlertTitle>
+            <AlertTitle>Configure your own SMTP server</AlertTitle>
             <AlertDescription>
-              Email requires SMTP server details (host, port, credentials,
-              from-address) configured at the hosting/deployment level by
-              whoever operates this product for your organization. If you want
-              email alerts and don&apos;t see a way to turn them on in Settings,
-              ask your account contact whether SMTP has been configured for your
-              deployment.
+              From Settings → Integrations → Notifications, add your SMTP
+              host, port, security mode, credentials, and from-address. Use
+              Test Connection to check authentication and Send Test Email to
+              confirm delivery before saving — each organization brings its
+              own SMTP server, there is no shared deployment-level fallback.
             </AlertDescription>
           </Alert>
         </section>

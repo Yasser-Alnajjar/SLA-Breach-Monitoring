@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
 import { BrandMark } from "@/components/shared/brand-mark";
 import { Button } from "@/components/ui/button";
+import { authOptions } from "@/lib/auth";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -10,7 +12,10 @@ const LINKS = [
   { href: "/docs", label: "Docs" },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const session = await getServerSession(authOptions);
+  const isAuthenticated = !!session?.user;
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
@@ -31,12 +36,21 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/sign-in">Sign in</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/sign-up">Get started</Link>
-          </Button>
+          {isAuthenticated ? (
+            <Button asChild size="sm">
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/sign-in">Sign in</Link>
+              </Button>
+
+              <Button asChild size="sm">
+                <Link href="/sign-up">Get started</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>

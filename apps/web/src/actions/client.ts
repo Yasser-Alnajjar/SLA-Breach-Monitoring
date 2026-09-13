@@ -12,12 +12,30 @@ import type {
   SlackChannel,
   ZendeskSyncResult,
 } from "@/lib/types/integrations";
+import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-settings";
 import type { SignUpInput } from "@/lib/sign-up";
 
 interface ActionResult<T> {
   ok: boolean;
   status: number;
   body: T & { error?: string; reauthRequired?: boolean };
+}
+
+export interface EmailSettingsFormInput {
+  host: string;
+  port: number;
+  security: EmailSecurity;
+  username: string;
+  /** Blank means "keep/use the already-saved password" — see the settings form and API routes. */
+  password?: string;
+  fromEmail: string;
+  fromName?: string;
+}
+
+interface SmtpActionResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
 }
 
 async function postJSON<T>(
@@ -126,6 +144,20 @@ export const Actions = {
         ok: false as const,
         error: (body?.error as string | undefined) ?? "Failed to disconnect",
       };
+    },
+  },
+
+  Email: {
+    async saveSettings(input: EmailSettingsFormInput) {
+      return postJSON<EmailSettingsStatus>("/api/settings/email", input);
+    },
+    async testConnection(input: EmailSettingsFormInput) {
+      const { body } = await postJSON<SmtpActionResult>("/api/settings/email/test-connection", input);
+      return body;
+    },
+    async sendTestEmail(input: EmailSettingsFormInput) {
+      const { body } = await postJSON<SmtpActionResult>("/api/settings/email/test-send", input);
+      return body;
     },
   },
 

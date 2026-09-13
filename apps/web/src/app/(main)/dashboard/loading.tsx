@@ -14,6 +14,14 @@ export default function DashboardLoading() {
       </div>
 
       <div className="mt-4 flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-56 w-full" />
+          </CardContent>
+        </Card>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -32,14 +40,6 @@ export default function DashboardLoading() {
             </CardContent>
           </Card>
         </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-40" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-56 w-full" />
-          </CardContent>
-        </Card>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">

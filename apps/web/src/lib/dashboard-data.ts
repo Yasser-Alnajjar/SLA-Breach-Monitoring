@@ -302,6 +302,7 @@ export async function getDashboardData(
       externalId: row.case.externalId,
       customerName: row.case.customer?.name ?? null,
       kind: row.kind,
+      subject: row.case.subject,
     }),
   );
 

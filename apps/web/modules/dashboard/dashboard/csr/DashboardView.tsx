@@ -161,7 +161,7 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                               href={`/cases/${row.caseId}`}
                               className="text-primary hover:underline"
                             >
-                              #{row.externalId}
+                              {row.subject}
                             </a>{" "}
                             · {formatCommitmentKind(row.kind)}
                           </li>

@@ -1,4 +1,9 @@
-import type { CommitmentKind, CommitmentStatus, EngineeringLegEvaluation, Leg } from "@sla/core";
+import type {
+  CommitmentKind,
+  CommitmentStatus,
+  EngineeringLegEvaluation,
+  Leg,
+} from "@sla/core";
 
 export interface AtRiskRow {
   commitmentId: string;
@@ -26,6 +31,7 @@ export interface BreachedCaseRow {
   externalId: string;
   customerName: string | null;
   kind: CommitmentKind;
+  subject: string | null;
 }
 
 /** A customer/kind pair whose most recent cycle times statistically depart from their own history (roadmap step 25). */

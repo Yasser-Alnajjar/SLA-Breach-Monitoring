@@ -9,10 +9,13 @@ import {
   CirclePlay,
   FileText,
   GitBranch,
+  GitPullRequest,
   LayoutDashboard,
+  LifeBuoy,
   Settings2,
   ShieldAlert,
   Ticket,
+  Workflow,
   Wrench,
 } from "lucide-react";
 import {
@@ -100,6 +103,21 @@ const sections: DocsSection[] = [
         title: "Slack",
         href: "/docs/integrations/slack",
         icon: FileText,
+      },
+      {
+        title: "Linear",
+        href: "/docs/integrations/linear",
+        icon: Workflow,
+      },
+      {
+        title: "Intercom",
+        href: "/docs/integrations/intercom",
+        icon: LifeBuoy,
+      },
+      {
+        title: "GitHub",
+        href: "/docs/integrations/github",
+        icon: GitPullRequest,
       },
     ],
   },

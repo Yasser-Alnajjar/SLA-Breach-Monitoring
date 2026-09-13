@@ -76,7 +76,7 @@ export default function GettingStartedPage() {
     <DocsLayout toc={toc}>
       <div className="space-y-12">
         <header className="space-y-4">
-          <Badge variant="secondary">Getting Started</Badge>
+          <Badge variant="outline">Getting Started</Badge>
 
           <div className="space-y-3">
             <h1 className="text-4xl font-bold tracking-tight">

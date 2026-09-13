@@ -30,7 +30,7 @@ const sections = [
   {
     title: "Integrations",
     description:
-      "Connect Zendesk, Jira, and Slack and understand what data is used.",
+      "Connect Zendesk, Jira, Slack, and more, and understand what data is used.",
     href: "/docs/integrations/zendesk",
     icon: Plug,
   },

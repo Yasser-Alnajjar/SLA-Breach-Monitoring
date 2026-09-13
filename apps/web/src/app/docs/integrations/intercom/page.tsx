@@ -1,0 +1,325 @@
+import Link from "next/link";
+import { ArrowRight, ExternalLink, Info } from "lucide-react";
+
+import { DocsLayout } from "@/components/docs/docs-layout";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+
+const toc = [
+  { id: "purpose", title: "Purpose", level: 2 as const },
+  {
+    id: "create-oauth-app",
+    title: "Create the Intercom app",
+    level: 2 as const,
+  },
+  { id: "configure-in-app", title: "Add the credentials", level: 2 as const },
+  { id: "connection", title: "Connect Intercom", level: 2 as const },
+  { id: "permissions", title: "Permissions", level: 2 as const },
+  { id: "data-imported", title: "Data imported", level: 2 as const },
+  {
+    id: "pause-behavior",
+    title: "Pause behavior is different",
+    level: 2 as const,
+  },
+  {
+    id: "sla-policies",
+    title: "SLA policies are not imported",
+    level: 2 as const,
+  },
+  { id: "not-modified", title: "Data not modified", level: 2 as const },
+  { id: "sync", title: "Sync behavior", level: 2 as const },
+  { id: "limitations", title: "Known limitations", level: 2 as const },
+];
+
+export default function IntercomIntegrationPage() {
+  return (
+    <DocsLayout toc={toc}>
+      <div className="space-y-12">
+        <header className="space-y-4">
+          <Badge variant="outline">Integrations</Badge>
+
+          <div className="space-y-3">
+            <h1 className="text-4xl font-bold tracking-tight">Intercom</h1>
+
+            <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
+              An alternative ticket source alongside Zendesk, not a replacement
+              — it contributes conversations, customers, and support-side
+              timeline events, with a few real differences from Zendesk worth
+              knowing before you rely on it.
+            </p>
+          </div>
+        </header>
+
+        <section id="purpose" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Purpose</h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Intercom supplies customer-facing conversation history the same way
+            Zendesk supplies ticket history: conversations become cases, and
+            companies become customers. It does not currently supply SLA policy
+            definitions or business-hours calendars the way Zendesk does — see{" "}
+            <Link href="#sla-policies" className="underline underline-offset-4">
+              SLA policies are not imported
+            </Link>{" "}
+            below.
+          </p>
+        </section>
+
+        <section id="create-oauth-app" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Create the Intercom app
+          </h2>
+
+          <ol className="space-y-3">
+            {[
+              <>
+                Go to Intercom&apos;s <strong>Developer Hub</strong> and create
+                a new app for your workspace.
+              </>,
+              <>
+                In the app&apos;s <strong>Authentication</strong> settings, set
+                the <strong>Redirect URL</strong> to{" "}
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                  https://your-app-domain/api/integrations/intercom/callback
+                </code>
+                , replacing{" "}
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                  your-app-domain
+                </code>{" "}
+                with the domain you access this product at.
+              </>,
+              <>
+                Under <strong>Basic Information</strong>, copy the{" "}
+                <strong>Client ID</strong> and <strong>Client Secret</strong>.
+              </>,
+            ].map((content, index) => (
+              <li key={index} className="flex gap-4 rounded-lg border p-4">
+                <div className="flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">
+                  {index + 1}
+                </div>
+                <p className="text-sm text-muted-foreground">{content}</p>
+              </li>
+            ))}
+          </ol>
+
+          <Alert>
+            <Info className="size-4" />
+            <AlertTitle>
+              The redirect URL is registered once, on the app itself
+            </AlertTitle>
+            <AlertDescription>
+              Unlike Zendesk, Jira, and Linear, Intercom does not take a
+              redirect URI as part of each authorization request — it uses
+              whatever Redirect URL is saved on the app in the Developer Hub.
+              Make sure the URL above is saved there before connecting.
+            </AlertDescription>
+          </Alert>
+        </section>
+
+        <section id="configure-in-app" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Add the credentials
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            In SLA Breach Monitoring, go to{" "}
+            <strong>Settings → Integrations → Intercom → Configure</strong> and
+            paste in the Client ID and Client Secret, then save.
+          </p>
+        </section>
+
+        <section id="connection" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Connect Intercom
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            From the same Integrations page, click{" "}
+            <strong>Connect Intercom</strong> and approve the OAuth prompt for
+            your workspace.
+          </p>
+        </section>
+
+        <Separator />
+
+        <section id="permissions" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Permissions</h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Read-only access is a property of the app&apos;s requested
+            permissions, configured once in Intercom&apos;s Developer Hub rather
+            than passed as an OAuth scope parameter. No write permission is ever
+            requested or used.
+          </p>
+        </section>
+
+        <section id="data-imported" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Data imported
+          </h2>
+
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>• Conversations</li>
+            <li>
+              • Conversation parts (the event/reply history within each
+              conversation)
+            </li>
+            <li>• Companies (become Customers)</li>
+          </ul>
+        </section>
+
+        <section id="pause-behavior" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Pause behavior is different from Zendesk
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Intercom&apos;s conversation lifecycle only has three states: open,
+            snoozed, and closed — there is no separate pending-customer /
+            pending-internal split the way Zendesk has.
+          </p>
+
+          <Alert variant="warning">
+            <Info className="size-4" />
+            <AlertTitle>
+              Snoozed is not treated as customer-caused waiting
+            </AlertTitle>
+            <AlertDescription>
+              A snoozed conversation normalizes to{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                pending_internal
+              </code>
+              , not{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                pending_customer
+              </code>
+              , because snoozing represents an agent deliberately deferring a
+              conversation — not the customer being asked to respond. Since only{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                pending_customer
+              </code>{" "}
+              pauses a commitment&apos;s clock (see{" "}
+              <Link
+                href="/docs/sla#customer-waiting"
+                className="underline underline-offset-4"
+              >
+                SLA &amp; Targets
+              </Link>
+              ), snoozing an Intercom conversation does not pause its
+              commitment.
+            </AlertDescription>
+          </Alert>
+        </section>
+
+        <section id="sla-policies" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            SLA policies are not imported
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Unlike Zendesk, Intercom does not currently supply SLA policy
+            definitions or business-hours schedules to this product. Commitments
+            are matched from your organization&apos;s existing SLA policies
+            regardless of which system a case came from — so if your
+            organization has connected Intercom without also having
+            Zendesk-imported policies in place, Intercom-sourced cases may not
+            match any policy and will have no commitments at all.
+          </p>
+
+          <p className="text-sm text-muted-foreground">
+            If you rely on Intercom as your ticket source, connect Zendesk as
+            well (even without using it day to day) so its imported policies and
+            calendars are available for matching, or ask your account contact
+            about your options.
+          </p>
+        </section>
+
+        <section id="not-modified" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Data not modified
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Nothing. No conversation, contact, or field is ever created or
+            changed in Intercom.
+          </p>
+        </section>
+
+        <section id="sync" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Sync behavior
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            Poll only — the same 5-minute (active cases) / 60-minute
+            (reconciliation) schedule as Zendesk and Jira, but with no real-time
+            webhook.
+          </p>
+        </section>
+
+        <section id="limitations" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Known limitations
+          </h2>
+
+          <Alert>
+            <AlertTitle>No webhook support</AlertTitle>
+            <AlertDescription>
+              Intercom relies entirely on the poll schedule.
+            </AlertDescription>
+          </Alert>
+
+          <Alert>
+            <AlertTitle>Not reflected in onboarding progress</AlertTitle>
+            <AlertDescription>
+              The live counters on the onboarding screen cover Zendesk and Jira
+              only. Intercom&apos;s backfill status is visible on the
+              Integrations settings page instead.
+            </AlertDescription>
+          </Alert>
+        </section>
+
+        <section className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/docs/integrations/zendesk"
+              className="group flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
+            >
+              <div>
+                <p className="text-sm font-medium">Zendesk</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  See where SLA policies actually come from.
+                </p>
+              </div>
+              <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </Link>
+
+            <Link
+              href="/docs/sla"
+              className="group flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
+            >
+              <div>
+                <p className="text-sm font-medium">SLA &amp; Targets</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Understand pause rules in detail.
+                </p>
+              </div>
+              <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+        </section>
+
+        <div className="border-t pt-8">
+          <a
+            href="#purpose"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            Back to top
+            <ExternalLink className="size-3.5" />
+          </a>
+        </div>
+      </div>
+    </DocsLayout>
+  );
+}

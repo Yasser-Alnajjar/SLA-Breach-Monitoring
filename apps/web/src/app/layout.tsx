@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import type { ReactNode } from "react";
-import { MotionProvider } from "@/components/motion-provider";
 import "./globals.css";
-import { ThemeProvider } from "@/components/ui/theme-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
+import { SessionProvider } from "@/providers/session-provider";
 
 const fontSans = Inter({
   subsets: ["latin"],
@@ -34,10 +34,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>
-        <ThemeProvider>
-          <SlaAutoRefreshProvider />
-          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            <SlaAutoRefreshProvider />
+            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

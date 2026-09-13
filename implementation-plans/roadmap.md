@@ -624,8 +624,33 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       leftover "not ready yet" markers on integrations that have shipped
       since roadmap steps 14/15 and 22.
 
-- [ ] **27 — CI pipeline** (typecheck, lint, test, build on push/PR; fix or
-      delete the root `pnpm build` script, which fails on `packages/core`/`packages/slack` today but is dead code nothing consumes).
+- [x] **27 — CI pipeline** `.github/workflows/ci.yml` runs on every push to
+      `main` and every PR: install, generate the Prisma client, then
+      type-check, test, and build the whole workspace. Investigated the root
+      `pnpm build` failure on `packages/core`/`packages/slack` rather than
+      deleting the script — both packages' `tsconfig.json` had `"types":
+      ["node"]` as a sibling of `compilerOptions` instead of nested inside
+      it, a silently-ignored key in every one of the 10 non-`db` packages'
+      `tsconfig.json`. With no ambient Node types loaded, `core`'s
+      `node:crypto` import and `slack`'s global `fetch`/`URL`/
+      `URLSearchParams` usage didn't resolve — not dead code, a config typo.
+      Moved `types` into `compilerOptions` in all 10; `pnpm build` now passes
+      clean, so it stays wired into CI instead of being removed. Added a
+      `type-check` script (`tsc --noEmit`) to those same 10 packages and to
+      `apps/worker` (mirroring `apps/web`'s existing `type-check`), plus a
+      root `pnpm type-check` that runs all of them via `pnpm -r run
+      type-check` — `packages/db` has no such script (its own
+      `tsconfig.json` has a `rootDir` that doesn't include the generated
+      Prisma client, never exercised before since nothing built or
+      typechecked it standalone) and `pnpm -r run` skips packages missing
+      the script rather than erroring, so it's correctly left alone. CI sets
+      dummy values for `DATABASE_URL`/`NEXTAUTH_SECRET`/`NEXTAUTH_URL`/
+      `INTEGRATION_CONFIG_ENCRYPTION_KEY`/`SMTP_ENCRYPTION_KEY` directly as
+      job env — verified locally with no `.env` file present that `prisma
+      generate` (needs `DATABASE_URL` to resolve, doesn't connect) and
+      `next build` (fully static/dynamic-route analysis, no live DB query at
+      build time) both succeed on dummy values alone, so CI never needs a
+      real database.
 - [ ] **28 — Containerize and document deployment** (Dockerfile for
       `apps/web` and `apps/worker`, a prod compose file, `docs/deployment.md`
       — targeting Docker + self-host/VPS, not a specific managed host).

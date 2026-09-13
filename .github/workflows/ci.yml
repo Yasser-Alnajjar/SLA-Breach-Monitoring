@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # Build-time only — nothing here connects to a real database or sends
+      # real mail. No package.json script in this repo touches the network
+      # at build/typecheck/test time.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      NEXTAUTH_SECRET: "ci-nextauth-secret"
+      NEXTAUTH_URL: "http://localhost:3000"
+      INTEGRATION_CONFIG_ENCRYPTION_KEY: "ci-integration-config-encryption-key"
+      SMTP_ENCRYPTION_KEY: "ci-smtp-encryption-key"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @sla/db generate
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build web app
+        run: pnpm web:build
+
+      - name: Build worker app
+        run: pnpm worker:build

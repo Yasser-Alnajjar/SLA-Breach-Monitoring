@@ -13,6 +13,7 @@
     "worker:dev": "pnpm -r --filter=./apps/worker dev",
     "worker:start": "pnpm -r --filter=./apps/worker start",
     "worker:build": "pnpm -r --filter=./apps/worker build",
+    "type-check": "pnpm -r run type-check",
     "test": "vitest run",
     "test:watch": "vitest"
   },

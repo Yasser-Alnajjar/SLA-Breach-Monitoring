@@ -4,9 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 import { SessionProvider } from "@/providers/session-provider";
-import { Actions } from "@/actions";
 
 const fontSans = Inter({
   subsets: ["latin"],
@@ -32,7 +30,6 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }) {
-  const data = await Actions.WorkerSettings.getData();
   return (
     <html
       lang="en"
@@ -42,9 +39,6 @@ export default async function RootLayout({
       <body suppressHydrationWarning>
         <SessionProvider>
           <ThemeProvider>
-            <SlaAutoRefreshProvider
-              initInterval={data.activePollIntervalMs - 2000}
-            />
             <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
           </ThemeProvider>
         </SessionProvider>

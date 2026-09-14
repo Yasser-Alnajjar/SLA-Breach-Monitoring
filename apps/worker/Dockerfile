@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+#
+# Build from the monorepo root: docker build -f apps/worker/Dockerfile .
+# See docs/deployment.md for the full self-host walkthrough.
+#
+# apps/worker's own "start" script (dotenv -e ../../.env -- tsx src/index.ts)
+# runs TypeScript directly via tsx rather than a compiled dist/ output, and
+# every @sla/* package it imports is consumed as workspace TS source (each
+# package.json's "main" points at src/index.ts, not a build artifact) — so,
+# unlike apps/web, there is no bundling step that lets the runtime image
+# drop devDependencies or leave source out. The image below keeps the full
+# monorepo install and runs the same start script used outside Docker.
+
+FROM node:22-alpine AS runner
+RUN corepack enable
+WORKDIR /repo
+
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+# packages/db/prisma.config.ts resolves DATABASE_URL at config-load time for
+# every prisma command, `generate` included, even though the generated
+# driver-adapter client itself never connects during generation. A dummy
+# value (mirroring CI's) is enough to satisfy it here.
+ARG DATABASE_URL=postgresql://build:build@localhost:5432/build
+ENV DATABASE_URL=$DATABASE_URL
+RUN pnpm --filter @sla/db generate
+
+RUN addgroup -S nodejs && adduser -S worker -G nodejs
+USER worker
+
+WORKDIR /repo/apps/worker
+CMD ["pnpm", "start"]

@@ -5,10 +5,11 @@ import { getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
 import { validateOAuthState } from "@/lib/oauth-state";
+import { getAppUrl } from "@/lib/app-url";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.redirect(new URL("/sign-in", request.url));
+  if (!session) return NextResponse.redirect(new URL("/sign-in", getAppUrl()));
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
   // GitHub is a settings-only connect flow (mirrors Linear/Intercom), not
   // part of onboarding — lands back on the settings page, not /onboarding.
-  const response = NextResponse.redirect(new URL("/settings/integrations", request.url));
+  const response = NextResponse.redirect(new URL("/settings/integrations", getAppUrl()));
   response.cookies.delete(GITHUB_STATE_COOKIE);
   return response;
 }

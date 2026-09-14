@@ -651,9 +651,43 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `next build` (fully static/dynamic-route analysis, no live DB query at
       build time) both succeed on dummy values alone, so CI never needs a
       real database.
-- [ ] **28 — Containerize and document deployment** (Dockerfile for
-      `apps/web` and `apps/worker`, a prod compose file, `docs/deployment.md`
-      — targeting Docker + self-host/VPS, not a specific managed host).
+- [x] **28 — Containerize and document deployment** `apps/web/Dockerfile`
+      and `apps/worker/Dockerfile`, `docker-compose.prod.yml`, and
+      `docs/deployment.md` — targeting Docker + self-host/VPS, not a
+      specific managed host. The two apps needed different treatment.
+      `apps/web` gets a standard multi-stage build using Next's `output:
+      "standalone"` (added to `next.config.mjs`, with
+      `outputFileTracingRoot` pointed at the monorepo root so pnpm-workspace
+      packages trace correctly) — the runtime image ships only the traced
+      server bundle, no devDependencies. `apps/worker` can't do the same:
+      its own `start` script runs TypeScript directly via `tsx` rather than
+      a compiled `dist/`, and every `@sla/*` package it imports resolves to
+      workspace TS source (`main` points at `src/index.ts`, not a build
+      artifact) — so its image keeps the full monorepo install, including
+      devDependencies, and just runs the existing `pnpm start`. Neither
+      image needed Prisma's query-engine binaries or `libssl` — `packages/db`
+      generates the driver-adapter client (`@prisma/adapter-pg`), which is
+      pure JS/TS — so plain `node:22-alpine` works for both. Actually built
+      and ran both images against a real Postgres container to verify (not
+      just inspected): this surfaced two real bugs a read-through wouldn't
+      have caught. First, the repo had no `packageManager` field, so
+      Corepack re-resolved (and, at runtime with a non-root user, tried to
+      migrate) a different pnpm version than the one node_modules was
+      installed with, hard-failing `apps/worker`'s container on startup with
+      `ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR`; pinned
+      `"packageManager": "pnpm@10.33.0"` in the root `package.json` (matches
+      CI's `pnpm/action-setup` major version) to make Corepack deterministic
+      across build and run. Second, `apps/web/Dockerfile` unconditionally
+      copied a `public/` directory the app doesn't have; removed that COPY.
+      Both app containers run as an unprivileged user; the one-off `prisma
+      migrate deploy` step (documented, not run automatically on every
+      start) needs `--user root` since a non-root user can't write
+      `node_modules` state files migrate occasionally touches — the
+      long-running worker process itself never runs that way. Build-time
+      `ENV`s in both Dockerfiles are fixed placeholder values, never real
+      secrets — actual config is only ever supplied at container start via
+      `environment:`/`--env-file`, same as the CI job's approach for the
+      same values.
 - [ ] **29 — Health checks and observability** (`/api/health`, a worker
       liveness surface, Sentry or equivalent in both apps, alerting on a
       stalled worker cycle).

@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
-  BookOpen,
   CircleHelp,
   CirclePlay,
   FileText,
@@ -12,15 +11,21 @@ import {
   GitPullRequest,
   LayoutDashboard,
   LifeBuoy,
+  LogOut,
+  Settings,
   Settings2,
   ShieldAlert,
   Ticket,
   Workflow,
   Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -29,10 +34,20 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { BrandMark } from "../shared/brand-mark";
-import type { LucideIcon } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type DocsItem = {
   title: string;
@@ -143,9 +158,31 @@ const sections: DocsSection[] = [
   },
 ];
 
+function initialsOf(name: string, email: string) {
+  const value = name !== "Guest" ? name : email;
+
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 export function DocsSidebar() {
   const pathname = usePathname();
+  const isMobile = useIsMobile();
+  const { data: session, status } = useSession();
 
+  const isAuthenticated = status === "authenticated";
+  const user = session?.user;
+
+  const displayName = user?.name || user?.email?.split("@")[0] || "User";
+
+  const email = user?.email || "";
+
+  const initials = initialsOf(user?.name || "Guest", user?.email || "Guest");
+  const router = useRouter();
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -153,6 +190,7 @@ export function DocsSidebar() {
           <BrandMark />
         </Link>
       </SidebarHeader>
+
       <SidebarContent>
         {sections.map((section) => (
           <SidebarGroup key={section.title}>
@@ -161,17 +199,17 @@ export function DocsSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
-                  const active =
+                  const Icon = item.icon;
+
+                  const isActive =
                     pathname === item.href ||
                     pathname.startsWith(`${item.href}/`);
-
-                  const Icon = item.icon;
 
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
                         asChild
-                        isActive={active}
+                        isActive={isActive}
                         tooltip={item.title}
                       >
                         <Link href={item.href}>
@@ -188,11 +226,92 @@ export function DocsSidebar() {
         ))}
       </SidebarContent>
 
-      <div className="border-t p-2">
-        <div className="flex items-center justify-end">
-          <ThemeToggle />
-        </div>
-      </div>
+      <SidebarFooter>
+        {isAuthenticated && user ? (
+          <>
+            <SidebarSeparator />
+
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size="lg"
+                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    >
+                      <Avatar size="default">
+                        <AvatarImage src={user.image ?? undefined} alt="" />
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+
+                      <div className="grid min-w-0 flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                        <span className="truncate font-medium">
+                          {displayName}
+                        </span>
+
+                        <span className="text-muted-foreground truncate text-xs">
+                          {email}
+                        </span>
+                      </div>
+
+                      <Settings className="ms-auto size-4 group-data-[collapsible=icon]:hidden" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent
+                    side={isMobile ? "bottom" : "top"}
+                    align="end"
+                    sideOffset={8}
+                    className="w-56"
+                  >
+                    <div className="flex items-center gap-2 px-2 py-2">
+                      <Avatar size="default">
+                        <AvatarImage src={user.image ?? undefined} alt="" />
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {displayName}
+                        </p>
+
+                        <p className="text-muted-foreground truncate text-xs">
+                          {email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <DropdownMenuSeparator />
+
+                    <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+                      <span className="text-sm">Theme</span>
+                      <ThemeToggle />
+                    </div>
+
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        signOut({ redirect: false });
+                        router.refresh();
+                      }}
+                    >
+                      <LogOut className="size-4" />
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </>
+        ) : (
+          <div className="border-t p-2">
+            <div className="flex items-center justify-end">
+              <ThemeToggle />
+            </div>
+          </div>
+        )}
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

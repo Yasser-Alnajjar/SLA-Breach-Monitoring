@@ -6,7 +6,8 @@ import type { IUser } from "@/lib/types/user";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
@@ -17,10 +18,12 @@ export async function GET() {
       email: true,
       name: true,
       image: true,
+      role: true,
       createdAt: true,
     },
   });
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   return NextResponse.json(user satisfies IUser);
 }

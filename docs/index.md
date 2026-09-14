@@ -38,6 +38,7 @@ SLA is designed to keep that customer-facing clock visible across the handoff.
 - [Integrations](integrations.md)
 - [Dashboard and Cases](dashboard-and-cases.md)
 - [SLA Timing](sla-timing.md)
+- [Deployment](deployment.md)
 - [Troubleshooting](troubleshooting.md)
 
 > **Important:** This documentation is based on the current project/product definition supplied for this documentation pass. It describes the intended MVP behavior and product model; it is not a substitute for a code-level implementation audit.

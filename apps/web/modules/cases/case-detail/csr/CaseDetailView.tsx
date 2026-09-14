@@ -337,179 +337,183 @@ function CaseJourney({ data }: { data: CaseDetailData }) {
 
 function ActivityTimeline({ data }: { data: CaseDetailData }) {
   return (
-    <Card className="min-w-0">
-      <CardHeader className="flex-row items-center gap-2 space-y-0">
-        <ListTree className="size-4 text-muted-foreground" />
-        <CardTitle className="text-base">Activity</CardTitle>
-        <TimelineGlossary />
-      </CardHeader>
+    <Reveal delay={0.05}>
+      <Card className="min-w-0">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <ListTree className="size-4 text-muted-foreground" />
+          <CardTitle className="text-base">Activity</CardTitle>
+          <TimelineGlossary />
+        </CardHeader>
 
-      <CardContent>
-        {data.timeline.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No activity yet.</p>
-        ) : (
-          <ol className="max-h-128 overflow-y-auto border-t border-border">
-            {data.timeline.map((event, index) => (
-              <li
-                key={event.id}
-                className="relative py-4 ps-8 first:pt-5 last:pb-1"
-              >
-                {index < data.timeline.length - 1 && (
-                  <span
-                    aria-hidden
-                    className="absolute bottom-0 left-2.5 top-10 w-px bg-border h-full"
-                  />
-                )}
-
-                <span className="absolute left-0 top-5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
-                  {EVENT_TYPE_ICON[event.type] ?? (
-                    <span className="size-1.5 rounded-full bg-current" />
+        <CardContent>
+          {data.timeline.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
+            <ol className="max-h-128 overflow-y-auto border-t border-border">
+              {data.timeline.map((event, index) => (
+                <li
+                  key={event.id}
+                  className="relative py-4 ps-8 first:pt-5 last:pb-1"
+                >
+                  {index < data.timeline.length - 1 && (
+                    <span
+                      aria-hidden
+                      className="absolute bottom-0 left-2.5 top-10 w-px bg-border h-full"
+                    />
                   )}
-                </span>
 
-                <TimelineEventBody event={event} />
+                  <span className="absolute left-0 top-5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+                    {EVENT_TYPE_ICON[event.type] ?? (
+                      <span className="size-1.5 rounded-full bg-current" />
+                    )}
+                  </span>
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <time className="tabular-nums">
-                    {formatDateTime(event.occurredAt)}
-                  </time>
+                  <TimelineEventBody event={event} />
 
-                  <span aria-hidden>·</span>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <time className="tabular-nums">
+                      {formatDateTime(event.occurredAt)}
+                    </time>
 
-                  <span>{formatActor(event.actor)}</span>
+                    <span aria-hidden>·</span>
 
-                  <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                    {PROVIDER_LABELS[event.system] ?? event.system}
-                  </Badge>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </CardContent>
-    </Card>
+                    <span>{formatActor(event.actor)}</span>
+
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      {PROVIDER_LABELS[event.system] ?? event.system}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+    </Reveal>
   );
 }
 
 function LinkedRecords({ data }: { data: CaseDetailData }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Linked records</CardTitle>
-      </CardHeader>
+    <Reveal delay={0.05}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Linked records</CardTitle>
+        </CardHeader>
 
-      <CardContent className="max-h-128 overflow-y-auto">
-        <ul className="space-y-3">
-          {data.case.zendeskUrl && (
-            <li>
-              <a
-                href={data.case.zendeskUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-center justify-between gap-3 rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
-              >
-                <span className="min-w-0">
-                  <span className="block text-xs text-muted-foreground">
-                    Zendesk
+        <CardContent className="max-h-128 overflow-y-auto">
+          <ul className="space-y-3">
+            {data.case.zendeskUrl && (
+              <li>
+                <a
+                  href={data.case.zendeskUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex items-center justify-between gap-3 rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-xs text-muted-foreground">
+                      Zendesk
+                    </span>
+                    <span className="block truncate text-sm font-medium">
+                      #{data.case.externalId}
+                    </span>
                   </span>
-                  <span className="block truncate text-sm font-medium">
-                    #{data.case.externalId}
-                  </span>
-                </span>
 
-                <ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-              </a>
-            </li>
-          )}
+                  <ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+                </a>
+              </li>
+            )}
 
-          {data.links.map((link, index) => {
-            const provider =
-              link.system === "jira"
-                ? "Jira"
-                : link.system === "linear"
-                  ? "Linear"
-                  : link.system === "github"
-                    ? "GitHub"
-                    : "Zendesk";
+            {data.links.map((link, index) => {
+              const provider =
+                link.system === "jira"
+                  ? "Jira"
+                  : link.system === "linear"
+                    ? "Linear"
+                    : link.system === "github"
+                      ? "GitHub"
+                      : "Zendesk";
 
-            return (
-              <li key={`${link.system}-${link.externalId}-${index}`}>
-                {link.url ? (
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group block rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <span className="block text-xs text-muted-foreground">
-                          {provider}
-                        </span>
+              return (
+                <li key={`${link.system}-${link.externalId}-${index}`}>
+                  {link.url ? (
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group block rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="block text-xs text-muted-foreground">
+                            {provider}
+                          </span>
 
-                        <span className="block truncate text-sm font-medium">
-                          {link.externalId}
-                        </span>
+                          <span className="block truncate text-sm font-medium">
+                            {link.externalId}
+                          </span>
+                        </div>
+
+                        <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
                       </div>
 
-                      <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {formatCaseLinkMethod(link.method)}
-                      </Badge>
-
-                      <Badge variant="outline" className="text-[10px]">
-                        {link.confidence}
-                      </Badge>
-
-                      {link.statusName && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <Badge variant="outline" className="text-[10px]">
-                          {link.statusName}
+                          {formatCaseLinkMethod(link.method)}
                         </Badge>
-                      )}
-                    </div>
-                  </a>
-                ) : (
-                  <div className="rounded-md border border-border p-2.5">
-                    <span className="block text-xs text-muted-foreground">
-                      {provider}
-                    </span>
 
-                    <span className="block truncate text-sm font-medium">
-                      {link.externalId}
-                    </span>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {formatCaseLinkMethod(link.method)}
-                      </Badge>
-
-                      <Badge variant="outline" className="text-[10px]">
-                        {link.confidence}
-                      </Badge>
-
-                      {link.statusName && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {link.statusName}
+                        <Badge variant="outline" className="text-[10px]">
+                          {link.confidence}
                         </Badge>
-                      )}
+
+                        {link.statusName && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {link.statusName}
+                          </Badge>
+                        )}
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="rounded-md border border-border p-2.5">
+                      <span className="block text-xs text-muted-foreground">
+                        {provider}
+                      </span>
+
+                      <span className="block truncate text-sm font-medium">
+                        {link.externalId}
+                      </span>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {formatCaseLinkMethod(link.method)}
+                        </Badge>
+
+                        <Badge variant="outline" className="text-[10px]">
+                          {link.confidence}
+                        </Badge>
+
+                        {link.statusName && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {link.statusName}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </li>
+              );
+            })}
+
+            {!data.case.zendeskUrl && data.links.length === 0 && (
+              <li className="py-4 text-center text-sm text-muted-foreground">
+                No linked records.
               </li>
-            );
-          })}
-
-          {!data.case.zendeskUrl && data.links.length === 0 && (
-            <li className="py-4 text-center text-sm text-muted-foreground">
-              No linked records.
-            </li>
-          )}
-        </ul>
-      </CardContent>
-    </Card>
+            )}
+          </ul>
+        </CardContent>
+      </Card>
+    </Reveal>
   );
 }
 

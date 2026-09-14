@@ -5,10 +5,11 @@ import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getSlackOAuthConfig, SLACK_STATE_COOKIE } from "@/lib/slack-env";
 import { validateOAuthState } from "@/lib/oauth-state";
+import { getAppUrl } from "@/lib/app-url";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.redirect(new URL("/sign-in", request.url));
+  if (!session) return NextResponse.redirect(new URL("/sign-in", getAppUrl()));
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     },
   });
 
-  const response = NextResponse.redirect(new URL("/settings/integrations?connected=slack", request.url));
+  const response = NextResponse.redirect(new URL("/settings/integrations?connected=slack", getAppUrl()));
   response.cookies.delete(SLACK_STATE_COOKIE);
   return response;
 }

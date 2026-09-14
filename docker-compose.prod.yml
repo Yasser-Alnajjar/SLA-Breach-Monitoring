@@ -1,0 +1,57 @@
+# Self-host/VPS production stack: Postgres + the two application
+# containers built from apps/web/Dockerfile and apps/worker/Dockerfile.
+# See docs/deployment.md for the full walkthrough, including the one-off
+# `prisma migrate deploy` step this file intentionally does not run for you.
+#
+# Usage: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+name: SLA
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sla}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-sla_breach_monitoring}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      INTEGRATION_CONFIG_ENCRYPTION_KEY: ${INTEGRATION_CONFIG_ENCRYPTION_KEY:?INTEGRATION_CONFIG_ENCRYPTION_KEY is required}
+      SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY:?SMTP_ENCRYPTION_KEY is required}
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      INTEGRATION_CONFIG_ENCRYPTION_KEY: ${INTEGRATION_CONFIG_ENCRYPTION_KEY:?INTEGRATION_CONFIG_ENCRYPTION_KEY is required}
+      SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY:?SMTP_ENCRYPTION_KEY is required}
+      WORKER_ACTIVE_POLL_MS: ${WORKER_ACTIVE_POLL_MS:-300000}
+      WORKER_RECONCILIATION_MS: ${WORKER_RECONCILIATION_MS:-3600000}
+
+volumes:
+  postgres-data:
+# docker volume ls | grep postgres-data
+# docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# docker compose -f docker-compose.prod.yml --env-file .env.prod \
+#   run --rm --user root worker \
+#   pnpm --filter @sla/db exec prisma migrate deploy
+# local     sla-breach-monitoring_postgres-data

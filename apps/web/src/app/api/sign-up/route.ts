@@ -29,7 +29,10 @@ export async function POST(request: Request) {
   await prisma.organization.create({
     data: {
       name: organizationName,
-      users: { create: { email, passwordHash } },
+      // Sign-up is still the only path that creates a `User` row (no invite
+      // flow yet), so whoever creates the organization is its owner — the
+      // only role that can change Worker/Monitoring settings.
+      users: { create: { email, passwordHash, role: "owner" } },
     },
   });
 

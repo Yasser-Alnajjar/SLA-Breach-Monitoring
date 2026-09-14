@@ -46,6 +46,12 @@ model User {
   passwordHash   String
   name           String?
   image          String?
+  /// `owner` is whoever created the organization (roadmap: Worker/Monitoring
+  /// settings) — the only role distinction v1 needs, since sign-up is still
+  /// the only path that creates a `User` row (one owner per organization,
+  /// no invite flow yet). Gates admin-only actions; `member` is otherwise
+  /// identical in what it can view.
+  role           UserRole     @default(member)
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -448,6 +454,11 @@ enum EmailSecurity {
   ssl_tls
 }
 
+enum UserRole {
+  owner
+  member
+}
+
 enum IntegrationProvider {
   zendesk
   jira
@@ -498,4 +509,45 @@ enum CommitmentStatus {
   met
   breached
   cancelled
+}
+
+/// Singleton row (`id` is always `"singleton"`) holding the worker's
+/// persisted polling configuration and last-observed run state — see
+/// `@sla/db`'s `worker-settings.ts`. There is exactly one worker process for
+/// the whole deployment: it polls every organization on the same two shared
+/// timers (`apps/worker/src/index.ts`), it is not per-organization
+/// scheduling, so this config is deliberately global rather than living on
+/// `Organization`. `activePollIntervalMs`/`reconciliationIntervalMs` start
+/// out equal to the `WORKER_ACTIVE_POLL_MS`/`WORKER_RECONCILIATION_MS` env
+/// vars (bootstrap defaults for a fresh install); once an owner saves a
+/// change from the Monitoring settings page, this row is authoritative and
+/// the env vars are no longer consulted.
+model WorkerSettings {
+  id                         String    @id @default("singleton")
+  activePollIntervalMs       Int
+  reconciliationIntervalMs   Int
+  /// Written by the worker at the end of every tick, success or failure —
+  /// proof the process is alive and looping, independent of whether a cycle
+  /// actually completed. Used to tell "stopped" apart from "degraded".
+  lastHeartbeatAt            DateTime?
+  /// Written only when an active-set-poll cycle actually completes (did not
+  /// throw); `lastActivePollFailures` is that cycle's per-organization
+  /// failure count (`CycleResult.failures.length`), not a retry counter.
+  lastActivePollAt           DateTime?
+  lastActivePollFailures     Int?
+  lastReconciliationAt       DateTime?
+  lastReconciliationFailures Int?
+  /// The actual next execution time the worker's own scheduler has queued
+  /// (`apps/worker/src/index.ts`'s `scheduleNext`) — written at the moment a
+  /// `setTimeout` is armed, using whatever interval is persisted at that
+  /// instant. Deliberately NOT derived as `last*At + *IntervalMs` anywhere
+  /// (server read model or UI): a cycle can take time to run, and the
+  /// interval can change between the last completed run and the next
+  /// scheduling decision, so only the scheduler itself knows the true next
+  /// run time. Null until the scheduler has armed a timer for that kind at
+  /// least once (e.g. before the worker's first boot tick completes).
+  nextActivePollAt           DateTime?
+  nextReconciliationAt       DateTime?
+
+  @@map("worker_settings")
 }

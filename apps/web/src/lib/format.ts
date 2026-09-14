@@ -106,6 +106,38 @@ export function formatActor(actor: string): string {
   return ACTOR_LABELS[actor] ?? actor;
 }
 
+/** Formats a millisecond interval as e.g. "5 seconds" / "1 hour" — picks the largest unit that divides it evenly. */
+export function formatIntervalMs(ms: number): string {
+  const units: { ms: number; singular: string }[] = [
+    { ms: 24 * 60 * 60_000, singular: "day" },
+    { ms: 60 * 60_000, singular: "hour" },
+    { ms: 60_000, singular: "minute" },
+    { ms: 1_000, singular: "second" },
+  ];
+
+  for (const unit of units) {
+    if (ms % unit.ms === 0) {
+      const count = ms / unit.ms;
+      return `${count} ${unit.singular}${count === 1 ? "" : "s"}`;
+    }
+  }
+  return `${Math.round(ms / 1000)} seconds`;
+}
+
+/** e.g. "Sep 14, 2026, 07:05:32" / "Never" for a null timestamp — a static, second-precision rendering of a worker-reported time. Deliberately not relative: it must not drift or need a client-side tick to stay correct. */
+export function formatExactTimestamp(iso: string | null): string {
+  if (!iso) return "Never";
+  return new Date(iso).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",

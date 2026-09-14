@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { IntegrationsPageData } from "@/lib/types/integrations";
 import { ZendeskConnectForm } from "./ZendeskCard";
@@ -38,7 +38,7 @@ const providerToneClasses = {
   success: "bg-success/10 text-success",
   primary: "bg-primary/10 text-primary",
   engineering: "bg-leg-engineering/10 text-leg-engineering",
-  secondary: "bg-secondary/15 text-secondary",
+  interactive: "bg-interactive/15 text-foreground",
   warning: "bg-warning/10 text-warning",
 } as const;
 
@@ -433,8 +433,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   <p className={descriptionClass}>
                     Read-only access — no pull requests, reviews, or code are
                     ever written back to GitHub. An engineering-leg source
-                    alongside Jira/Linear, correlated through whichever issue
-                    a pull request already references.
+                    alongside Jira/Linear, correlated through whichever issue a
+                    pull request already references.
                     {github.disconnectedAt &&
                       ` Disconnected ${formatDateTime(github.disconnectedAt)}.`}
                   </p>
@@ -451,7 +451,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0.15}
             icon={<MessageSquare className="size-4" />}
-            tone="secondary"
+            tone="interactive"
             title="Slack"
             status={
               slackConfig.configured &&

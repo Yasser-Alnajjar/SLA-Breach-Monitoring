@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   Bell,
   BookText,
   LayoutDashboard,
@@ -20,6 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings/sla/configuration", label: "SLA", icon: Timer },
   { href: "/settings/integrations", label: "Integrations", icon: Settings2 },
   { href: "/settings/notifications", label: "Notifications", icon: Bell },
+  { href: "/settings/monitoring", label: "Monitoring", icon: Activity },
 ];
 const ALL_NAV_HREFS = NAV_ITEMS.map((item) => item.href);
 

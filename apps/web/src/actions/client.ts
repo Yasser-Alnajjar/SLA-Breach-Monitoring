@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types/integrations";
 import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-settings";
 import type { SignUpInput } from "@/lib/sign-up";
+import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
 
 interface ActionResult<T> {
   ok: boolean;
@@ -188,6 +189,12 @@ export const Actions = {
         customerId,
         calendarId,
       });
+    },
+  },
+
+  WorkerSettings: {
+    async save(input: { activePollIntervalMs: number; reconciliationIntervalMs: number }) {
+      return postJSON<WorkerMonitoringData>("/api/settings/worker", input);
     },
   },
 };

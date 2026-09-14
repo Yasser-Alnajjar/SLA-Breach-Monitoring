@@ -171,7 +171,7 @@ export default function HowItWorksPage() {
             A short glossary
           </h2>
 
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-hidden rounded-lg border px-4">
             <Table>
               <TableHeader>
                 <TableRow>

@@ -31,7 +31,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { signOut } from "next-auth/react";
 import { BrandMark } from "../shared/brand-mark";
 
-function initialsOf(name: string | null, email: string): string {
+export function initialsOf(name: string | null, email: string): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
     const initials = parts

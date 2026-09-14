@@ -11,30 +11,21 @@
  * `getIntegrationConfig` and the latter inside `runNotificationPipeline`
  * itself (`@sla/notifications`) — `appUrl` is all this config needs to pass
  * down, to build each provider's redirect URI.
+ *
+ * The active-poll/reconciliation intervals used to live here too, read once
+ * from `WORKER_ACTIVE_POLL_MS`/`WORKER_RECONCILIATION_MS` at startup. They
+ * now live in the database (`@sla/db`'s `WorkerSettings`, read fresh before
+ * every scheduled tick in `index.ts`) so an owner can change them from the
+ * Monitoring settings page without a restart — those env vars are only
+ * still consulted once, by `getOrCreateWorkerSettings`, to seed that row on
+ * a fresh install.
  */
 export interface WorkerConfig {
   appUrl: string | null;
-  activePollMs: number;
-  reconciliationMs: number;
-}
-
-const DEFAULT_ACTIVE_POLL_MS = 5 * 60 * 1000;
-const DEFAULT_RECONCILIATION_MS = 60 * 60 * 1000;
-
-function readIntervalMs(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive number of milliseconds, got "${raw}"`);
-  }
-  return parsed;
 }
 
 export function loadWorkerConfig(): WorkerConfig {
   return {
     appUrl: process.env.NEXTAUTH_URL ?? null,
-    activePollMs: readIntervalMs("WORKER_ACTIVE_POLL_MS", DEFAULT_ACTIVE_POLL_MS),
-    reconciliationMs: readIntervalMs("WORKER_RECONCILIATION_MS", DEFAULT_RECONCILIATION_MS),
   };
 }

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 import { SessionProvider } from "@/providers/session-provider";
+import { Actions } from "@/actions";
 
 const fontSans = Inter({
   subsets: ["latin"],
@@ -26,7 +27,12 @@ export const metadata: Metadata = {
   description: "Know before your customer does.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const data = await Actions.WorkerSettings.getData();
   return (
     <html
       lang="en"
@@ -36,7 +42,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body suppressHydrationWarning>
         <SessionProvider>
           <ThemeProvider>
-            <SlaAutoRefreshProvider />
+            <SlaAutoRefreshProvider
+              initInterval={data.activePollIntervalMs - 2000}
+            />
             <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
           </ThemeProvider>
         </SessionProvider>

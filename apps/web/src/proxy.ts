@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getAppUrl } from "@/lib/app-url";
 
 /**
  * Pages anyone can reach with no session: the docs site and the two auth
@@ -41,7 +42,7 @@ export async function proxy(request: NextRequest) {
 
   if (matchesPath(pathname, AUTH_PAGE_PATHS)) {
     // A signed-in user doesn't need the sign-in/sign-up screens again.
-    if (token) return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (token) return NextResponse.redirect(new URL("/dashboard", getAppUrl()));
     return NextResponse.next();
   }
 
@@ -51,7 +52,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const signInUrl = new URL("/sign-in", request.url);
+  const signInUrl = new URL("/sign-in", getAppUrl());
   signInUrl.searchParams.set("callbackUrl", pathname);
   return NextResponse.redirect(signInUrl);
 }

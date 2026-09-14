@@ -812,10 +812,32 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `{{ticket.updated_at}}` inside a webhook body isn't independently
       confirmed against live Zendesk behavior, so extraction is deliberately
       permissive about the string format it accepts.
-- [ ] **31 — Fix the notification double-delivery race** (claim the
+- [x] **31 — Fix the notification double-delivery race** (claim the
       `Notification` row via `create()` before sending Slack/email, not
       after — closes the window where a webhook-triggered pipeline and a
       concurrent poll cycle can both send the same alert).
+      `packages/notifications/src/dispatch.ts` now claims before sending:
+      each candidate's row is `create`d first with a placeholder
+      `channel: "pending"`, and only the claim holder sends. A `P2002` on
+      the claim means another pipeline already has it — counted as skipped
+      with no network call, same as before. Once the sends finish, the row's
+      `channel` is `update`d to what actually delivered (`"slack"`, `"email"`,
+      `"slack,email"`). When every channel fails, the claim is `delete`d so a
+      later cycle retries, which keeps the old "total failure isn't recorded"
+      retry behavior. The dedup key (`@@unique([commitmentId, threshold])`)
+      and the supported channels didn't change, per this step's non-goals.
+      Nothing outside `dispatch.ts` reads `Notification.channel`, so the
+      placeholder value never shows up anywhere. Deliberate trade-off, noted
+      in the function's doc comment: a process that dies between the claim
+      and the end of its sends leaves a `"pending"` row, so that alert is
+      never retried. That makes delivery at-most-once, chosen over paging a
+      customer twice for one breach. Covered by new tests in
+      `packages/notifications/test/dispatch.test.ts`: claim ordering (the
+      claim is created before the first send), two concurrent pipelines
+      sharing a real uniqueness store with only one send between them, a
+      lost claim sending nothing, and all-channels-failed releasing the
+      claim. The ordering, concurrency, and lost-claim tests were confirmed
+      to fail against the previous implementation.
 - [ ] **32 — Detect silent permission loss (403)** across all five
       `tokenLifecycle.ts` files — today a connecting user losing
       Browse/Read access degrades ingestion silently, with no

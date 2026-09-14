@@ -72,7 +72,9 @@ function fakePrisma(options: FakePrismaOptions = {}) {
     user: { findMany: vi.fn().mockResolvedValue(users) },
     notification: {
       findMany: vi.fn().mockResolvedValue(existingNotifications),
-      create: vi.fn(createImpl ?? (() => Promise.resolve({}))),
+      create: vi.fn(createImpl ?? (() => Promise.resolve({ id: "ntf_1" }))),
+      update: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({}),
     },
     case: { findMany: vi.fn().mockResolvedValue(cases) },
   } as unknown as PrismaClient;
@@ -116,8 +118,45 @@ describe("runNotificationPipeline", () => {
     expect(sendEmailMock).not.toHaveBeenCalled();
     expect(result.notificationsSent).toBe(1);
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: { commitmentId: "cmt_1", threshold: 80, channel: "slack" },
+      data: { commitmentId: "cmt_1", threshold: 80, channel: "pending" },
+      select: { id: true },
     });
+    expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "slack" } });
+  });
+
+  it("claims the Notification row before sending anything", async () => {
+    const prisma = fakePrisma({ slack: { channelId: "C123", accessToken: "xoxb-1" } });
+    await runNotificationPipeline(prisma, "org_1", [candidate()]);
+
+    const createOrder = vi.mocked(prisma.notification.create).mock.invocationCallOrder[0]!;
+    const sendOrder = postMessageMock.mock.invocationCallOrder[0]!;
+    expect(createOrder).toBeLessThan(sendOrder);
+  });
+
+  it("sends only once when two pipelines race on the same candidate", async () => {
+    // Shared store with the real (commitmentId, threshold) uniqueness, and
+    // both pipelines' pre-check reads see it empty — the window the post-send
+    // create used to leave open.
+    const claimed = new Set<string>();
+    const sharedCreate = ({ data }: { data: { commitmentId: string; threshold: number } }) => {
+      const key = `${data.commitmentId}:${data.threshold}`;
+      if (claimed.has(key)) return Promise.reject(Object.assign(new Error("duplicate"), { code: "P2002" }));
+      claimed.add(key);
+      return Promise.resolve({ id: `ntf_${key}` });
+    };
+    const webhookRun = fakePrisma({ slack: { channelId: "C123", accessToken: "xoxb-1" } });
+    const pollRun = fakePrisma({ slack: { channelId: "C123", accessToken: "xoxb-1" } });
+    vi.mocked(webhookRun.notification.create).mockImplementation(sharedCreate as never);
+    vi.mocked(pollRun.notification.create).mockImplementation(sharedCreate as never);
+
+    const [a, b] = await Promise.all([
+      runNotificationPipeline(webhookRun, "org_1", [candidate()]),
+      runNotificationPipeline(pollRun, "org_1", [candidate()]),
+    ]);
+
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+    expect(a.notificationsSent + b.notificationsSent).toBe(1);
+    expect(a.notificationsSkipped + b.notificationsSkipped).toBe(1);
   });
 
   it("skips email when a row exists but the organization has no recipients", async () => {
@@ -161,9 +200,7 @@ describe("runNotificationPipeline", () => {
       }),
     );
     expect(result.notificationsSent).toBe(1);
-    expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: { commitmentId: "cmt_1", threshold: 80, channel: "slack,email" },
-    });
+    expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "slack,email" } });
   });
 
   it("includes the ticket's subject in the HTML email when the case has one", async () => {
@@ -218,9 +255,7 @@ describe("runNotificationPipeline", () => {
 
     expect(postMessageMock).toHaveBeenCalledTimes(1);
     expect(result.notificationsSent).toBe(1);
-    expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: { commitmentId: "cmt_1", threshold: 80, channel: "slack" },
-    });
+    expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "slack" } });
   });
 
   it("skips a candidate already recorded for that (commitmentId, threshold) — dedup unchanged", async () => {
@@ -263,9 +298,7 @@ describe("runNotificationPipeline", () => {
 
     expect(result.notificationsSent).toBe(1);
     expect(result.notificationsFailed).toEqual([]);
-    expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: { commitmentId: "cmt_1", threshold: 80, channel: "email" },
-    });
+    expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "email" } });
   });
 
   it("records a failure with a combined error message when every channel fails", async () => {
@@ -282,10 +315,12 @@ describe("runNotificationPipeline", () => {
     expect(result.notificationsFailed).toEqual([
       { commitmentId: "cmt_1", threshold: 80, error: "slack: channel_not_found; email: connection refused" },
     ]);
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    // The claim is released so a later cycle retries this alert.
+    expect(prisma.notification.delete).toHaveBeenCalledWith({ where: { id: "ntf_1" } });
+    expect(prisma.notification.update).not.toHaveBeenCalled();
   });
 
-  it("treats a unique-constraint race on create as skipped rather than failed", async () => {
+  it("treats a unique-constraint race on the claim as skipped, without sending", async () => {
     const prisma = fakePrisma({
       slack: { channelId: "C123", accessToken: "xoxb-1" },
       createImpl: () => Promise.reject(Object.assign(new Error("duplicate"), { code: "P2002" })),
@@ -295,20 +330,24 @@ describe("runNotificationPipeline", () => {
     expect(result.notificationsSent).toBe(0);
     expect(result.notificationsSkipped).toBe(1);
     expect(result.notificationsFailed).toEqual([]);
+    expect(postMessageMock).not.toHaveBeenCalled();
+    expect(prisma.notification.update).not.toHaveBeenCalled();
   });
 
-  it("propagates a create error that is not a unique-constraint violation", async () => {
+  it("propagates a claim error that is not a unique-constraint violation, without sending", async () => {
     const prisma = fakePrisma({
       slack: { channelId: "C123", accessToken: "xoxb-1" },
       createImpl: () => Promise.reject(new Error("connection lost")),
     });
     await expect(runNotificationPipeline(prisma, "org_1", [candidate()])).rejects.toThrow("connection lost");
+    expect(postMessageMock).not.toHaveBeenCalled();
   });
 
   it("silently drops a candidate whose case has since been deleted", async () => {
     const prisma = fakePrisma({ slack: { channelId: "C123", accessToken: "xoxb-1" }, cases: [] });
     const result = await runNotificationPipeline(prisma, "org_1", [candidate()]);
 
+    expect(prisma.notification.create).not.toHaveBeenCalled();
     expect(postMessageMock).not.toHaveBeenCalled();
     expect(result.notificationsSent).toBe(0);
     expect(result.notificationsFailed).toEqual([]);

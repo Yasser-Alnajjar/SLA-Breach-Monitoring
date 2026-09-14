@@ -25,6 +25,9 @@ export interface NotificationPipelineResult {
   notificationsFailed: { commitmentId: string; threshold: number; error: string }[];
 }
 
+/** `Notification.channel` while a claim is held and sends are in flight — replaced by the delivered channel list once they finish. */
+const CLAIMED_CHANNEL = "pending";
+
 function isUniqueConstraintError(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002";
 }
@@ -38,15 +41,20 @@ function errorMessage(error: unknown): string {
  * `runEvaluationPipeline` (Phase 13.7). Both channels share one dedup slot:
  * the `Notification` table's `@@unique([commitmentId, threshold])`
  * constraint guards "has this alert been dispatched at all", not
- * per-channel, so a candidate is attempted on every configured channel
- * *before* the single row for it is written — that keeps a second channel
- * from reading the first channel's row as "already sent" and silently
- * skipping itself. `channel` records which channels actually delivered
- * (e.g. `"slack,email"`), and an in-memory pre-check against existing rows
- * avoids needless network calls on later cycles; the unique constraint
- * itself is the real guarantee — a `P2002` on the post-send `create` means
- * some other cycle already recorded this exact alert, so it's counted as
- * skipped rather than failed.
+ * per-channel.
+ *
+ * Claim-before-send: the row is `create`d (with a placeholder `channel`)
+ * *before* any Slack/email call, so a webhook-triggered pipeline and a
+ * concurrent poll cycle racing on the same candidate can't both send — the
+ * loser's `create` hits `P2002` and is counted as skipped, not failed. The
+ * winner then attempts every configured channel and rewrites `channel` to
+ * what actually delivered (e.g. `"slack,email"`); if every channel failed,
+ * the claim is deleted so a later cycle retries. The in-memory pre-check
+ * against existing rows only avoids needless work on later cycles — the
+ * unique constraint is the real guarantee. Trade-off: a process that dies
+ * between claiming and finishing the sends leaves a `"pending"` row, so
+ * that alert is never retried — at-most-once, deliberately preferred over
+ * paging a customer twice for one breach.
  *
  * Email credentials are loaded per organization from `OrganizationEmailSettings`
  * (the settings UI, roadmap: organization SMTP configuration) rather than a
@@ -113,6 +121,18 @@ export async function runNotificationPipeline(
     const caseRow = caseById.get(candidate.caseId);
     if (!caseRow) continue;
 
+    let claim: { id: string };
+    try {
+      claim = await prisma.notification.create({
+        data: { commitmentId: candidate.commitmentId, threshold: candidate.threshold, channel: CLAIMED_CHANNEL },
+        select: { id: true },
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      result.notificationsSkipped += 1;
+      continue;
+    }
+
     const context = { externalId: caseRow.externalId, customerName: caseRow.customer?.name ?? null, subject: caseRow.subject };
     const delivered: string[] = [];
     const errors: string[] = [];
@@ -141,19 +161,14 @@ export async function runNotificationPipeline(
     }
 
     if (delivered.length === 0) {
+      // Release the claim so a later cycle retries this alert.
+      await prisma.notification.delete({ where: { id: claim.id } });
       result.notificationsFailed.push({ commitmentId: candidate.commitmentId, threshold: candidate.threshold, error: errors.join("; ") });
       continue;
     }
 
-    try {
-      await prisma.notification.create({
-        data: { commitmentId: candidate.commitmentId, threshold: candidate.threshold, channel: delivered.join(",") },
-      });
-      result.notificationsSent += 1;
-    } catch (error) {
-      if (!isUniqueConstraintError(error)) throw error;
-      result.notificationsSkipped += 1;
-    }
+    await prisma.notification.update({ where: { id: claim.id }, data: { channel: delivered.join(",") } });
+    result.notificationsSent += 1;
   }
 
   return result;

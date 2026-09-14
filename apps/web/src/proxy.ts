@@ -2,6 +2,8 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAppUrl } from "@/lib/app-url";
+import { encodeCredentialsRateLimitError } from "@/lib/auth-rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Pages anyone can reach with no session: the docs site and the two auth
@@ -27,8 +29,62 @@ function matchesPath(pathname: string, paths: string[]): boolean {
   );
 }
 
+/**
+ * Rate limits scoped to exactly the unauthenticated-by-session routes named
+ * in roadmap step 30: the two webhook receivers (external providers call
+ * these directly, at low legitimate volume, so a generous cap mostly just
+ * slows down secret-guessing), account creation, and the credentials
+ * sign-in callback (NextAuth's Credentials provider has no throttling of
+ * its own). `/api/auth`'s other paths — session/csrf/providers lookups the
+ * client calls on every page load — are deliberately left unthrottled here.
+ */
+interface RateLimitRule {
+  match: (pathname: string) => boolean;
+  bucket: string;
+  limit: number;
+  windowMs: number;
+  /**
+   * Only the credentials callback needs this: `next-auth/react`'s `signIn()`
+   * always reads `error` out of a `url` field on the response body (see
+   * `@/lib/auth-rate-limit`'s doc comment), so a generic `{ error }` body
+   * would make its internal `new URL(data.url)` call throw. Defaults to the
+   * plain body every other rate-limited route uses.
+   */
+  buildBody?: (request: NextRequest, retryAfterSeconds: number) => Record<string, unknown>;
+}
+
+const RATE_LIMITS: RateLimitRule[] = [
+  { match: (p) => matchesPath(p, ["/api/webhooks"]), bucket: "webhook", limit: 60, windowMs: 60_000 },
+  { match: (p) => p === "/api/sign-up", bucket: "sign-up", limit: 5, windowMs: 15 * 60_000 },
+  {
+    match: (p) => p === "/api/auth/callback/credentials",
+    bucket: "sign-in",
+    limit: 10,
+    windowMs: 5 * 60_000,
+    buildBody: (request, retryAfterSeconds) => {
+      const url = new URL(request.url);
+      url.search = new URLSearchParams({ error: encodeCredentialsRateLimitError(retryAfterSeconds) }).toString();
+      return { url: url.toString() };
+    },
+  },
+];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const rateLimit = RATE_LIMITS.find((rule) => rule.match(pathname));
+  if (rateLimit) {
+    const key = `${rateLimit.bucket}:${getClientIp(request)}`;
+    const result = checkRateLimit(key, rateLimit.limit, rateLimit.windowMs);
+    if (!result.allowed) {
+      const retryAfterSeconds = result.retryAfterSeconds ?? 60;
+      const body = rateLimit.buildBody?.(request, retryAfterSeconds) ?? { error: "Too many requests" };
+      return NextResponse.json(body, {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds) },
+      });
+    }
+  }
 
   if (
     matchesPath(pathname, PUBLIC_API_PATHS) ||

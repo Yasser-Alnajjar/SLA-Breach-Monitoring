@@ -62,6 +62,7 @@ export {
 export {
   extractZendeskWebhookTicketId,
   generateWebhookSecret,
+  isZendeskWebhookTimestampFresh,
   runZendeskWebhookIngest,
   verifyZendeskWebhookSecret,
 } from "./webhook";

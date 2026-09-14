@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   extractJiraWebhookIssueKey,
+  isJiraWebhookTimestampFresh,
   JiraApiError,
   JiraReauthRequiredError,
   runJiraCorrelation,
@@ -57,6 +58,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     payload = (await request.json()) as JiraWebhookPayload;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!isJiraWebhookTimestampFresh(payload)) {
+    return NextResponse.json({ error: "Webhook timestamp missing or expired" }, { status: 401 });
   }
 
   if (!shouldIngestJiraWebhookEvent(payload)) {

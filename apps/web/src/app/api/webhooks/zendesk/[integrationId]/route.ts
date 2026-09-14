@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   extractZendeskWebhookTicketId,
+  isZendeskWebhookTimestampFresh,
   runZendeskNormalization,
   runZendeskWebhookIngest,
   verifyZendeskWebhookSecret,
@@ -54,6 +55,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     payload = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!isZendeskWebhookTimestampFresh(payload)) {
+    return NextResponse.json({ error: "Webhook timestamp missing or expired" }, { status: 401 });
   }
 
   const ticketId = extractZendeskWebhookTicketId(payload);

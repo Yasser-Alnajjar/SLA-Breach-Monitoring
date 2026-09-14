@@ -112,10 +112,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod \
   table above and the comments on each in `.env.example`. Back them up
   alongside the database: losing any of them makes the data it encrypts
   unrecoverable, not just un-decryptable-until-fixed.
-- Security headers, CSRF hardening, and rate limiting are tracked
-  separately in the [roadmap](../implementation-plans/roadmap.md) (steps
-  30, 33) and aren't addressed by containerizing or by the health checks
-  below.
+- Basic rate limiting and webhook replay protection (roadmap step 30) are
+  in place: `/api/sign-up`, `/api/auth/callback/credentials`, and
+  `/api/webhooks/**` are throttled per client IP in `apps/web/src/proxy.ts`
+  (in-memory, since this stack runs a single `web` container — see the
+  reverse-proxy note above for where the client IP comes from), and both
+  webhook receivers reject stale payloads via a timestamp check alongside
+  their existing secret verification. Security headers and CSRF hardening
+  are still tracked separately in the
+  [roadmap](../implementation-plans/roadmap.md) (step 33) and aren't
+  addressed by containerizing or by the health checks below.
 
 ## Health checks and observability
 

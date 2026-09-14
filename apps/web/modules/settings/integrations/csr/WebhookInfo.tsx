@@ -96,8 +96,9 @@ export function WebhookInfo({
           <strong>Bearer token</strong> using this token — Zendesk only
           generates its own signing secret after creation, so this is the field
           to use instead. Then add a trigger that calls it with request body{" "}
-          <code className="wrap-break-word rounded bg-muted px-1 py-0.5">{`{"ticket_id": "{{ticket.id}}"}`}</code>{" "}
-          on ticket status changes.
+          <code className="wrap-break-word rounded bg-muted px-1 py-0.5">{`{"ticket_id": "{{ticket.id}}", "timestamp": "{{ticket.updated_at}}"}`}</code>{" "}
+          on ticket status changes. The timestamp field is required — requests
+          without a recent one are rejected as a replay-protection measure.
         </p>
       </div>
     );

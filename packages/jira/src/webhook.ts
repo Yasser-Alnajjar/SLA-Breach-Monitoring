@@ -42,6 +42,7 @@ const INGESTIBLE_EVENTS = new Set(["jira:issue_created", "jira:issue_updated"]);
 
 export interface JiraWebhookPayload {
   webhookEvent?: string;
+  timestamp?: number;
   issue?: { key?: string };
 }
 
@@ -52,6 +53,22 @@ export function shouldIngestJiraWebhookEvent(payload: JiraWebhookPayload): boole
 export function extractJiraWebhookIssueKey(payload: JiraWebhookPayload): string | null {
   const key = payload.issue?.key;
   return typeof key === "string" && key.length > 0 ? key : null;
+}
+
+/**
+ * Cheap replay mitigation (roadmap step 30) alongside `verifyJiraWebhookSecret`
+ * above: a captured request — secret included — replayed later is rejected
+ * once its payload's timestamp has aged out. Unlike Zendesk, this needs no
+ * customer-side configuration change: classic Jira webhooks carry a
+ * top-level `timestamp` (epoch milliseconds) on every callback per
+ * Atlassian's own webhook docs. Missing or unparseable timestamps count as
+ * stale — fail closed, matching `verifyJiraWebhookSecret`'s own default-deny
+ * shape.
+ */
+export function isJiraWebhookTimestampFresh(payload: JiraWebhookPayload, now: number = Date.now(), maxAgeMs = 5 * 60_000): boolean {
+  const { timestamp } = payload;
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return false;
+  return Math.abs(now - timestamp) <= maxAgeMs;
 }
 
 export interface WebhookIngestResult {

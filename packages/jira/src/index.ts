@@ -43,6 +43,7 @@ export type { CorrelationResult } from "./correlate";
 export {
   extractJiraWebhookIssueKey,
   generateWebhookSecret,
+  isJiraWebhookTimestampFresh,
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,

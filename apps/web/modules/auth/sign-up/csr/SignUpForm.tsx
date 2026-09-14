@@ -38,12 +38,10 @@ export const SignUpForm = () => {
     const signInResult = await Actions.Auth.signIn(email, password);
     setSubmitting(false);
 
-    if (signInResult?.error) {
+    if (!signInResult.ok) {
       router.push("/sign-in");
       return;
     }
-    console.log("signUp", ok, body);
-    console.log("signInResult", signInResult);
 
     router.push("/onboarding");
   }

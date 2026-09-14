@@ -1,5 +1,6 @@
-import { signIn } from "next-auth/react";
+import { signIn as nextAuthSignIn } from "next-auth/react";
 import type { CommitmentKind } from "@sla/core";
+import { interpretCredentialsSignInResult, type SignInOutcome } from "@/lib/auth-rate-limit";
 import type { OnboardingStatus } from "@/lib/types/onboarding";
 import type {
   ConfigurableIntegrationProvider,
@@ -63,8 +64,9 @@ async function postJSON<T>(
  */
 export const Actions = {
   Auth: {
-    async signIn(email: string, password: string) {
-      return signIn("credentials", { email, password, redirect: false });
+    async signIn(email: string, password: string): Promise<SignInOutcome> {
+      const result = await nextAuthSignIn("credentials", { email, password, redirect: false });
+      return interpretCredentialsSignInResult(result);
     },
     async signUp(input: SignUpInput) {
       return postJSON<Record<string, never>>("/api/sign-up", input);

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   extractJiraWebhookIssueKey,
   generateWebhookSecret,
+  isJiraWebhookTimestampFresh,
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,
@@ -112,6 +113,27 @@ describe("extractJiraWebhookIssueKey", () => {
   it("returns null when no issue key is present", () => {
     expect(extractJiraWebhookIssueKey({})).toBeNull();
     expect(extractJiraWebhookIssueKey({ issue: {} })).toBeNull();
+  });
+});
+
+describe("isJiraWebhookTimestampFresh", () => {
+  const now = Date.parse("2026-01-01T00:10:00Z");
+
+  it("accepts a timestamp within the freshness window", () => {
+    expect(isJiraWebhookTimestampFresh({ timestamp: Date.parse("2026-01-01T00:08:00Z") }, now)).toBe(true);
+  });
+
+  it("rejects a timestamp older than the freshness window", () => {
+    expect(isJiraWebhookTimestampFresh({ timestamp: Date.parse("2026-01-01T00:00:00Z") }, now)).toBe(false);
+  });
+
+  it("rejects a timestamp implausibly far in the future (clock skew beyond tolerance)", () => {
+    expect(isJiraWebhookTimestampFresh({ timestamp: Date.parse("2026-01-01T01:00:00Z") }, now)).toBe(false);
+  });
+
+  it("rejects a missing or non-numeric timestamp, failing closed", () => {
+    expect(isJiraWebhookTimestampFresh({}, now)).toBe(false);
+    expect(isJiraWebhookTimestampFresh({ timestamp: Number.NaN }, now)).toBe(false);
   });
 });
 

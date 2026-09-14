@@ -54,6 +54,48 @@ export function extractZendeskWebhookTicketId(payload: unknown): number | null {
   return typeof id === "number" && Number.isInteger(id) && id > 0 ? id : null;
 }
 
+/**
+ * Cheap replay mitigation (roadmap step 30) alongside `verifyZendeskWebhookSecret`
+ * above: a captured request — secret included — replayed later is rejected
+ * once its payload's timestamp has aged out. Zendesk's own webhook signing
+ * headers (`X-Zendesk-Webhook-Signature-Timestamp`) aren't usable here for
+ * the same reason its signing secret isn't (see this file's top comment) —
+ * that header is tied to the "Signing Secret" authentication method, not the
+ * Bearer-token one this integration uses. Instead, the documented custom
+ * trigger body (see the settings page) now includes a `timestamp` field
+ * populated from the `{{ticket.updated_at}}` placeholder; a native "Ticket
+ * Events" envelope's `detail`/`ticket` shapes are also checked leniently,
+ * mirroring `extractZendeskWebhookTicketId`'s own fallbacks. Accepts either
+ * an ISO-8601 string (Zendesk's REST API date format) or a raw epoch number,
+ * since the exact rendering of `{{ticket.updated_at}}` inside a webhook body
+ * isn't independently confirmed against live Zendesk behavior — deliberately
+ * permissive about the format, not about the value.
+ */
+export function extractZendeskWebhookTimestamp(payload: unknown): number | null {
+  if (payload === null || typeof payload !== "object") return null;
+  const body = payload as Record<string, unknown>;
+  const ticket = body.ticket as Record<string, unknown> | undefined;
+  const detail = body.detail as Record<string, unknown> | undefined;
+  const candidate = body.timestamp ?? body.time ?? ticket?.updated_at ?? detail?.updated_at ?? body.updated_at;
+
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    // Below this threshold a value can only be epoch seconds, never milliseconds.
+    return candidate < 1e12 ? candidate * 1000 : candidate;
+  }
+  if (typeof candidate === "string") {
+    const parsed = Date.parse(candidate);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/** Missing or unparseable timestamps count as stale — fail closed, matching `verifyZendeskWebhookSecret`'s own default-deny shape. */
+export function isZendeskWebhookTimestampFresh(payload: unknown, now: number = Date.now(), maxAgeMs = 5 * 60_000): boolean {
+  const timestamp = extractZendeskWebhookTimestamp(payload);
+  if (timestamp === null) return false;
+  return Math.abs(now - timestamp) <= maxAgeMs;
+}
+
 export interface WebhookIngestResult {
   ticketsFetched: number;
   ticketAuditsFetched: number;

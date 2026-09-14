@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   extractZendeskWebhookTicketId,
+  extractZendeskWebhookTimestamp,
   generateWebhookSecret,
+  isZendeskWebhookTimestampFresh,
   runZendeskWebhookIngest,
   verifyZendeskWebhookSecret,
 } from "../src/webhook";
@@ -116,6 +118,57 @@ describe("extractZendeskWebhookTicketId", () => {
     expect(extractZendeskWebhookTicketId({ foo: "bar" })).toBeNull();
     expect(extractZendeskWebhookTicketId(null)).toBeNull();
     expect(extractZendeskWebhookTicketId("not an object")).toBeNull();
+  });
+});
+
+describe("extractZendeskWebhookTimestamp", () => {
+  it("reads the documented custom-trigger timestamp field as an ISO-8601 string", () => {
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42", timestamp: "2026-01-01T00:00:00Z" })).toBe(
+      Date.parse("2026-01-01T00:00:00Z"),
+    );
+  });
+
+  it("reads a nested ticket.updated_at or detail.updated_at shape", () => {
+    expect(extractZendeskWebhookTimestamp({ ticket: { updated_at: "2026-01-01T00:00:00Z" } })).toBe(
+      Date.parse("2026-01-01T00:00:00Z"),
+    );
+    expect(extractZendeskWebhookTimestamp({ detail: { updated_at: "2026-01-01T00:00:00Z" } })).toBe(
+      Date.parse("2026-01-01T00:00:00Z"),
+    );
+  });
+
+  it("treats a numeric value below the epoch-ms threshold as seconds", () => {
+    expect(extractZendeskWebhookTimestamp({ timestamp: 1_700_000_000 })).toBe(1_700_000_000_000);
+  });
+
+  it("treats a numeric value at or above the epoch-ms threshold as milliseconds", () => {
+    expect(extractZendeskWebhookTimestamp({ timestamp: 1_700_000_000_000 })).toBe(1_700_000_000_000);
+  });
+
+  it("returns null for a payload with no recognizable or unparseable timestamp", () => {
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42" })).toBeNull();
+    expect(extractZendeskWebhookTimestamp({ timestamp: "not a date" })).toBeNull();
+    expect(extractZendeskWebhookTimestamp(null)).toBeNull();
+  });
+});
+
+describe("isZendeskWebhookTimestampFresh", () => {
+  const now = Date.parse("2026-01-01T00:10:00Z");
+
+  it("accepts a timestamp within the freshness window", () => {
+    expect(isZendeskWebhookTimestampFresh({ timestamp: "2026-01-01T00:08:00Z" }, now)).toBe(true);
+  });
+
+  it("rejects a timestamp older than the freshness window", () => {
+    expect(isZendeskWebhookTimestampFresh({ timestamp: "2026-01-01T00:00:00Z" }, now)).toBe(false);
+  });
+
+  it("rejects a timestamp implausibly far in the future (clock skew beyond tolerance)", () => {
+    expect(isZendeskWebhookTimestampFresh({ timestamp: "2026-01-01T01:00:00Z" }, now)).toBe(false);
+  });
+
+  it("rejects a missing timestamp, failing closed", () => {
+    expect(isZendeskWebhookTimestampFresh({ ticket_id: "42" }, now)).toBe(false);
   });
 });
 

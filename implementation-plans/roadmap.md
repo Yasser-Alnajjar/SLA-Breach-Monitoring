@@ -770,9 +770,48 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Explicit non-goals, matching this step's own scope: full APM/tracing
       (`tracesSampleRate: 0` in both Sentry configs), metrics dashboards,
       and log aggregation infrastructure.
-- [ ] **30 — Inbound abuse protection and webhook replay protection** (rate
-      limiting on the two webhook routes and `/api/sign-up`; a timestamp
-      check alongside the existing constant-time secret verification).
+- [x] **30 — Inbound abuse protection and webhook replay protection**
+      New `apps/web/src/lib/rate-limit.ts`: a dependency-free, in-memory
+      fixed-window counter — `docker-compose.prod.yml` runs exactly one
+      `web` container, so no shared store (Redis, etc.) is needed for
+      "basic" protection, matching this step's own "not a general-purpose
+      rate-limiting gateway" non-goal. Wired into `apps/web/src/proxy.ts`
+      (which already gated `PUBLIC_API_PATHS` by path) ahead of every other
+      check, keyed by client IP (`X-Forwarded-For`, falling back to
+      `X-Real-IP`, then a shared "unknown" bucket for local dev with no
+      reverse proxy in front — see `docs/deployment.md`'s security notes)
+      combined with a route bucket: 60/min on `/api/webhooks/**` (external
+      providers call these at low legitimate volume; the cap mostly slows
+      down secret-guessing), 5/15min on `/api/sign-up`, and 10/5min on
+      `/api/auth/callback/credentials` — NextAuth's Credentials provider has
+      no throttling of its own, and this is scoped to that one callback path
+      rather than all of `/api/auth` so routine session/csrf/providers
+      lookups on every page load stay unthrottled. Exceeding a limit returns
+      `429` with a `Retry-After` header.
+      Timestamp-based replay mitigation, alongside the existing constant-time
+      secret checks, not replacing them: `packages/jira/src/webhook.ts`'s new
+      `isJiraWebhookTimestampFresh` reads the top-level `timestamp` (epoch
+      milliseconds) Atlassian's classic webhook payloads carry on every
+      callback — needs no customer-side change. Zendesk has no equivalent
+      built-in field for the Bearer-token flow this integration uses (its
+      `X-Zendesk-Webhook-Signature-Timestamp` header is tied to the
+      "Signing Secret" auth method this app can't use — see `webhook.ts`'s
+      existing top comment on why), so `packages/zendesk/src/webhook.ts`'s
+      new `extractZendeskWebhookTimestamp`/`isZendeskWebhookTimestampFresh`
+      instead read a `timestamp` field added to the documented custom
+      trigger body (`WebhookInfo.tsx`, now
+      `{"ticket_id": "{{ticket.id}}", "timestamp": "{{ticket.updated_at}}"}`),
+      falling back leniently to `ticket.updated_at`/`detail.updated_at` for
+      the native "Ticket Events" envelope shape, the same lenient-extraction
+      style `extractZendeskWebhookTicketId` already uses. Both freshness
+      checks default to a 5-minute window and fail closed — a missing or
+      unparseable timestamp is treated as stale, not skipped — wired into
+      both webhook routes right after the JSON body parses, returning `401`
+      alongside the existing secret-mismatch response. Noted directly in
+      `extractZendeskWebhookTimestamp`'s doc comment: the exact rendering of
+      `{{ticket.updated_at}}` inside a webhook body isn't independently
+      confirmed against live Zendesk behavior, so extraction is deliberately
+      permissive about the string format it accepts.
 - [ ] **31 — Fix the notification double-delivery race** (claim the
       `Notification` row via `create()` before sending Slack/email, not
       after — closes the window where a webhook-triggered pipeline and a

@@ -41,4 +41,8 @@ COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 EXPOSE 3000
+# GET /api/health (roadmap step 29) checks DB connectivity only — see
+# apps/web/src/app/api/health/route.ts.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
 CMD ["node", "apps/web/server.js"]

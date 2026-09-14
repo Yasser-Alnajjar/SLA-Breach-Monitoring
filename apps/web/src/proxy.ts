@@ -14,10 +14,12 @@ const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
 /**
  * API routes that authenticate themselves rather than via the session
  * cookie: NextAuth's own endpoints (the login mechanism itself), account
- * creation, and inbound provider webhooks (Zendesk/Jira call these directly
- * and carry their own bearer token/secret, never a browser session).
+ * creation, inbound provider webhooks (Zendesk/Jira call these directly and
+ * carry their own bearer token/secret, never a browser session), and the
+ * health check (an uptime monitor or container orchestrator has no session
+ * cookie either, and needs no org context — it only checks DB connectivity).
  */
-const PUBLIC_API_PATHS = ["/api/auth", "/api/sign-up", "/api/webhooks"];
+const PUBLIC_API_PATHS = ["/api/auth", "/api/sign-up", "/api/webhooks", "/api/health"];
 
 function matchesPath(pathname: string, paths: string[]): boolean {
   return paths.some(

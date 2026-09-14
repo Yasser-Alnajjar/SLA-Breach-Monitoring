@@ -30,4 +30,12 @@ RUN addgroup -S nodejs && adduser -S worker -G nodejs
 USER worker
 
 WORKDIR /repo/apps/worker
+# health-server.ts's liveness endpoint (roadmap step 29) — WORKER_HEALTH_PORT
+# defaults to 8081 in apps/worker/src/config.ts, so this must match unless
+# that env var is overridden at run time. Not published to the host by
+# default in docker-compose.prod.yml: nothing outside this container needs
+# to reach it, since the HEALTHCHECK below hits it over localhost.
+EXPOSE 8081
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- "http://localhost:${WORKER_HEALTH_PORT:-8081}/health" || exit 1
 CMD ["pnpm", "start"]

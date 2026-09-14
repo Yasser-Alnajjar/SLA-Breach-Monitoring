@@ -18,6 +18,7 @@ import {
   ZendeskReauthRequiredError,
 } from "@sla/zendesk";
 import type { WorkerConfig } from "./config";
+import { captureException } from "./sentry";
 
 export type CycleKind = "active_set_poll" | "reconciliation_sweep";
 
@@ -169,6 +170,18 @@ export async function runCycle(
             ? error.message
             : String(error);
         result.failures.push({ organizationId: organization.id, stage: `ingest:${integration.provider}`, error: syncError });
+        // Reauth is an expected, already-surfaced state (the settings page's
+        // ReauthBanner) — not a bug — so it's excluded here to keep Sentry
+        // for actual failures worth investigating, not routine reauth churn.
+        if (!reauthRequired) {
+          captureException(error, {
+            organizationId: organization.id,
+            integrationId: integration.id,
+            provider: integration.provider,
+            kind,
+            stage: "ingest",
+          });
+        }
       }
 
       // Every attempted cycle (success or failure) updates sync health, so the
@@ -194,6 +207,7 @@ export async function runCycle(
         stage: "commitments",
         error: error instanceof Error ? error.message : String(error),
       });
+      captureException(error, { organizationId: organization.id, kind, stage: "commitments" });
     }
 
     let notificationCandidates: EvaluationPipelineResult["notificationCandidates"] = [];
@@ -209,6 +223,7 @@ export async function runCycle(
         stage: "evaluation",
         error: error instanceof Error ? error.message : String(error),
       });
+      captureException(error, { organizationId: organization.id, kind, stage: "evaluation" });
     }
 
     // Runs even for organizations with no Slack workspace connected and no
@@ -233,6 +248,7 @@ export async function runCycle(
         stage: "notifications",
         error: error instanceof Error ? error.message : String(error),
       });
+      captureException(error, { organizationId: organization.id, kind, stage: "notifications" });
     }
   }
 

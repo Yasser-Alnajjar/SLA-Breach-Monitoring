@@ -31,6 +31,9 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
       INTEGRATION_CONFIG_ENCRYPTION_KEY: ${INTEGRATION_CONFIG_ENCRYPTION_KEY:?INTEGRATION_CONFIG_ENCRYPTION_KEY is required}
       SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY:?SMTP_ENCRYPTION_KEY is required}
+      # All optional (roadmap step 29) — an empty SENTRY_DSN just disables
+      # the SDK, see apps/web/sentry.server.config.ts.
+      SENTRY_DSN: ${SENTRY_DSN:-}
 
   worker:
     build:
@@ -39,6 +42,13 @@ services:
     restart: unless-stopped
     depends_on:
       - postgres
+    # Not published to the host: nothing outside this container needs to
+    # reach the liveness endpoint directly, only the Dockerfile's own
+    # HEALTHCHECK (curl/wget over localhost inside the container). Add a
+    # `ports:` mapping here yourself if an external uptime monitor should
+    # poll it directly.
+    expose:
+      - "${WORKER_HEALTH_PORT:-8081}"
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
@@ -46,6 +56,18 @@ services:
       SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY:?SMTP_ENCRYPTION_KEY is required}
       WORKER_ACTIVE_POLL_MS: ${WORKER_ACTIVE_POLL_MS:-300000}
       WORKER_RECONCILIATION_MS: ${WORKER_RECONCILIATION_MS:-3600000}
+      # All optional (roadmap step 29) — see .env.example's "Observability"
+      # section and docs/deployment.md's "Health checks and observability".
+      WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-8081}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      OPS_ALERT_SLACK_WEBHOOK_URL: ${OPS_ALERT_SLACK_WEBHOOK_URL:-}
+      OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
+      OPS_ALERT_SMTP_HOST: ${OPS_ALERT_SMTP_HOST:-}
+      OPS_ALERT_SMTP_PORT: ${OPS_ALERT_SMTP_PORT:-587}
+      OPS_ALERT_SMTP_SECURITY: ${OPS_ALERT_SMTP_SECURITY:-starttls}
+      OPS_ALERT_SMTP_USER: ${OPS_ALERT_SMTP_USER:-}
+      OPS_ALERT_SMTP_PASSWORD: ${OPS_ALERT_SMTP_PASSWORD:-}
+      OPS_ALERT_SMTP_FROM: ${OPS_ALERT_SMTP_FROM:-}
 
 volumes:
   postgres-data:

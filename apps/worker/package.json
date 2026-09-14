@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/node": "^10.74.0",
     "@sla/commitments": "workspace:*",
     "@sla/core": "workspace:*",
     "@sla/db": "workspace:*",

@@ -688,9 +688,88 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       secrets — actual config is only ever supplied at container start via
       `environment:`/`--env-file`, same as the CI job's approach for the
       same values.
-- [ ] **29 — Health checks and observability** (`/api/health`, a worker
-      liveness surface, Sentry or equivalent in both apps, alerting on a
-      stalled worker cycle).
+- [x] **29 — Health checks and observability**
+      `GET /api/health` (`apps/web/src/app/api/health/route.ts`) checks DB
+      connectivity only (`SELECT 1` through Prisma) and is added to
+      `proxy.ts`'s `PUBLIC_API_PATHS` — an uptime monitor or orchestrator
+      has no session cookie to send. The worker had no HTTP surface
+      whatsoever before this step; `apps/worker/src/health-server.ts` is a
+      plain `node:http` listener (no framework, matching this package's
+      zero-dependency style) on `GET /health`/`/healthz`
+      (`WORKER_HEALTH_PORT`, default 8081), reusing the `WorkerSettings`
+      infrastructure roadmap step 7 already built
+      (`deriveWorkerStatus`/`getOrCreateWorkerSettings` from `@sla/db`,
+      also what backs the existing Monitoring settings page) rather than
+      inventing a second health model — it adds `lastSuccessfulCycleAt`
+      (the more recent of the two cycle kinds' last run, but only counting
+      one with zero recorded failures) and an aggregate
+      `integrations.mostRecentSyncAt`/`withErrors` across every connected
+      integration, per this step's explicit "surface an aggregate last
+      successful cycle timestamp too" scope. Responds `503` only for
+      `stopped` (no heartbeat at all — the process looks wedged), since
+      that's the one case a container restart can fix; `degraded` (alive,
+      but a recent cycle recorded per-org failures) still returns `200`.
+      Both Dockerfiles gained a `HEALTHCHECK` hitting their respective
+      endpoint over `wget` (present via alpine's busybox, confirmed rather
+      than assumed); the worker's port is `EXPOSE`d for documentation but
+      deliberately not published to the host in `docker-compose.prod.yml`
+      (`expose:`, not `ports:`) since only the container's own healthcheck
+      needs it — an operator wanting external polling adds their own
+      `ports:` mapping.
+      Error tracking: `@sentry/nextjs` in `apps/web` (`sentry.server.config.ts`/
+      `sentry.edge.config.ts`, loaded once from a new `src/instrumentation.ts`
+      — Next's own App Router hook, split in two because `proxy.ts` runs on
+      the Edge runtime while route handlers run on Node) and `@sentry/node`
+      in `apps/worker` (`src/sentry.ts`, a small wrapper — `initSentry`/
+      `captureException`/`captureMessage`/`flushSentry` — since the worker
+      has no framework init hook of its own). Both stay fully inert without
+      `SENTRY_DSN` (`enabled: false` in web; an `initialized` guard in the
+      worker's wrapper) — the "missing credentials mean skip" convention
+      already used for SMTP/per-org Slack, not a crash. Deliberately no
+      `withSentryConfig` wrapping of `next.config.mjs`: that plugin's real
+      value is build-time source-map upload, which needs a `SENTRY_AUTH_TOKEN`/
+      org/project this deployment doesn't have and would add CI/build
+      fragility for a step whose actual ask is runtime error capture, not
+      source-mapped stack traces. Captured: unhandled exceptions in both
+      apps (`instrumentation.ts`'s `onRequestError` in web; `uncaughtException`/
+      `unhandledRejection` process handlers plus the worker's own cycle-level
+      catch in web's sibling `apps/worker/src/index.ts`), and every
+      `Integration.lastSyncError` write in `cycle.ts`'s per-integration
+      catch — except when `reauthRequired` is true, since that's an
+      expected, already-surfaced state (the settings page's `ReauthBanner`)
+      rather than a bug worth paging on. The three other per-organization
+      catch blocks in the same cycle (commitments/evaluation/notifications
+      stages) got the same capture for consistency, since they represent
+      the same class of real, unexpected failure.
+      Stalled-cycle alerting is new, deployment-owner-level config with no
+      precedent in this codebase to reuse: `OPS_ALERT_SLACK_WEBHOOK_URL`
+      (a plain Slack incoming-webhook URL, not the per-org `SlackIntegration`
+      OAuth app — that needs a resolved bot token and channel from a
+      completed per-org install, and reusing it would mean paging every
+      customer's own Slack channel when this deployment's worker stalls)
+      and/or `OPS_ALERT_EMAIL` + its own `OPS_ALERT_SMTP_*` credentials
+      (independent of any organization's saved `OrganizationEmailSettings`,
+      since this alert must still reach the operator even if a customer's
+      own SMTP config is broken) — both optional, either, neither, or both.
+      New `apps/worker/src/watchdog.ts` checks every two minutes whether
+      either cycle kind's last *successful* (zero-failure) run is older
+      than 3x its configured interval — the same multiplier
+      `deriveWorkerStatus` already uses for its own "stopped" heartbeat
+      check — and sends (and, on recovery, un-sends) an alert through
+      `apps/worker/src/ops-alert.ts`'s `sendOpsAlert`, tracking "already
+      alerted" in memory since a process restart is already a distinct
+      incident either way. Explicitly stated as a limitation in that file's
+      own doc comment: this only catches a worker that's alive but not
+      completing cycles — a fully crashed process stops this check along
+      with everything else, which is exactly what the container
+      `HEALTHCHECK`/restart-policy pairing above is for instead. Verified
+      end-to-end against the real local dev stack (not just type-checked):
+      both `/api/health` and the worker's `/health` were hit live and
+      returned the expected `200` bodies, including through `proxy.ts`'s
+      new unauthenticated allowlist entry.
+      Explicit non-goals, matching this step's own scope: full APM/tracing
+      (`tracesSampleRate: 0` in both Sentry configs), metrics dashboards,
+      and log aggregation infrastructure.
 - [ ] **30 — Inbound abuse protection and webhook replay protection** (rate
       limiting on the two webhook routes and `/api/sign-up`; a timestamp
       check alongside the existing constant-time secret verification).

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 /**
  * The worker runs unattended, so a missing provider config is not fatal: it
  * skips that provider and keeps polling the other one rather than crash-looping
@@ -19,13 +20,29 @@
  * Monitoring settings page without a restart — those env vars are only
  * still consulted once, by `getOrCreateWorkerSettings`, to seed that row on
  * a fresh install.
+ *
+ * `healthPort`/`opsAlert` (roadmap step 29) are genuinely deployment-level,
+ * unlike the config above — there's no per-organization "worker liveness
+ * port" or "who gets paged when the worker stalls" to store in the
+ * database, so these stay plain env reads here rather than moving to
+ * `WorkerSettings`.
  */
+import { loadOpsAlertConfig, type OpsAlertConfig } from "./ops-alert";
+
 export interface WorkerConfig {
   appUrl: string | null;
+  healthPort: number;
+  opsAlert: OpsAlertConfig | null;
 }
 
 export function loadWorkerConfig(): WorkerConfig {
   return {
     appUrl: process.env.NEXTAUTH_URL ?? null,
+    healthPort: Number(process.env.WORKER_HEALTH_PORT ?? 8081),
+    opsAlert: loadOpsAlertConfig(),
   };
 }
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+});

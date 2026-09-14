@@ -1,9 +1,18 @@
 import { getOrCreateWorkerSettings, getPrismaClient, recordWorkerCycleOutcome, recordWorkerNextRun } from "@sla/db";
 import { loadWorkerConfig } from "./config";
 import { runCycle, type CycleKind } from "./cycle";
+import { startHealthServer, type WorkerHealthServer } from "./health-server";
+import { captureException, flushSentry, initSentry } from "./sentry";
+import { startStalledCycleWatchdog } from "./watchdog";
+
+// First, before anything else can throw — every capture call below is a
+// no-op until this runs, so it must run before `main()`'s own await points.
+initSentry();
 
 const prisma = getPrismaClient();
 const config = loadWorkerConfig();
+let healthServer: WorkerHealthServer | null = null;
+let watchdogTimer: NodeJS.Timeout | null = null;
 
 /**
  * Cycles are serialized: both kinds advance the same per-integration cursor,
@@ -64,6 +73,7 @@ async function tick(kind: CycleKind): Promise<void> {
     console.log(JSON.stringify({ event: "cycle_finished", durationMs: Date.now() - startedAt, ...result }));
   } catch (error) {
     await recordWorkerCycleOutcome(prisma, kind, null);
+    captureException(error, { kind, stage: "cycle" });
     console.error(
       JSON.stringify({
         event: "cycle_failed",
@@ -87,8 +97,13 @@ async function main(): Promise<void> {
       activePollMs: settings.activePollIntervalMs,
       reconciliationMs: settings.reconciliationIntervalMs,
       appUrlConfigured: config.appUrl !== null,
+      healthPort: config.healthPort,
+      opsAlertConfigured: config.opsAlert !== null,
     }),
   );
+
+  healthServer = startHealthServer(prisma, config.healthPort);
+  watchdogTimer = startStalledCycleWatchdog(prisma, config.opsAlert);
 
   // Active-set poll runs immediately on boot; reconciliation only after its
   // own interval first elapses — same startup order as before this file
@@ -99,15 +114,37 @@ async function main(): Promise<void> {
 
 void main();
 
-async function shutdown(signal: string): Promise<void> {
+async function shutdown(signal: string, exitCode = 0): Promise<void> {
   console.log(JSON.stringify({ event: "worker_stopping", signal }));
   shuttingDown = true;
   for (const kind of Object.keys(timers) as CycleKind[]) {
     if (timers[kind]) clearTimeout(timers[kind]);
   }
+  if (watchdogTimer) clearInterval(watchdogTimer);
+  if (healthServer) await healthServer.close();
+  await flushSentry();
   await prisma.$disconnect();
-  process.exit(0);
+  process.exit(exitCode);
 }
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+// Node's own guidance: the process is in an undefined state after either of
+// these, so log/capture and exit non-zero rather than keep running — the
+// container's restart policy (docker-compose.prod.yml: `unless-stopped`) is
+// what actually recovers, matching every other "fail loud, let the
+// supervisor restart it" choice already made in this file's shutdown path.
+process.on("uncaughtException", (error) => {
+  captureException(error, { stage: "uncaughtException" });
+  console.error(JSON.stringify({ event: "uncaught_exception", error: error.message }));
+  void shutdown("uncaughtException", 1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  captureException(reason, { stage: "unhandledRejection" });
+  console.error(
+    JSON.stringify({ event: "unhandled_rejection", error: reason instanceof Error ? reason.message : String(reason) }),
+  );
+  void shutdown("unhandledRejection", 1);
+});

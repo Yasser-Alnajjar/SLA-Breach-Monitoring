@@ -20,17 +20,24 @@ export const SignInForm = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Seconds remaining in a server-imposed cooldown (roadmap step 30's login
-  // rate limit) — null means no cooldown is active. Counts down locally
-  // from the `retryAfterSeconds` the server already computed; a page
-  // refresh resets this display, but the server stays authoritative and
-  // keeps returning 429 until its own window actually elapses.
+  // Seconds remaining in a server-imposed cooldown — null means no cooldown
+  // is active. Counts down locally from the `retryAfterSeconds` the server
+  // already computed; a page refresh resets this display, but the server
+  // stays authoritative and keeps rejecting the attempt until its own
+  // window actually elapses. Two distinct sources share this same display:
+  // the IP-wide rate limit (roadmap step 30) and the per-identity
+  // progressive throttle after repeated failed attempts — `cooldownReason`
+  // only changes the copy shown, not the countdown mechanics.
   const [cooldownSeconds, setCooldownSeconds] = useState<number | null>(null);
+  const [cooldownReason, setCooldownReason] = useState<"RATE_LIMITED" | "AUTH_THROTTLED" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (cooldownSeconds === null) return;
     if (cooldownSeconds <= 0) {
       setCooldownSeconds(null);
+      setCooldownReason(null);
       return;
     }
     const timer = setTimeout(
@@ -52,7 +59,11 @@ export const SignInForm = () => {
     setSubmitting(false);
 
     if (!result.ok) {
-      if (result.error === "RATE_LIMITED" && "retryAfterSeconds" in result) {
+      if (
+        (result.error === "RATE_LIMITED" || result.error === "AUTH_THROTTLED") &&
+        "retryAfterSeconds" in result
+      ) {
+        setCooldownReason(result.error);
         setCooldownSeconds(result.retryAfterSeconds);
       } else {
         setError("Incorrect email or password");
@@ -114,8 +125,10 @@ export const SignInForm = () => {
           <Alert variant="warning">
             <Clock />
             <AlertDescription>
-              Too many login attempts. Please try again in{" "}
-              {formatCooldownSentence(cooldownSeconds ?? 0)}.
+              {cooldownReason === "AUTH_THROTTLED"
+                ? "Too many failed login attempts."
+                : "Too many login attempts."}{" "}
+              Please try again in {formatCooldownSentence(cooldownSeconds ?? 0)}.
             </AlertDescription>
           </Alert>
         )}

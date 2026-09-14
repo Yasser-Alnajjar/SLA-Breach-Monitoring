@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  encodeAuthThrottleError,
   encodeCredentialsRateLimitError,
   formatCooldownClock,
   formatCooldownSentence,
@@ -17,6 +18,40 @@ describe("encodeCredentialsRateLimitError / interpretCredentialsSignInResult rou
   it("rounds and floors non-integer/zero input to at least 1 second so the UI never shows an already-expired cooldown", () => {
     expect(encodeCredentialsRateLimitError(0.4)).toBe("RATE_LIMITED:1");
     expect(encodeCredentialsRateLimitError(59.6)).toBe("RATE_LIMITED:60");
+  });
+});
+
+describe("encodeAuthThrottleError / interpretCredentialsSignInResult round trip", () => {
+  it("carries the exact retryAfterSeconds authorize() computed through to the UI-facing shape", () => {
+    const encoded = encodeAuthThrottleError(10);
+    const result = interpretCredentialsSignInResult({ error: encoded, status: 401, ok: false, url: null });
+
+    expect(result).toEqual({ ok: false, error: "AUTH_THROTTLED", retryAfterSeconds: 10 });
+  });
+
+  it("rounds and floors non-integer/zero input to at least 1 second", () => {
+    expect(encodeAuthThrottleError(0.4)).toBe("AUTH_THROTTLED:1");
+    expect(encodeAuthThrottleError(1.6)).toBe("AUTH_THROTTLED:2");
+  });
+
+  it("is distinguishable from RATE_LIMITED even though both carry a retryAfterSeconds", () => {
+    const rateLimited = interpretCredentialsSignInResult({
+      error: encodeCredentialsRateLimitError(30),
+      status: 429,
+      ok: false,
+      url: null,
+    });
+    const throttled = interpretCredentialsSignInResult({
+      error: encodeAuthThrottleError(30),
+      status: 401,
+      ok: false,
+      url: null,
+    });
+
+    expect(rateLimited.ok).toBe(false);
+    expect(throttled.ok).toBe(false);
+    if (!rateLimited.ok) expect(rateLimited.error).toBe("RATE_LIMITED");
+    if (!throttled.ok) expect(throttled.error).toBe("AUTH_THROTTLED");
   });
 });
 

@@ -21,7 +21,12 @@ const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
  * health check (an uptime monitor or container orchestrator has no session
  * cookie either, and needs no org context — it only checks DB connectivity).
  */
-const PUBLIC_API_PATHS = ["/api/auth", "/api/sign-up", "/api/webhooks", "/api/health"];
+const PUBLIC_API_PATHS = [
+  "/api/auth",
+  "/api/sign-up",
+  "/api/webhooks",
+  "/api/health",
+];
 
 function matchesPath(pathname: string, paths: string[]): boolean {
   return paths.some(
@@ -50,20 +55,35 @@ interface RateLimitRule {
    * would make its internal `new URL(data.url)` call throw. Defaults to the
    * plain body every other rate-limited route uses.
    */
-  buildBody?: (request: NextRequest, retryAfterSeconds: number) => Record<string, unknown>;
+  buildBody?: (
+    request: NextRequest,
+    retryAfterSeconds: number,
+  ) => Record<string, unknown>;
 }
 
 const RATE_LIMITS: RateLimitRule[] = [
-  { match: (p) => matchesPath(p, ["/api/webhooks"]), bucket: "webhook", limit: 60, windowMs: 60_000 },
-  { match: (p) => p === "/api/sign-up", bucket: "sign-up", limit: 5, windowMs: 15 * 60_000 },
+  {
+    match: (p) => matchesPath(p, ["/api/webhooks"]),
+    bucket: "webhook",
+    limit: 60,
+    windowMs: 60_000,
+  },
+  {
+    match: (p) => p === "/api/sign-up",
+    bucket: "sign-up",
+    limit: 5,
+    windowMs: 15 * 60_000,
+  },
   {
     match: (p) => p === "/api/auth/callback/credentials",
     bucket: "sign-in",
     limit: 10,
-    windowMs: 5 * 60_000,
+    windowMs: 2 * 60_000,
     buildBody: (request, retryAfterSeconds) => {
       const url = new URL(request.url);
-      url.search = new URLSearchParams({ error: encodeCredentialsRateLimitError(retryAfterSeconds) }).toString();
+      url.search = new URLSearchParams({
+        error: encodeCredentialsRateLimitError(retryAfterSeconds),
+      }).toString();
       return { url: url.toString() };
     },
   },
@@ -78,7 +98,9 @@ export async function proxy(request: NextRequest) {
     const result = checkRateLimit(key, rateLimit.limit, rateLimit.windowMs);
     if (!result.allowed) {
       const retryAfterSeconds = result.retryAfterSeconds ?? 60;
-      const body = rateLimit.buildBody?.(request, retryAfterSeconds) ?? { error: "Too many requests" };
+      const body = rateLimit.buildBody?.(request, retryAfterSeconds) ?? {
+        error: "Too many requests",
+      };
       return NextResponse.json(body, {
         status: 429,
         headers: { "Retry-After": String(retryAfterSeconds) },

@@ -1,0 +1,12 @@
+Ticket ID,Created at,Field,Previous value,Value,Author,Via
+1001,2026-09-01T09:05:00Z,status,new,open,agent@us.test,web
+1001,2026-09-02T09:00:00Z,status,open,solved,agent@us.test,web
+1002,2026-09-01T09:10:00Z,status,new,open,agent@us.test,web
+1002,2026-09-01T09:30:00Z,priority,normal,high,agent@us.test,web
+1002,2026-09-01T10:00:00Z,status,open,pending,agent@us.test,web
+1002,2026-09-01T18:00:00Z,status,pending,open,bo@globex.test,email
+1002,2026-09-01T20:00:00Z,status,open,solved,agent@us.test,web
+1003,2026-09-03T12:30:00Z,status,new,open,agent@us.test,web
+1004,2026-09-04T08:30:00Z,status,new,open,agent@us.test,web
+1004,2026-09-04T10:00:00Z,status,open,solved,agent@us.test,web
+7777,2026-09-04T10:00:00Z,status,open,solved,agent@us.test,web

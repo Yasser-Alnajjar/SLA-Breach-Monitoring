@@ -1205,7 +1205,7 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
          one, and put it in both `.env` and `.env.prod`.
       3. Commit the staged removal together with the new files.
 
-- [ ] **40 — Concierge CSV analysis (validation Week 3, due 21 Sep)**
+- [x] **40 — Concierge CSV analysis (validation Week 3, due 21 Sep)**
       `plans/05` Week 3: take a prospect's Zendesk ticket export (with audit
       history) plus their Jira export (with changelog), and produce a one-page
       findings document within 48 hours, with no OAuth, database, or UI. The
@@ -1230,6 +1230,50 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       count dropped rows instead of guessing.
       Non-goals: an upload UI, storing prospect data anywhere but the local
       machine, SLA-policy import from CSV.
+      Done (2026-09-17): `apps/concierge`, run with
+      `pnpm --filter @sla/concierge analyze -- …` (usage in its README).
+      - Four CSVs in: Zendesk tickets, Zendesk audits (one row per status
+        change), Jira issues, and Jira changelog (one row per transition).
+        Rows are rebuilt into the API shapes and run through the product's
+        own `deriveNormalizedEventsForTicket`/`deriveNormalizedEventsForIssue`,
+        deep-imported so no Prisma client loads. Columns are matched by
+        alias, never position. Unreadable rows are dropped and counted per
+        file and reason.
+      - Jira CSVs have status names, not ids. Categories come from
+        `--jira-status`, then the export's own category columns, then Jira's
+        stock names. Stock-name mappings are listed in the report for the
+        prospect to confirm. Unknown statuses are dropped and named.
+      - Correlation: a ticket id in a Zendesk column, a ticket URL on
+        `--zendesk-subdomain` (`parseZendeskTicketId`), or a Jira key on the
+        ticket. Coverage reads "Linked X of Y Jira issues that reference a
+        Zendesk ticket", with unlinked issues broken down by reason.
+      - Engine: `--resolution` (per priority) becomes `SLAPolicyVersion`s
+        with the importer's `PAUSE_ON_STATES`/`WARN_AT_PERCENT`, and
+        `--business-hours`/`--timezone`/`--holidays` become the calendar.
+        Every ticket is evaluated, so escalated breach rates can be compared
+        with support-only ones. There's also an optional
+        `--engineering-target`.
+      - Report (Markdown, HTML or JSON): headline in the onboarding findings
+        framing, link coverage, time by leg, the leg holding each ticket
+        when its clock crossed the target (bisected over
+        `computeElapsedWorkingMinutes`, so pauses count), disagreements with
+        a Zendesk breach column when present, open escalations aging in
+        engineering, largest breaches, top accounts, and assumptions plus
+        dropped rows. Files are written `0600`, and
+        `apps/concierge/data/` is gitignored for prospect exports.
+      - Deliberate gaps: first response isn't evaluated, since exports have
+        no reply events. Link time is taken as the Jira issue's creation. A
+        solved ticket with no audit rows is left unevaluated rather than
+        breaching to `--as-of`.
+      Verified: 33 tests in `apps/concierge/test` against a synthetic
+      four-file export with hand-computed expectations (breaches, pauses,
+      leg minutes, breach leg, coverage reasons, business hours, engineering
+      target, HTML escaping), the full `pnpm test`, and `type-check`. The
+      CLI was also run end to end through the pnpm script. **Still open:**
+      no real prospect export has been run. Real Zendesk/Jira status-history
+      exports need the API or an Explore/marketplace report, so expect to
+      add column aliases on the first one before promising 48-hour
+      turnaround.
 
 - [ ] **41 — Live verification pass on flows that were only unit-tested**
       Several steps above explicitly record what they didn't verify end to end.

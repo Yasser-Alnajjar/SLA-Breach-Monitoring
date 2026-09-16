@@ -1,0 +1,7 @@
+Issue key,Summary,Status,Created,Reporter,Zendesk Ticket IDs,Remote Link,Remote Link
+SUP-1,Card declined on checkout,Done,01/Sep/26 10:00 AM,eng-lead,1001,,
+SUP-2,Webhook queue backlog,In Progress,03/Sep/26 1:00 PM,eng-lead,,https://wiki.acme.test/runbook,https://acme.zendesk.com/agent/tickets/1003
+SUP-3,SSO redirect loop,QA Review,04/Sep/26 9:00 AM,eng-lead,,,
+SUP-4,Upgrade Postgres,To Do,02/Sep/26 9:00 AM,eng-lead,,,
+SUP-5,Old escalation,Done,02/Sep/26 9:00 AM,eng-lead,9999,,
+SUP-6,Other tenant link,To Do,02/Sep/26 9:00 AM,eng-lead,,https://other.zendesk.com/agent/tickets/1001,

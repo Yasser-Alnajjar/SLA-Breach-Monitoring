@@ -17,3 +17,6 @@ packages/db/skills-lock.json
 .env.prod.*
 !.env.prod.example
 backups/
+
+# Prospect CSV exports and concierge findings (apps/concierge/README.md)
+apps/concierge/data/

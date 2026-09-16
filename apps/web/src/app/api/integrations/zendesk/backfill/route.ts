@@ -1,15 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import {
-  runZendeskBackfill,
-  runZendeskBusinessCalendarImport,
-  runZendeskNormalization,
-  runZendeskSlaPolicyImport,
-  ZendeskReauthRequiredError,
-} from "@sla/zendesk";
-import { runCommitmentPipeline } from "@sla/commitments";
+import { runZendeskBackfill, ZendeskReauthRequiredError } from "@sla/zendesk";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { projectAndEvaluateSourceSyncs } from "@/lib/source-sync";
 import { getZendeskOAuthConfig } from "@/lib/zendesk-env";
 
 export const maxDuration = 300;
@@ -41,11 +35,22 @@ export async function POST() {
 
   try {
     const backfill = await runZendeskBackfill(prisma, integration.id, config);
-    const normalization = await runZendeskNormalization(prisma, integration.id);
-    const businessCalendarImport = await runZendeskBusinessCalendarImport(prisma, integration.id);
-    const slaPolicyImport = await runZendeskSlaPolicyImport(prisma, integration.id);
-    const commitments = await runCommitmentPipeline(prisma, session.user.organizationId);
-    return NextResponse.json({ backfill, normalization, businessCalendarImport, slaPolicyImport, commitments });
+    // Projection, commitments, and evaluation — deferred while a concurrently
+    // running Jira backfill hasn't finished (see projectAndEvaluateSourceSyncs).
+    const { zendesk, jira, commitments, evaluation, pendingProviders } = await projectAndEvaluateSourceSyncs(
+      prisma,
+      session.user.organizationId,
+    );
+    return NextResponse.json({
+      backfill,
+      normalization: zendesk?.normalization,
+      businessCalendarImport: zendesk?.businessCalendarImport,
+      slaPolicyImport: zendesk?.slaPolicyImport,
+      jira,
+      commitments,
+      evaluation,
+      pendingProviders,
+    });
   } catch (error) {
     if (error instanceof ZendeskReauthRequiredError) {
       return NextResponse.json(

@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
+import { JiraReauthRequiredError, runJiraBackfill } from "@sla/jira";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { projectAndEvaluateSourceSyncs } from "@/lib/source-sync";
 import { getJiraOAuthConfig } from "@/lib/jira-env";
 
 export const maxDuration = 300;
@@ -34,9 +35,21 @@ export async function POST() {
 
   try {
     const backfill = await runJiraBackfill(prisma, integration.id, config);
-    const correlation = await runJiraCorrelation(prisma, integration.id);
-    const normalization = await runJiraNormalization(prisma, integration.id);
-    return NextResponse.json({ backfill, correlation, normalization });
+    // Correlation needs Zendesk's cases, so when this finishes first the
+    // Zendesk route's own call re-projects Jira and evaluates instead.
+    const { zendesk, jira, commitments, evaluation, pendingProviders } = await projectAndEvaluateSourceSyncs(
+      prisma,
+      session.user.organizationId,
+    );
+    return NextResponse.json({
+      backfill,
+      correlation: jira?.correlation,
+      normalization: jira?.normalization,
+      zendesk,
+      commitments,
+      evaluation,
+      pendingProviders,
+    });
   } catch (error) {
     if (error instanceof JiraReauthRequiredError) {
       return NextResponse.json({ error: "Jira needs to be reconnected", reauthRequired: true }, { status: 409 });

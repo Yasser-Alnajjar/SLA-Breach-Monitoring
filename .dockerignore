@@ -10,3 +10,6 @@ packages/db/generated
 .env
 .env.local
 .DS_Store
+
+# Prospect CSV exports and concierge reports (apps/concierge/README.md)
+apps/concierge/data

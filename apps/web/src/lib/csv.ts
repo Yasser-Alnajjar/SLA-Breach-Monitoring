@@ -1,6 +1,6 @@
-/** Quotes a field per RFC 4180 only when it contains a comma, quote, or newline. */
+/** Quotes a field per RFC 4180 only when it contains a comma, quote, or line break. */
 function escapeField(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
 }
 

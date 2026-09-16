@@ -1,0 +1,8 @@
+Id,Subject,Status,Priority,Organization,Requester,Created at,Updated at,Resolution SLA breached,Jira issue keys
+1001,"Checkout fails with ""card declined""",Solved,Urgent,Acme,ana@acme.test,2026-09-01 09:00:00,2026-09-02 09:00:00,Yes,
+1002,Export button missing,Solved,High,Globex,bo@globex.test,2026-09-01 09:00:00,2026-09-01 20:00:00,Yes,
+1003,"Webhooks delayed,
+multi-line subject",Open,Normal,Acme,ana@acme.test,2026-09-03 12:00:00,2026-09-03 14:00:00,No,
+1004,SSO login loop,Solved,Low,Initech,cy@initech.test,2026-09-04 08:00:00,2026-09-04 10:00:00,,SUP-3
+1005,Invoice question,Solved,Urgent,Globex,bo@globex.test,2026-09-04 11:00:00,2026-09-04 12:00:00,Yes,
+abc,Broken row,Open,Normal,Acme,ana@acme.test,2026-09-04 11:00:00,2026-09-04 11:00:00,,

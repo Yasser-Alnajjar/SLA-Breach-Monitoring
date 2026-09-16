@@ -1,0 +1,7 @@
+Issue key,Created,Field,From status,To status,Author
+SUP-1,2026-09-01T11:00:00Z,status,To Do,In Progress,eng-1
+SUP-1,2026-09-01T11:30:00Z,assignee,,eng-1,eng-1
+SUP-1,2026-09-02T08:00:00Z,status,In Progress,Done,eng-1
+SUP-2,2026-09-03T14:00:00Z,status,To Do,In Progress,eng-2
+SUP-3,2026-09-04T09:30:00Z,status,To Do,QA Review,eng-3
+SUP-5,2026-09-02T10:00:00Z,status,To Do,Done,eng-3

@@ -1,9 +1,32 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+// Suites that run against the real Postgres at TEST_DATABASE_URL. Each one
+// truncates every table between tests, so two running at once wipe each
+// other's data: they get their own project, one file at a time, after the rest.
+const realDatabaseSuites = ["apps/web/test/tenant-isolation.test.ts", "apps/web/test/source-sync-evaluation.test.ts"];
+
 export default defineConfig({
   test: {
-    include: ["packages/*/test/**/*.test.ts", "apps/web/test/**/*.test.ts", "apps/worker/test/**/*.test.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["packages/*/test/**/*.test.ts", "apps/web/test/**/*.test.ts", "apps/worker/test/**/*.test.ts", "apps/concierge/test/**/*.test.ts"],
+          exclude: realDatabaseSuites,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "real-database",
+          include: realDatabaseSuites,
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+        },
+      },
+    ],
   },
   resolve: {
     alias: {

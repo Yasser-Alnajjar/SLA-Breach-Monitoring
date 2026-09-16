@@ -16,6 +16,14 @@ import type {
 import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-settings";
 import type { SignUpInput } from "@/lib/sign-up";
 import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
+import type {
+  ConciergeExportSelectionRequest,
+  ConciergeExportSummary,
+  ConciergeIntegrationOption,
+  ConciergeSourceProvider,
+  JiraConciergeExportRequest,
+  ZendeskConciergeExportRequest,
+} from "@/lib/types/concierge-export";
 
 interface ActionResult<T> {
   ok: boolean;
@@ -191,6 +199,53 @@ export const Actions = {
         customerId,
         calendarId,
       });
+    },
+  },
+
+  Concierge: {
+    async listIntegrations(provider: ConciergeSourceProvider, organizationId: string) {
+      const response = await fetch(
+        `/api/concierge/${provider}/integrations?${new URLSearchParams({ organizationId })}`,
+      );
+      const body = await response.json().catch(() => ({}));
+      return {
+        ok: response.ok,
+        integrations: body.integrations as ConciergeIntegrationOption[] | undefined,
+        error: body.error as string | undefined,
+      };
+    },
+    async exportData(
+      provider: ConciergeSourceProvider,
+      { organizationId, integrationId }: ConciergeExportSelectionRequest,
+    ): Promise<
+      | { ok: true; zip: Blob; summary: ConciergeExportSummary }
+      | { ok: false; error: string }
+    > {
+      const payload: JiraConciergeExportRequest | ZendeskConciergeExportRequest =
+        provider === "jira"
+          ? { organizationId, jiraIntegrationId: integrationId }
+          : { organizationId, zendeskIntegrationId: integrationId };
+      const response = await fetch(`/api/concierge/${provider}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        return { ok: false, error: (body?.error as string | undefined) ?? "Export failed" };
+      }
+      const fileName =
+        response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ??
+        `${provider}-concierge-export.zip`;
+      return {
+        ok: true,
+        zip: await response.blob(),
+        summary: {
+          recordCount: Number(response.headers.get("X-Export-Record-Count") ?? 0),
+          historyCount: Number(response.headers.get("X-Export-History-Count") ?? 0),
+          fileName,
+        },
+      };
     },
   },
 

@@ -1,0 +1,22 @@
+{
+  "name": "@sla/concierge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "analyze": "tsx src/cli.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sla/core": "workspace:*",
+    "@sla/jira": "workspace:*",
+    "@sla/zendesk": "workspace:*"
+  },
+  "devDependencies": {
+    "@sla/db": "workspace:*",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

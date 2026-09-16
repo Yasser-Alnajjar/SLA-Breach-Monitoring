@@ -7,6 +7,7 @@ import { IntegrationsActions } from "./integrations";
 import { SlaConfigurationActions } from "./sla-configuration";
 import { NotificationsActions } from "./notifications";
 import { WorkerSettingsActions } from "./worker-settings";
+import { ConciergeActions } from "./concierge";
 
 /**
  * Server-only data layer, imported exclusively by `ssr/` (async server)
@@ -23,4 +24,5 @@ export const Actions = {
   SlaConfiguration: SlaConfigurationActions,
   Notifications: NotificationsActions,
   WorkerSettings: WorkerSettingsActions,
+  Concierge: ConciergeActions,
 };

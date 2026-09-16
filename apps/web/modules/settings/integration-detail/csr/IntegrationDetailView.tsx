@@ -2,7 +2,9 @@
 
 import {
   ArrowLeft,
+  ChevronRight,
   ExternalLink,
+  FileArchive,
   GitBranch,
   GitPullRequest,
   LifeBuoy,
@@ -15,6 +17,8 @@ import type { ReactNode } from "react";
 import { PermissionDeniedBanner } from "@/components/shared/permission-denied-banner";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CONCIERGE_PROVIDER_COPY } from "@/lib/concierge-providers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   INTEGRATION_PROVIDER_LABELS,
@@ -219,6 +223,30 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
 
       {(provider === "zendesk" || provider === "jira") && (
         <Reveal delay={0.15}>
+          <SectionCard
+            icon={<FileArchive className="size-4" />}
+            title="Concierge export"
+            description={`${INTEGRATION_PROVIDER_LABELS[provider]} data for the Concierge SLA analysis`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className={descriptionClass}>
+                {provider === "jira"
+                  ? "Download issues and their status history from Jira's changelog as CSVs."
+                  : "Download tickets and their status changes from Zendesk's ticket audits as CSVs."}
+              </p>
+              <Button variant="outline" size="sm" className="text-nowrap" asChild>
+                <Link href={CONCIERGE_PROVIDER_COPY[provider].exportHref}>
+                  Open export
+                  <ChevronRight className="size-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </SectionCard>
+        </Reveal>
+      )}
+
+      {(provider === "zendesk" || provider === "jira") && (
+        <Reveal delay={0.2}>
           <SectionCard
             icon={<WebhookIcon className="size-4" />}
             title="Real-time webhook"

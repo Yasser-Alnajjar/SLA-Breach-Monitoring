@@ -12,3 +12,6 @@ services:
 
 volumes:
   postgres-data:
+
+#   pnpm --filter @sla/db exec prisma migrate deploy
+

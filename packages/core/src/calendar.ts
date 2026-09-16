@@ -9,32 +9,34 @@ interface ZonedParts {
   day: number;
   hour: number;
   minute: number;
-  weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday
+  second: number;
 }
 
-const WEEKDAY_INDEX: Record<string, ZonedParts["weekday"]> = {
-  Sun: 0,
-  Mon: 1,
-  Tue: 2,
-  Wed: 3,
-  Thu: 4,
-  Fri: 5,
-  Sat: 6,
-};
+// Constructing an Intl.DateTimeFormat is far more expensive than using one,
+// and the day walk below formats several instants per day.
+const formatters = new Map<string, Intl.DateTimeFormat>();
 
-function zonedParts(instant: Date, timeZone: string): ZonedParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-  });
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let formatter = formatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    formatters.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
+function zonedParts(instantMs: number, timeZone: string): ZonedParts {
   const parts: Record<string, string> = {};
-  for (const part of formatter.formatToParts(instant)) {
+  for (const part of formatterFor(timeZone).formatToParts(instantMs)) {
     parts[part.type] = part.value;
   }
   return {
@@ -43,14 +45,42 @@ function zonedParts(instant: Date, timeZone: string): ZonedParts {
     day: Number(parts.day),
     hour: Number(parts.hour === "24" ? "0" : parts.hour),
     minute: Number(parts.minute),
-    weekday: WEEKDAY_INDEX[parts.weekday ?? ""] ?? 0,
+    second: Number(parts.second),
   };
 }
 
+/** The zone's UTC offset in effect at `instantMs` (local minus UTC, in ms). */
+function offsetMs(instantMs: number, timeZone: string): number {
+  const wholeSecondMs = Math.floor(instantMs / 1000) * 1000;
+  const p = zonedParts(wholeSecondMs, timeZone);
+  const localAsIfUtc = Date.UTC(
+    p.year,
+    p.month - 1,
+    p.day,
+    p.hour,
+    p.minute,
+    p.second,
+  );
+  return localAsIfUtc - wholeSecondMs;
+}
+
 /**
- * Converts a local wall-clock date+time in `timeZone` to a UTC instant.
- * Converges in two passes; this is not exact across a DST transition at
- * minute resolution, which is an accepted approximation for this pass.
+ * Converts a local wall-clock time in `timeZone` to a UTC instant (ms).
+ * Fields may overflow (`minute: 1440` is the next day's midnight), as with
+ * `Date.UTC`.
+ *
+ * Exact across DST transitions, with two unavoidable choices for wall-clock
+ * times that don't map to exactly one instant:
+ * - A skipped time (spring-forward gap, e.g. 02:30 in New York on the
+ *   transition day) resolves to the transition instant itself. The skipped
+ *   wall-clock minutes never happened, so no working time accrues in them.
+ * - A repeated time (fall-back overlap, e.g. 01:30) resolves to its first
+ *   occurrence. A window boundary inside the repeated hour therefore counts
+ *   from the earlier offset.
+ * Both choices keep the mapping monotonic, so windows never invert.
+ *
+ * Assumes at most one offset change within a day either side of the target,
+ * which holds for every IANA zone.
  */
 function zonedDateToUtc(
   year: number,
@@ -59,37 +89,58 @@ function zonedDateToUtc(
   hour: number,
   minute: number,
   timeZone: string,
-): Date {
+): number {
   const target = Date.UTC(year, month - 1, day, hour, minute, 0);
-  let guess = target;
-  for (let i = 0; i < 2; i++) {
-    const parts = zonedParts(new Date(guess), timeZone);
-    const guessAsIfUtc = Date.UTC(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hour,
-      parts.minute,
-      0,
-    );
-    guess -= guessAsIfUtc - target;
+  const offsetBefore = offsetMs(target - DAY_MS, timeZone);
+  const offsetAfter = offsetMs(target + DAY_MS, timeZone);
+  if (offsetBefore === offsetAfter) return target - offsetBefore;
+
+  const earlier = Math.min(target - offsetBefore, target - offsetAfter);
+  const later = Math.max(target - offsetBefore, target - offsetAfter);
+  if (offsetMs(earlier, timeZone) === target - earlier) return earlier;
+  if (offsetMs(later, timeZone) === target - later) return later;
+
+  // Skipped time: binary-search the transition instant, which lies in
+  // (earlier, later] and is the first instant carrying the post-transition
+  // offset.
+  let lo = earlier;
+  let hi = later;
+  while (hi - lo > 1) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (offsetMs(mid, timeZone) === offsetAfter) hi = mid;
+    else lo = mid;
   }
-  return new Date(guess);
+  return hi;
 }
 
-function dateKey(parts: ZonedParts): string {
-  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+interface LocalDay {
+  key: string; // "YYYY-MM-DD", matched against `holidays`
+  weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday
+  /** UTC instant (ms) of a wall-clock minute-of-day; 1440 is the next midnight. */
+  at: (minuteOfDay: number) => number;
 }
 
-function localMidnightUtcMs(parts: ZonedParts, timeZone: string): number {
-  return zonedDateToUtc(
-    parts.year,
-    parts.month,
-    parts.day,
-    0,
-    0,
-    timeZone,
-  ).getTime();
+/**
+ * The local calendar day `dayOffset` days after `anchor`'s. Days are stepped by calendar date, never by adding 24h, so a
+ * 23- or 25-hour DST day is neither skipped nor visited twice.
+ */
+function localDay(
+  anchor: ZonedParts,
+  dayOffset: number,
+  timeZone: string,
+): LocalDay {
+  const date = new Date(
+    Date.UTC(anchor.year, anchor.month - 1, anchor.day + dayOffset),
+  );
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  return {
+    key: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    weekday: date.getUTCDay() as LocalDay["weekday"],
+    at: (minuteOfDay) =>
+      zonedDateToUtc(year, month, day, 0, minuteOfDay, timeZone),
+  };
 }
 
 /**
@@ -114,20 +165,18 @@ export function computeDeadline(
 
   let remaining = targetMinutes;
   let cursor = start.getTime();
+  const anchor = zonedParts(cursor, calendar.timezone);
 
   for (let dayOffset = 0; dayOffset < MAX_DAYS_SEARCHED; dayOffset++) {
-    const parts = zonedParts(new Date(cursor), calendar.timezone);
-    const midnightMs = localMidnightUtcMs(parts, calendar.timezone);
-    const nextMidnightMs = midnightMs + DAY_MS;
-    const isHoliday = calendar.holidays.includes(dateKey(parts));
+    const day = localDay(anchor, dayOffset, calendar.timezone);
 
-    if (!isHoliday) {
+    if (!calendar.holidays.includes(day.key)) {
       const windows = calendar.weekly
-        .filter((w) => w.day === parts.weekday)
+        .filter((w) => w.day === day.weekday)
         .sort((a, b) => a.openMinute - b.openMinute);
       for (const window of windows) {
-        const windowOpenMs = midnightMs + window.openMinute * 60_000;
-        const windowCloseMs = midnightMs + window.closeMinute * 60_000;
+        const windowOpenMs = day.at(window.openMinute);
+        const windowCloseMs = day.at(window.closeMinute);
         const segStart = Math.max(cursor, windowOpenMs);
         if (windowCloseMs <= segStart) continue;
         const availableMinutes = (windowCloseMs - segStart) / 60_000;
@@ -139,7 +188,7 @@ export function computeDeadline(
       }
     }
 
-    cursor = Math.max(cursor, nextMidnightMs);
+    cursor = Math.max(cursor, day.at(24 * 60));
   }
 
   throw new Error(
@@ -166,30 +215,26 @@ export function workingMinutesBetween(
   let total = 0;
   let cursor = start.getTime();
   const endMs = end.getTime();
+  const anchor = zonedParts(cursor, calendar.timezone);
 
   for (
     let dayOffset = 0;
     dayOffset < MAX_DAYS_SEARCHED && cursor < endMs;
     dayOffset++
   ) {
-    const parts = zonedParts(new Date(cursor), calendar.timezone);
-    const midnightMs = localMidnightUtcMs(parts, calendar.timezone);
-    const nextMidnightMs = midnightMs + DAY_MS;
-    const isHoliday = calendar.holidays.includes(dateKey(parts));
+    const day = localDay(anchor, dayOffset, calendar.timezone);
 
-    if (!isHoliday) {
+    if (!calendar.holidays.includes(day.key)) {
       for (const window of calendar.weekly.filter(
-        (w) => w.day === parts.weekday,
+        (w) => w.day === day.weekday,
       )) {
-        const windowOpenMs = midnightMs + window.openMinute * 60_000;
-        const windowCloseMs = midnightMs + window.closeMinute * 60_000;
-        const segStart = Math.max(cursor, windowOpenMs, start.getTime());
-        const segEnd = Math.min(windowCloseMs, endMs);
+        const segStart = Math.max(cursor, day.at(window.openMinute));
+        const segEnd = Math.min(day.at(window.closeMinute), endMs);
         if (segEnd > segStart) total += (segEnd - segStart) / 60_000;
       }
     }
 
-    cursor = nextMidnightMs;
+    cursor = day.at(24 * 60);
   }
 
   return total;

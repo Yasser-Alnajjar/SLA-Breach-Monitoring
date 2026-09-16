@@ -1,7 +1,5 @@
-import { Download } from "lucide-react";
 import { Actions } from "@/actions";
 
-import { Button } from "@/components/ui/button";
 import { DashboardView } from "../csr/DashboardView";
 
 /**

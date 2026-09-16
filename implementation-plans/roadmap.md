@@ -950,16 +950,93 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Tests: `apps/web/test/csrf.test.ts` (origin matching, sibling-subdomain
       and scheme/port mismatches, Referer fallback, forwarded host, proxy
       wiring and exemptions) and `apps/web/test/security-headers.test.ts`.
-- [ ] **34 — DST/timezone correctness for the business-hours engine** — fix
+- [x] **34 — DST/timezone correctness for the business-hours engine** — fix
       or bound `calendar.ts`'s self-documented DST approximation, and add the
       non-UTC/DST-transition test coverage that currently doesn't exist for
       the one case the code warns about itself.
-- [ ] **35 — Close the remaining UI/trust gaps** (a visible link to the
+      The new tests exposed real bugs, not just imprecision. (1) Days were
+      stepped by adding 24h to local midnight. On a 25-hour fall-back day
+      that lands on 23:00 the same day, so the loop never advanced:
+      `computeDeadline` threw "exceeded search horizon" for any
+      America/New_York calendar spanning the first Sunday of November, and
+      `workingMinutesBetween` silently stopped counting at that Sunday.
+      (2) Window boundaries were `midnight + openMinute`, so on either
+      transition day every window after 02:00 was off by an hour.
+      (3) `zonedDateToUtc`'s two-pass guess had no defined answer for a
+      skipped or repeated wall-clock time.
+      Fix (`packages/core/src/calendar.ts`): days are stepped by calendar
+      date, every window boundary is converted from local wall-clock time
+      on its own, and `zonedDateToUtc` is exact. It compares the zone's offset a
+      day either side. A repeated time resolves to its first occurrence, and
+      a skipped time resolves to the transition instant, found by binary
+      search, so skipped minutes accrue no working time and the mapping stays
+      monotonic. This also covers zones whose transition skips midnight
+      (America/Santiago). The `Intl.DateTimeFormat` is now cached per zone,
+      so the engine is about 6x faster than before despite doing more
+      conversions.
+      Tests: `packages/core/test/calendar.test.ts` gains America/New_York
+      cases across spring-forward and fall-back (weekend carry-over, windows
+      on the transition day, windows spanning the skipped and repeated hour,
+      a window closing at local midnight, 40h weeks, 23h/25h days), a
+      local-date holiday, a Santiago midnight gap, and a
+      `computeDeadline`/`workingMinutesBetween` round-trip across a
+      transition. 8 of the 14 new cases failed before the fix.
+      `docs/customer-guide.md` now explains the DST behavior.
+- [x] **35 — Close the remaining UI/trust gaps** (a visible link to the
       existing full CSV export route, `error.tsx`/`not-found.tsx` boundaries,
       `loading.tsx` on the routes still missing one).
-- [ ] **36 — Reconcile documentation with shipped integrations** (five
+      Export: an "Export full report" button beside the dashboard's
+      *SLA Analytics* heading (`ProjectAnalyticsSection.tsx`). It is a plain
+      `<a download>` to `/api/reports/commitments`, not `next/link`, because
+      the route answers with a CSV attachment. The export is still built in
+      memory, not streamed; this is recorded as a known limitation in
+      `docs/customer-guide.md` §17, to revisit only if a real export gets
+      slow. The unused `Download`/`Button` imports left in the dashboard's SSR
+      component were removed.
+      Boundaries: a shared `RouteStatus` component
+      (`src/components/shared/route-status.tsx`) backs four boundaries.
+      `app/error.tsx` and `app/not-found.tsx` render full-screen with the
+      brand mark, since they sit outside any shell. `app/(main)/error.tsx`
+      and `app/(main)/not-found.tsx` render inside the sidebar layout, so a
+      failing page or a `notFound()` from `Actions.Cases.getDetail` /
+      integration detail keeps navigation on screen. Error pages show Next's
+      error digest as a reference for matching against server logs and
+      Sentry. They don't claim the error "was logged", because client-side
+      render errors aren't reported (Sentry is server-only).
+      Loading: `loading.tsx` skeletons for `cases`, `cases/[caseId]`,
+      `settings` (shared by every settings page), and `onboarding` (which
+      also covers findings, so it uses a placeholder title rather than
+      "Getting started").
+      Verified in the dev server: an unknown public URL returns `404` with the
+      branded page, and a temporary throwing page (since removed) rendered the
+      root error boundary with its digest. The signed-in pages (dashboard
+      button, in-app boundaries, skeletons) were type-checked but not viewed,
+      because that needs a signed-in session.
+- [x] **36 — Reconcile documentation with shipped integrations** (five
       `docs/*.md` files still only mention Zendesk/Jira/Slack and predate
       Linear/GitHub/Intercom; `README.md` is a one-line stub).
+      Decision: retire, don't update. The seven files (`index`,
+      `integrations`, `getting-started`, `how-it-works`, `sla-timing`,
+      `dashboard-and-cases`, `troubleshooting`) were written from the product
+      definition before the build. `index.md` said so itself. Everything in
+      them is covered, accurately, by `docs/customer-guide.md` and the in-app
+      `/docs` pages, so updating them would only have created a third doc set
+      to keep in sync. They are deleted and remain in git history.
+      User-facing docs are now exactly two sets: `docs/customer-guide.md`
+      (plus `docs/deployment.md` for self-hosting) and the in-app `/docs`
+      pages.
+      Links fixed: `docs/deployment.md`'s "Getting Started" link now points to
+      `customer-guide.md#4-getting-started`. The guide's overview linked the
+      GitHub scope exception to a nonexistent `#7-github-integration` (§7 is
+      Jira), so it now points to §22 Security and Access, where that
+      explanation lives.
+      `README.md` goes from an empty stub to: what the product does and what
+      it connects to, the repo layout, local setup (Node 22/pnpm 10, `.env`
+      at the repo root with the three generated secrets, `docker compose up
+      -d postgres`, Prisma generate + `migrate:dev`, `web:dev` +
+      `worker:dev`, first sign-up and the bring-your-own-OAuth-app step),
+      tests, a pointer to `docs/deployment.md`, and where each doc set lives,
+      with a note to keep the guide and in-app docs updated together.
 - [ ] **37 — Backup runbook and tenant-isolation regression tests** (document + minimally automate Postgres backup/restore; add regression tests
       proving the org-scoping pattern the IDOR audit verified by hand
       actually holds, since nothing currently would catch a future

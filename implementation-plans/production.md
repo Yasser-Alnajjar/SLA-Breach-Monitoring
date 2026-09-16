@@ -514,7 +514,7 @@ the deployment target, per your answers above.
   - A full CSP nonce/report-uri pipeline — start with a reasonably strict
     static policy and iterate.
 
-- [ ] 34 — DST/timezone correctness for the business-hours engine
+- [x] 34 — DST/timezone correctness for the business-hours engine
 
   Why:
   This product sells correctness of a time calculation. `calendar.ts`'s own
@@ -540,7 +540,7 @@ the deployment target, per your answers above.
     and override) — this is a correctness fix to the existing calendar
     engine, not a new configuration surface.
 
-- [ ] 35 — Close the remaining UI/trust gaps
+- [x] 35 — Close the remaining UI/trust gaps
 
   Why:
   Several small, independently shippable gaps remain: the CSV export exists
@@ -565,7 +565,7 @@ the deployment target, per your answers above.
   - Streaming the CSV export — note it as a known limitation for very large
     orgs, revisit only if a real customer's export becomes slow.
 
-- [ ] 36 — Reconcile documentation with shipped integrations
+- [x] 36 — Reconcile documentation with shipped integrations
 
   Why:
   `docs/customer-guide.md` is accurate and current. Five other doc files

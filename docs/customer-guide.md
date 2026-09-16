@@ -20,7 +20,7 @@ SLA Breach Monitoring connects to your helpdesk and your engineering tracker(s),
 - Slack and email alerts at the moment a threshold is crossed
 - A record you can open during a QBR or an executive review that explains a number rather than just stating it
 
-**What it connects to today:** Zendesk and Intercom as ticket sources; Jira, Linear, and GitHub as engineering-side sources; Slack and email for alerts. All connections are read-only — the product never creates, edits, or comments on anything in your connected systems (the one narrow exception, GitHub's OAuth scope, is explained in [Section 7](#7-github-integration)).
+**What it connects to today:** Zendesk and Intercom as ticket sources; Jira, Linear, and GitHub as engineering-side sources; Slack and email for alerts. All connections are read-only — the product never creates, edits, or comments on anything in your connected systems (the one narrow exception, GitHub's OAuth scope, is explained in [Section 22](#22-security-and-access)).
 
 **What you get:** one elapsed-time number per commitment that both teams can trust, because it's computed the same way every time from the same recorded events — not re-typed from two different tools into a spreadsheet before every report.
 
@@ -374,6 +374,8 @@ The engine's one governing rule: **elapsed time is always computed from the reco
 
 Each SLA policy is bound to a business calendar — either a set of weekly working windows with a timezone and holiday list (imported from Zendesk's own business-hours schedules), or an always-open calendar for 24/7 targets. An 8-hour resolution target under a business-hours calendar does not mean 8 calendar hours — only time inside the calendar's open windows counts, so an 8-hour target opened at 4pm on a Friday, under a 9-to-5 weekday calendar, doesn't come due until well into the following week.
 
+Working windows follow the calendar's local wall clock through daylight-saving changes: a 9-to-5 window is 9-to-5 local time on both sides of a clock change. On the change day itself, a window that spans the skipped hour counts one hour less and a window that spans the repeated hour counts one hour more, because that is how much real time passed.
+
 ### Holidays
 
 Holidays are dates the calendar treats as fully non-working, in the calendar's own timezone. A day marked as a holiday contributes zero working minutes even if it would otherwise fall inside a normal working window.
@@ -489,7 +491,7 @@ A separate endpoint (`/api/reports/commitments`) generates a complete CSV of **e
 
 **Columns, in order:** Customer, Ticket, Zendesk URL, Jira issues, Linear issues, GitHub pull requests, Commitment (First response/Resolution), Status, Target, Elapsed, Breached by, Opened at, Due at, Closed at.
 
-**Status:** functional and safe to use, but **not currently linked from any button or menu in the product** — reach it by navigating directly to the URL while signed in. If your team wants a one-click export from the dashboard or cases page, that's a reasonable ask for a future release rather than something available today.
+**Where to find it:** the **Export full report** button beside the *SLA Analytics* heading on the dashboard. The file is built in one pass rather than streamed, so an organization with a very large commitment history may wait a few seconds for the download to start.
 
 **Not currently available:** PDF export. Do not expect a formatted, presentation-ready report — the current export is CSV only.
 

@@ -86,7 +86,7 @@ process itself never runs this way.
 
 Sign-up is self-serve — visit `${NEXTAUTH_URL}/sign-up` and create an
 account with an email and password (see
-[Getting Started](getting-started.md)). There is no separate seed/admin
+[Getting Started](customer-guide.md#4-getting-started)). There is no separate seed/admin
 bootstrap step.
 
 ## Updating

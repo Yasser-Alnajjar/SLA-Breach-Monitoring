@@ -1,1 +1,123 @@
-# SLA-Breach-Monitoring
+# SLA Breach Monitoring
+
+*Know before your customer does.*
+
+Support teams promise customers response and resolution times, but once a
+ticket is escalated to engineering, the clock keeps running in a tool support
+can't see. SLA Breach Monitoring connects the helpdesk and the engineering
+tracker, rebuilds one timeline per customer case across both, and tracks
+each commitment against its target through the handoff. It warns before a
+breach and shows which stage the time went to afterwards.
+
+- **Ticket sources:** Zendesk, Intercom
+- **Engineering sources:** Jira, Linear, GitHub (pull requests)
+- **Alerts:** Slack, email
+
+Every data-source connection is read-only. The one scope exception, GitHub,
+is explained in the [customer guide](docs/customer-guide.md#22-security-and-access).
+
+## Repository layout
+
+```text
+apps/
+  web/         Next.js app: sign-in, onboarding, dashboard, cases, settings,
+               webhook receivers, in-app /docs
+  worker/      Background poller: token refresh, ingestion, SLA evaluation,
+               notifications
+packages/
+  core/        Pure SLA/OLA engine: business-hours calendars, elapsed time,
+               leg attribution, evaluation
+  commitments/ Commitment creation and evaluation pipelines
+  db/          Prisma schema, migrations, client, secret encryption
+  zendesk/ intercom/ jira/ linear/ github/
+               Provider adapters: OAuth, backfill, normalization
+  slack/ email/ notifications/
+               Alert channels and delivery
+implementation-plans/  Build roadmap and production-readiness audit
+plans/                 Product research and strategy
+```
+
+## Running locally
+
+Requires Node 22, pnpm 10, and Docker (for Postgres).
+
+1. Install dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+2. Create `.env` in the repo root. Both apps and Prisma read it from there:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Set `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY` and
+   `SMTP_ENCRYPTION_KEY` to three different values, each generated with:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+   The default `DATABASE_URL` already matches the local Postgres below.
+   Everything under "Observability" is optional.
+
+3. Start Postgres:
+
+   ```bash
+   docker compose up -d postgres
+   ```
+
+4. Generate the Prisma client and apply migrations:
+
+   ```bash
+   pnpm --filter @sla/db generate
+   pnpm --filter @sla/db migrate:dev
+   ```
+
+5. Start the web app and the worker, each in its own terminal:
+
+   ```bash
+   pnpm web:dev
+   ```
+
+   ```bash
+   pnpm worker:dev
+   ```
+
+6. Open <http://localhost:3000/sign-up> and create an account. Each sign-up
+   creates its own organization. Before connecting a provider, save that
+   provider's OAuth client ID and secret on **Settings → Integrations**
+   (see [Bringing your own OAuth app](docs/customer-guide.md#5-integrations)).
+
+### Tests and type checks
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm type-check
+```
+
+## Deploying
+
+Self-hosting with Docker Compose (environment variables, migrations, health
+checks, Sentry, and alerts for a stalled worker) is covered in
+[docs/deployment.md](docs/deployment.md).
+
+## Documentation
+
+- **[docs/customer-guide.md](docs/customer-guide.md)** is the full product
+  reference: every integration, how SLA time is calculated, the dashboard
+  and case timeline, notifications, limitations, troubleshooting and FAQ.
+- **[docs/deployment.md](docs/deployment.md)** covers self-hosting.
+- **In-app docs** at `/docs` in the running web app
+  (`apps/web/src/app/docs`) give a per-page guide for end users, with one
+  page per integration.
+- **[implementation-plans/roadmap.md](implementation-plans/roadmap.md)**
+  records what has been built, step by step, and why.
+
+When behavior changes, update `docs/customer-guide.md` and the matching
+in-app `/docs` page together. These are the only two user-facing doc sets.

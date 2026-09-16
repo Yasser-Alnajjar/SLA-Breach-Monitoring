@@ -1138,6 +1138,114 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       read may turn out to be unnecessary (every query only reads PR and
       timeline fields), so try dropping it in that run.
 
+## Next steps (39+)
+
+State as of 2026-09-16: every item in `production.md`'s Phase 9 list (steps
+26–38) is shipped. That audit's product verdict still applies: **no new
+customer-facing features** until paying customers ask for them. What's left
+is (a) loose ends the steps above recorded but didn't close, and (b) the one
+piece of engineering the validation plan needs.
+
+The validation plan (`plans/05`, Phase 20) started 7 Sep 2026, and it's the
+real bottleneck. Per `plans/07-Phase-Status.md` and `plans/call-scorecard.csv`,
+0 of 40 outreach messages have gone out and 0 calls are logged. Week 3
+(21–27 Sep) needs a concierge analysis script, and the kill-criteria reading
+is due around 5 Oct. So step 40 has a date on it; the rest don't.
+
+- [ ] **39 — Untrack `.env.prod` and rotate the secrets committed to it**
+      Carried over from step 37: `.env.prod` is still tracked (`git ls-files`),
+      with real generated values in history since `1ec4936`
+      (`POSTGRES_PASSWORD`, `NEXTAUTH_SECRET`,
+      `INTEGRATION_CONFIG_ENCRYPTION_KEY`, `SMTP_ENCRYPTION_KEY`, ops-alert SMTP
+      credentials). The repo is private, but anyone who ever gets read access
+      also gets these.
+      Scope: `git rm --cached .env.prod`; commit a `.env.prod.example` with
+      placeholders; regenerate every secret; update `docs/deployment.md` to say
+      the file is created on the host, never committed. Rotating the two
+      encryption keys makes existing `IntegrationConfig`/SMTP ciphertext
+      unreadable (`IntegrationConfigUnreadableError`), and there's no
+      re-encryption path. Rotate them now, while no real tenant data exists, or
+      write a one-off re-encrypt script first. Also rotate the local dev Gmail
+      app password flagged at the top of `production.md`.
+      Non-goal: rewriting git history. Rotation makes the old values worthless,
+      so history rewriting isn't needed.
+
+- [ ] **40 — Concierge CSV analysis (validation Week 3, due 21 Sep)**
+      `plans/05` Week 3: take a prospect's Zendesk ticket export (with audit
+      history) plus their Jira export (with changelog), and produce a one-page
+      findings document within 48 hours, with no OAuth, database, or UI. The
+      plan assumed a throwaway script. Most of it already exists as tested
+      code, so build a thin CLI (e.g. `apps/concierge` or `scripts/concierge`)
+      around it:
+      - CSV parsers that map rows to the `NormalizedEvent` shapes the Zendesk
+        and Jira normalizers already produce (state, actor, `occurredAt`).
+      - Correlation on the export's link field, deterministic tier only, with
+        link coverage reported the same way the product does.
+      - The pure `packages/core` functions (`evaluateCommitment`,
+        `deriveLegSpans`, `sumLegMinutes`, calendar), run against targets and
+        business hours passed as CLI flags, since exports carry no policy
+        definitions.
+      - Output: a Markdown/HTML findings page reusing the
+        `/onboarding/findings` framing (breaches, time by leg, where Zendesk's
+        own timer disagrees with the engine, escalations aging in
+        engineering).
+      Verify against a synthetic export built from the existing test fixtures,
+      then get one real export before promising 48-hour turnaround. The real
+      CSV column layout is the unknown here, so keep the parsers lenient and
+      count dropped rows instead of guessing.
+      Non-goals: an upload UI, storing prospect data anywhere but the local
+      machine, SLA-policy import from CSV.
+
+- [ ] **41 — Live verification pass on flows that were only unit-tested**
+      Several steps above explicitly record what they didn't verify end to end.
+      Close each one against the real service, then fix the code or record the
+      result on the original step:
+      - Step 38: a real GitHub App connect, an 8-hour token refresh, and
+        whether `Contents: read` can be dropped.
+      - Step 30: how Zendesk actually renders `{{ticket.updated_at}}` in a
+        webhook body, and whether the freshness check accepts it. If it
+        doesn't, every Zendesk webhook currently fails closed with `401`.
+      - Step 35: the signed-in surfaces (dashboard export button, in-app
+        error/not-found boundaries, loading skeletons) viewed in a real
+        session.
+      - Step 28: `docker-compose.prod.yml` on an actual VPS behind a TLS
+        reverse proxy, including `X-Forwarded-For` reaching the rate limiter
+        and `NEXTAUTH_URL` matching the CSRF origin check.
+      This is the pre-pilot gate: do it before the first paid pilot goes live,
+      not before outreach.
+
+- [ ] **42 — Enforce the single-instance worker**
+      The worker is only safe as one instance (`production.md`: in-process
+      boolean guard, no cross-instance lock). A deploy that briefly overlaps
+      two containers, or an accidental `--scale worker=2`, would race on
+      `Integration.cursor`. Scope: take a Postgres session-level advisory lock
+      (`pg_try_advisory_lock`) at startup. A second instance should log, report
+      itself as `standby` on `/health`, and retry instead of running cycles.
+      Non-goal: real horizontal scaling or per-org work partitioning.
+
+- [ ] **43 — Get the Jira webhook secret out of the query string**
+      Still open from the audit: step 30 added replay protection but left the
+      secret in `?secret=`, where reverse-proxy access logs, Sentry request
+      data, and browser history can capture it. First check whether Jira
+      Cloud's admin webhook UI now accepts a secret for HMAC-signed deliveries
+      (`X-Hub-Signature`). If it does, verify the signature and keep
+      `?secret=` only as a fallback for existing webhooks. If it doesn't, at
+      least scrub the query string from web access logs and Sentry events for
+      `/api/webhooks/jira/**`, and document why.
+
+- [ ] **44 — Close the remaining core test gaps from the audit**
+      `packages/commitments/test` still has no tests for `override.ts`
+      (step 19) or `customer-calendar.ts` (step 24). `packages/core` has no
+      explicit out-of-order-events or empty-event-list cases for
+      `evaluateCommitment`/`deriveLegSpans`. Tests only; no behavior changes
+      unless a test turns up a bug.
+
+**After 44: stop and read the kill criteria** (`plans/05`, Phase 21) against
+the real validation numbers before scheduling a step 45. Candidate features
+already parked in `ignored.md` (public API, SSO/SAML), plus webhooks for
+Linear/GitHub/Intercom and streamed CSV export, wait for a specific customer
+or deal to ask for them, per the deferred list below.
+
 ## Explicitly deferred past v1
 
 Per Phase 10's DO NOT BUILD list: financial/service-credit calculation, any AI

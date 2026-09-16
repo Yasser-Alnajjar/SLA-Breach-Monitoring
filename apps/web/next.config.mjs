@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { buildSecurityHeaders } from "./security-headers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,6 +16,17 @@ const nextConfig = {
   // packages/* are traced correctly instead of just this app's own tree.
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: buildSecurityHeaders({
+          isDev: process.env.NODE_ENV !== "production",
+        }),
+      },
+    ];
+  },
 };
 
 export default nextConfig;

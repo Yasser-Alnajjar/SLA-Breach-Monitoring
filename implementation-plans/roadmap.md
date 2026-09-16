@@ -910,10 +910,46 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       once across repeated 403s (and again for a fresh loss after
       recovery); a mid-cycle disconnect never being overwritten; and
       `permission_denied` rows still being selected for sync.
-- [ ] **33 — Security headers and CSRF hardening** (CSP/HSTS/X-Frame-Options/
+- [x] **33 — Security headers and CSRF hardening** (CSP/HSTS/X-Frame-Options/
       X-Content-Type-Options; an Origin-header check on state-changing
       `/api/settings/**` and disconnect routes as defense in depth beyond
       SameSite cookies).
+      Headers: new `apps/web/security-headers.mjs` (plain `.mjs` so
+      `next.config.mjs` imports it directly), applied to every path through
+      `headers()`: CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options:
+      nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
+      restrictive `Permissions-Policy`, and HSTS (two years,
+      `includeSubDomains`) in production only. `poweredByHeader` is off.
+      CSP: `default-src 'self'`, `frame-ancestors 'none'`,
+      `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and
+      `connect-src 'self'`. There is no third-party origin anywhere: next/font
+      self-hosts the fonts and Sentry runs server-side only. Deliberate
+      trade-off, documented in the file: `script-src` keeps
+      `'unsafe-inline'`, because the App Router's inline RSC payload scripts
+      and next-themes' no-flash script would otherwise need a per-request
+      nonce, and a nonce forces every page, static docs included, into dynamic
+      rendering. Dev only adds `'unsafe-eval'` and `ws:`/`wss:` for React
+      dev tooling and HMR, and never sends HSTS, so LAN-IP/ngrok hosts don't
+      get pinned to https in a developer's browser.
+      CSRF: new `apps/web/src/lib/csrf.ts`, enforced in `proxy.ts` after rate
+      limiting and before the auth check. It covers every non-GET/HEAD/OPTIONS
+      `/api/**` request, which is wider than the settings/disconnect routes
+      named above: integration config/backfill, Slack channel selection, and
+      sign-up are session- or login-driven writes too. Only `/api/webhooks`
+      (server-to-server, secret-authenticated, no `Origin`) and `/api/auth`
+      (NextAuth's own double-submit CSRF token) are exempt. The request
+      passes when `Origin` (or `Referer`'s origin when `Origin` is absent)
+      equals `NEXTAUTH_URL`'s origin or the addressed host
+      (`X-Forwarded-Host`, else `Host`). That second case keeps
+      `allowedDevOrigins` dev access working. It fails closed: no usable
+      origin, including a literal `Origin: null`, returns `403`.
+      Verified against the running dev server: headers present on `/`, the
+      sign-in page renders with no CSP violations in the console, a
+      same-origin browser `fetch` POST reaches the auth gate (`401`), and
+      `curl` POSTs with a foreign `Origin` or no `Origin` get `403`.
+      Tests: `apps/web/test/csrf.test.ts` (origin matching, sibling-subdomain
+      and scheme/port mismatches, Referer fallback, forwarded host, proxy
+      wiring and exemptions) and `apps/web/test/security-headers.test.ts`.
 - [ ] **34 — DST/timezone correctness for the business-hours engine** — fix
       or bound `calendar.ts`'s self-documented DST approximation, and add the
       non-UTC/DST-transition test coverage that currently doesn't exist for

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAppUrl } from "@/lib/app-url";
 import { encodeCredentialsRateLimitError } from "@/lib/auth-rate-limit";
+import { isSameOriginRequest, isStateChangingMethod } from "@/lib/csrf";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
@@ -89,6 +90,17 @@ const RATE_LIMITS: RateLimitRule[] = [
   },
 ];
 
+/**
+ * API routes exempt from the Origin check (roadmap step 33). Webhooks are
+ * called server-to-server by Zendesk/Jira with no `Origin` header and no
+ * session cookie — they authenticate via their own secret. NextAuth's
+ * endpoints already enforce their own double-submit CSRF token. Every other
+ * state-changing `/api` request — `/api/settings/**`, integration
+ * config/disconnect/backfill, Slack channel selection, and sign-up — is
+ * session-cookie (or login) driven and must come from this app's own origin.
+ */
+const CSRF_EXEMPT_API_PATHS = ["/api/webhooks", "/api/auth"];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -106,6 +118,18 @@ export async function proxy(request: NextRequest) {
         headers: { "Retry-After": String(retryAfterSeconds) },
       });
     }
+  }
+
+  if (
+    pathname.startsWith("/api/") &&
+    isStateChangingMethod(request.method) &&
+    !matchesPath(pathname, CSRF_EXEMPT_API_PATHS) &&
+    !isSameOriginRequest(request, process.env.NEXTAUTH_URL)
+  ) {
+    return NextResponse.json(
+      { error: "Cross-origin request rejected" },
+      { status: 403 },
+    );
   }
 
   if (

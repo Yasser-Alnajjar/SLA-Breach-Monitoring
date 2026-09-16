@@ -118,10 +118,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod \
   (in-memory, since this stack runs a single `web` container — see the
   reverse-proxy note above for where the client IP comes from), and both
   webhook receivers reject stale payloads via a timestamp check alongside
-  their existing secret verification. Security headers and CSRF hardening
-  are still tracked separately in the
-  [roadmap](../implementation-plans/roadmap.md) (step 33) and aren't
-  addressed by containerizing or by the health checks below.
+  their existing secret verification.
+- Security headers and CSRF hardening (roadmap step 33): every response
+  carries a CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  a `Referrer-Policy`, and, in production, HSTS (see
+  `apps/web/security-headers.mjs`). HSTS only takes effect once the reverse
+  proxy serves the app over HTTPS. State-changing `/api/**` requests (all
+  except webhooks and NextAuth's own endpoints) must send an `Origin`
+  matching `NEXTAUTH_URL` or the forwarded host, or they get `403`. Make sure
+  `NEXTAUTH_URL` is the exact public origin, and that the reverse proxy
+  forwards `Host` or sets `X-Forwarded-Host`.
 
 ## Health checks and observability
 

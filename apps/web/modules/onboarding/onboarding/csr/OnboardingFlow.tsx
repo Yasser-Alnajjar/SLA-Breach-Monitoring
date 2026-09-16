@@ -41,17 +41,24 @@ export function OnboardingFlow({
 
   useEffect(() => {
     const connected = searchParams.get("connected");
+
     if (!connected || consumedConnectedParam.current) {
       return;
     }
+
     consumedConnectedParam.current = true;
 
     void refresh();
     router.replace("/onboarding");
   }, [searchParams, refresh, router]);
 
+  const onboardingComplete =
+    status.zendesk.connected &&
+    status.zendesk.backfillComplete &&
+    status.jira.connected;
+
   useEffect(() => {
-    if (!status.zendesk.connected || !status.zendesk.backfillComplete) {
+    if (!onboardingComplete) {
       return;
     }
 
@@ -60,7 +67,7 @@ export function OnboardingFlow({
     }, 1200);
 
     return () => window.clearTimeout(timeout);
-  }, [router, status.zendesk.connected, status.zendesk.backfillComplete]);
+  }, [router, onboardingComplete]);
 
   if (!status.zendesk.connected) {
     return (
@@ -123,8 +130,8 @@ export function OnboardingFlow({
                 onConfigured={refresh}
               >
                 <p className={DESCRIPTION_CLASS}>
-                  Connecting Jira adds engineering-leg timing — optional, and
-                  can be done later without losing progress.
+                  Connect Jira to add engineering-leg timing and correlate
+                  support cases with engineering work.
                 </p>
 
                 <div className="mt-3">
@@ -134,7 +141,7 @@ export function OnboardingFlow({
             </div>
           )}
 
-          {status.zendesk.backfillComplete && (
+          {onboardingComplete && (
             <Button asChild>
               <Link href="/onboarding/findings">
                 Findings are ready

@@ -1094,12 +1094,49 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       already tracked, with real generated secrets committed in history, so
       the ignore rule alone doesn't untrack it. Untracking it and rotating
       those secrets is still open.
-- [ ] **38 — Minimize GitHub's OAuth scope** — GitHub is the one integration
+- [x] **38 — Minimize GitHub's OAuth scope** — GitHub is the one integration
       requesting a write-capable scope (`repo`, a Classic OAuth App
       limitation); evaluate migrating to a GitHub App with read-only,
       repo-selected installation permissions. Lower urgency than 27–37 since
       GitHub is a nice-to-have source, not required for the core Zendesk+Jira
       pilot.
+      Done: migrated rather than documented, since the change was small. The
+      customer registers a GitHub App (Pull requests: read, Contents: read)
+      instead of an OAuth App, installs it on the chosen repo, and saves its
+      client id/secret in the same Configure dialog. No schema change.
+      - `oauth.ts` no longer sends `scope`, since a GitHub App's user token
+        gets its permissions from the App. It now records `refresh_token` and
+        `expires_in`, and adds `refreshAccessToken`. A `bad_refresh_token`
+        (returned with HTTP 200) sets `requiresReauth`.
+      - `tokenLifecycle.ts` follows Jira's pattern: refresh ahead of expiry,
+        refresh on 401, a single-flight map per process, and a DB
+        compare-and-swap across instances. GitHub refresh tokens are
+        single-use, so if a refresh fails with `bad_refresh_token` but the
+        row has already moved on, it uses the newer tokens instead of marking
+        reauth. `markReauthRequired` became `refreshAfterUnauthorized`.
+      - `runGithubBackfill` now takes the OAuth config, like Jira. The worker
+        cycle and the web backfill route pass it.
+      - New `GithubClient.verifyRepositoryAccess`. Search only covers repos
+        the App is installed on, so a typo or a missing installation would
+        otherwise sync nothing and look healthy. The callback checks access
+        before saving and returns a 400 that names the likely cause. Every
+        backfill checks again first, so an uninstalled App shows up as
+        `permission_denied` instead of zero pull requests.
+      - Backward compatible: existing classic OAuth App tokens have no
+        `expiresAt` or `refreshToken`, so they keep working and are never
+        refreshed until the org switches and reconnects.
+      - Docs: the in-app GitHub page now covers GitHub App setup and
+        permissions, plus a migration note for classic OAuth App
+        connections. The customer guide §22 and FAQ, the README, the FAQ
+        page, and the settings card's help link are updated too.
+      Verified: `@sla/github` tests (new cases for refresh, rotation, the
+      single-use token race, and repo verification), the full `pnpm test`,
+      web/worker `type-check`, and the web `build`. The docs page was checked
+      in the browser. Not verified against a live GitHub App: the flow
+      follows GitHub's documented GitHub App user-token behavior, but a real
+      connect and an 8-hour token refresh still need a manual run. Contents:
+      read may turn out to be unnecessary (every query only reads PR and
+      timeline fields), so try dropping it in that run.
 
 ## Explicitly deferred past v1
 

@@ -8,22 +8,27 @@
 export interface GithubTokenCredentials {
   accessToken: string;
   tokenType: string;
+  /** Empty for a GitHub App token (permissions come from the App); `repo` for a legacy OAuth App token. */
   scope: string;
+  /** Present only when the GitHub App expires user tokens. Single-use: rotated on every refresh. */
+  refreshToken?: string;
+  /** Epoch ms. Absent means the token does not expire. */
+  expiresAt?: number;
   /** Set when a request 401s and there is no refresh path. Cleared automatically on reconnect. */
   reauthRequired?: boolean;
 }
 
 /**
  * What's actually stored in Integration.credentials: the OAuth token plus
- * the single repo this integration is scoped to. GitHub OAuth Apps have no
- * single "workspace" the way a Jira Cloud site or Linear workspace does — a
- * `repo`-scoped token can see every repo the authorizing user can access —
- * so the org picks one repo explicitly at connect time, the same way
- * Zendesk's subdomain is entered before its OAuth redirect.
+ * the single repo this integration is scoped to. A GitHub App can be
+ * installed on many repositories and has no single "workspace" the way a
+ * Jira Cloud site or Linear workspace does, so the org picks one repo
+ * explicitly at connect time, the same way Zendesk's subdomain is entered
+ * before its OAuth redirect.
  *
- * GitHub's OAuth App access tokens, like Linear's, carry no refresh token
- * and do not expire — unlike Jira's 3-legged refresh flow, there is no
- * expiry/refresh dance to manage here.
+ * Tokens from a GitHub App that expires user tokens need Jira-style refreshing
+ * (see tokenLifecycle.ts). Non-expiring tokens, including legacy OAuth App
+ * tokens, have no `expiresAt` and are never refreshed.
  */
 export interface GithubCredentials extends GithubTokenCredentials {
   owner: string;

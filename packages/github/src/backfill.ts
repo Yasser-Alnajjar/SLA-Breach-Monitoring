@@ -1,7 +1,8 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import { GithubClient } from "./client";
 import { mapPullRequestToRawEvent, mapTimelineItemToRawEvent, type RawEventInput } from "./rawEvents";
-import { loadFreshGithubCredentials, markReauthRequired } from "./tokenLifecycle";
+import type { GithubOAuthConfig } from "./oauth";
+import { loadFreshGithubCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
 import type { GithubCursor } from "./types";
 
 const DEFAULT_BACKFILL_DAYS = 90;
@@ -25,6 +26,7 @@ export interface BackfillResult {
 export async function runGithubBackfill(
   prisma: PrismaClient,
   integrationId: string,
+  config: Pick<GithubOAuthConfig, "clientId" | "clientSecret">,
   options: { sinceDays?: number } = {},
 ): Promise<BackfillResult> {
   const integration = await prisma.integration.findUniqueOrThrow({
@@ -32,10 +34,14 @@ export async function runGithubBackfill(
   });
   const { owner, repo } = integration.credentials as unknown as { owner: string; repo: string };
   const cursor = ((integration.cursor as GithubCursor | null) ?? {}) as GithubCursor;
-  const credentials = await loadFreshGithubCredentials(prisma, integrationId);
+  const credentials = await loadFreshGithubCredentials(prisma, integrationId, config);
   const client = new GithubClient(credentials, {
-    onUnauthorized: (failed) => markReauthRequired(prisma, integrationId, failed),
+    onUnauthorized: (failed) => refreshAfterUnauthorized(prisma, integrationId, config, failed),
   });
+
+  // Fails as permission denied if the GitHub App was uninstalled from the
+  // repo or the connecting user lost access, instead of an empty search.
+  await client.verifyRepositoryAccess(owner, repo);
   const sinceDays = options.sinceDays ?? DEFAULT_BACKFILL_DAYS;
   const defaultSince = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
   const runStartedAt = new Date();

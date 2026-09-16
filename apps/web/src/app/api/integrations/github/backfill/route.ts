@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { GithubReauthRequiredError, runGithubBackfill, runGithubCorrelation, runGithubNormalization } from "@sla/github";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { getGithubOAuthConfig } from "@/lib/github-env";
 
 export const maxDuration = 300;
 
@@ -21,8 +22,18 @@ export async function POST() {
     return NextResponse.json({ error: "GitHub is not connected" }, { status: 404 });
   }
 
+  let config;
   try {
-    const backfill = await runGithubBackfill(prisma, integration.id);
+    config = await getGithubOAuthConfig(session.user.organizationId);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "GitHub OAuth is not configured" },
+      { status: 500 },
+    );
+  }
+
+  try {
+    const backfill = await runGithubBackfill(prisma, integration.id, config);
     const correlation = await runGithubCorrelation(prisma, integration.id);
     const normalization = await runGithubNormalization(prisma, integration.id);
     return NextResponse.json({ backfill, correlation, normalization });

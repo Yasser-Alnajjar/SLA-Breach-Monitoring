@@ -236,3 +236,40 @@ describe("GithubClient empty sub-connections", () => {
     expect(result).toEqual({ nodes: [], pageInfo: { hasNextPage: false } });
   });
 });
+
+describe("GithubClient.verifyRepositoryAccess", () => {
+  it("resolves when the repository is readable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { data: { repository: { id: "R_1" } } })));
+
+    await expect(new GithubClient(baseCredentials).verifyRepositoryAccess("acme", "widgets")).resolves.toBeUndefined();
+  });
+
+  it("treats NOT_FOUND (App not installed, no access, or a typo) as permission denied", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          data: { repository: null },
+          errors: [{ type: "NOT_FOUND", path: ["repository"], message: "Could not resolve to a Repository" }],
+        }),
+      ),
+    );
+
+    await expect(
+      new GithubClient(baseCredentials).verifyRepositoryAccess("acme", "widgets"),
+    ).rejects.toBeInstanceOf(GithubPermissionDeniedError);
+  });
+
+  it("leaves other GraphQL errors as a plain GithubApiError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(200, { errors: [{ type: "SOMETHING_ELSE", message: "boom" }] })),
+    );
+
+    const error = await new GithubClient(baseCredentials)
+      .verifyRepositoryAccess("acme", "widgets")
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(error).not.toBeInstanceOf(GithubPermissionDeniedError);
+  });
+});

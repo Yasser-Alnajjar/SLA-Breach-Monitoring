@@ -177,13 +177,14 @@ export async function runCycle(
           await runIntercomBackfill(prisma, integration.id);
           await runIntercomNormalization(prisma, integration.id);
         } else {
-          // GitHub's backfill needs no OAuth client config to run either
-          // (like Linear/Intercom, its tokens carry no refresh dance) —
-          // only the connect/callback routes need the app's client
-          // id/secret. Correlation links transitively through this org's
-          // existing Jira/Linear CaseLinks (roadmap step 23) rather than
-          // any direct Zendesk knowledge.
-          await runGithubBackfill(prisma, integration.id);
+          // Unlike Linear/Intercom, GitHub needs its App's client id/secret
+          // here: GitHub App user tokens expire and are refreshed like
+          // Jira's (roadmap step 38). Correlation links transitively
+          // through this org's existing Jira/Linear CaseLinks (roadmap
+          // step 23) rather than any direct Zendesk knowledge.
+          const githubConfig = await getIntegrationConfig(prisma, organization.id, "github");
+          if (!githubConfig) throw new Error("GitHub is not configured for this organization");
+          await runGithubBackfill(prisma, integration.id, githubConfig);
           await runGithubCorrelation(prisma, integration.id);
           await runGithubNormalization(prisma, integration.id);
         }

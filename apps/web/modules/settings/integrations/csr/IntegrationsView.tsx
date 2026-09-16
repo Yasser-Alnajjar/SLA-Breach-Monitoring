@@ -420,8 +420,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="GitHub"
               config={githubConfig}
               descriptionClass={descriptionClass}
-              helpUrl="https://github.com/settings/developers"
-              helpLabel="Get your GitHub OAuth app credentials"
+              helpUrl="/docs/integrations/github#create-github-app"
+              helpLabel="Create your read-only GitHub App"
             >
               {github.connected ? (
                 <ConnectedCardBody

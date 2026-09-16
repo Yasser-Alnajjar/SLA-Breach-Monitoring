@@ -9,8 +9,8 @@ import { Separator } from "@/components/ui/separator";
 const toc = [
   { id: "purpose", title: "Purpose", level: 2 as const },
   {
-    id: "create-oauth-app",
-    title: "Create the GitHub OAuth app",
+    id: "create-github-app",
+    title: "Create the GitHub App",
     level: 2 as const,
   },
   { id: "configure-in-app", title: "Add the credentials", level: 2 as const },
@@ -53,25 +53,32 @@ export default function GithubIntegrationPage() {
           </p>
         </section>
 
-        <section id="create-oauth-app" className="scroll-mt-24 space-y-4">
+        <section id="create-github-app" className="scroll-mt-24 space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight">
-            Create the GitHub OAuth app
+            Create the GitHub App
           </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            GitHub is connected through a GitHub App, not a classic OAuth App.
+            A GitHub App can be limited to read-only permissions and to the
+            repositories you install it on.
+          </p>
 
           <ol className="space-y-3">
             {[
               <>
                 Go to{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                  github.com/settings/developers
+                  github.com/settings/apps
                 </code>{" "}
-                → <strong>OAuth Apps</strong> → <strong>New OAuth App</strong>.
+                (or your organization&apos;s{" "}
+                <strong>Settings → Developer settings → GitHub Apps</strong>)
+                and click <strong>New GitHub App</strong>.
               </>,
               <>
                 Name it (e.g. &quot;SLA Breach Monitoring&quot;), set a{" "}
                 <strong>Homepage URL</strong> (any valid URL for your deployment
-                works), and set the <strong>Authorization callback URL</strong>{" "}
-                to{" "}
+                works), and set the <strong>Callback URL</strong> to{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
                   https://your-app-domain/api/integrations/github/callback
                 </code>
@@ -79,13 +86,29 @@ export default function GithubIntegrationPage() {
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
                   your-app-domain
                 </code>{" "}
-                with the domain you access this product at.
+                with the domain you access this product at. Leave{" "}
+                <strong>Expire user authorization tokens</strong> checked.
               </>,
               <>
-                Register the application, then copy the{" "}
-                <strong>Client ID</strong> and generate a new{" "}
-                <strong>Client Secret</strong> — copy it immediately, since
-                GitHub will not show it again.
+                Under <strong>Webhook</strong>, uncheck <strong>Active</strong>.
+                This integration polls and needs no webhook.
+              </>,
+              <>
+                Under <strong>Repository permissions</strong>, set{" "}
+                <strong>Pull requests</strong> and <strong>Contents</strong> to{" "}
+                <strong>Read-only</strong>. Leave every other permission at{" "}
+                <strong>No access</strong> (GitHub adds Metadata: Read-only on
+                its own).
+              </>,
+              <>
+                Create the app, then copy the <strong>Client ID</strong> and
+                generate a new <strong>Client secret</strong>. Copy the secret
+                right away, since GitHub won&apos;t show it again.
+              </>,
+              <>
+                Click <strong>Install App</strong>, pick the account that owns
+                the repository, choose <strong>Only select repositories</strong>
+                , and select the repository you&apos;ll track.
               </>,
             ].map((content, index) => (
               <li key={index} className="flex gap-4 rounded-lg border p-4">
@@ -131,11 +154,12 @@ export default function GithubIntegrationPage() {
             <Info className="size-4" />
             <AlertTitle>One repository at a time</AlertTitle>
             <AlertDescription>
-              GitHub OAuth apps have no single &quot;workspace&quot; the way a
-              Jira site or Linear workspace does — a token scoped this broadly
-              could see every repository the authorizing user can access, so
-              your organization explicitly names one repository to track when
-              connecting.
+              A GitHub App can be installed on many repositories and has no
+              single &quot;workspace&quot; the way a Jira site or Linear
+              workspace does, so your organization names one repository to
+              track when connecting. Connecting fails with an error if the
+              GitHub App isn&apos;t installed on that repository, or if the
+              user authorizing it can&apos;t read it.
             </AlertDescription>
           </Alert>
         </section>
@@ -146,25 +170,34 @@ export default function GithubIntegrationPage() {
           <h2 className="text-2xl font-semibold tracking-tight">Permissions</h2>
 
           <p className="leading-7 text-muted-foreground">
-            OAuth scope:{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-sm">repo</code>
-            .
+            GitHub App repository permissions:{" "}
+            <strong>Pull requests: Read-only</strong>,{" "}
+            <strong>Contents: Read-only</strong>, and{" "}
+            <strong>Metadata: Read-only</strong> (always included by GitHub). No
+            OAuth scope is requested.
+          </p>
+
+          <p className="leading-7 text-muted-foreground">
+            The token this product holds can only do what both the GitHub App
+            and the user who connected it are allowed to do, and only on
+            repositories the App is installed on. It can&apos;t write to
+            GitHub.
           </p>
 
           <Alert variant="warning">
             <Info className="size-4" />
-            <AlertTitle>The one documented exception to read-only</AlertTitle>
+            <AlertTitle>Connected with a classic OAuth App?</AlertTitle>
             <AlertDescription>
-              This is broader than every other integration, and it&apos;s a
-              limitation of GitHub&apos;s own OAuth model, not a choice made by
-              this product: classic GitHub OAuth Apps have no scope that grants
-              read access to a private repository&apos;s pull requests without
-              also granting write access to that repository.{" "}
+              Earlier versions connected GitHub through a classic OAuth App
+              with the{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">repo</code>{" "}
-              is the narrowest scope GitHub offers for this purpose — the
-              product requests it because it must, but never uses it to write.
-              No pull request, comment, status, or file is ever created or
-              modified through this connection.
+              scope, which includes write access. It was never used to write,
+              but that connection keeps its broader token until you switch. To
+              switch, create a GitHub App as described above, replace the
+              Client ID and secret under{" "}
+              <strong>Settings → Integrations → GitHub → Configure</strong>,
+              reconnect, then delete the old OAuth App in GitHub to revoke its
+              token.
             </AlertDescription>
           </Alert>
         </section>
@@ -222,8 +255,8 @@ export default function GithubIntegrationPage() {
 
           <p className="leading-7 text-muted-foreground">
             Nothing. No pull request, review, comment, status, or file is ever
-            created or modified through this connection, despite the broader
-            OAuth scope required to read it.
+            created or modified through this connection, and the GitHub
+            App&apos;s read-only permissions mean it couldn&apos;t be.
           </p>
         </section>
 

@@ -57,6 +57,12 @@ export interface GithubClientOptions {
   onUnauthorized?: (failedCredentials: GithubCredentials) => Promise<GithubCredentials>;
 }
 
+const REPOSITORY_ACCESS_QUERY = `
+  query RepositoryAccess($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) { id }
+  }
+`;
+
 const SEARCH_PULL_REQUESTS_QUERY = `
   query SearchPullRequests($query: String!, $after: String) {
     search(query: $query, type: ISSUE, first: ${PAGE_SIZE}, after: $after) {
@@ -172,6 +178,34 @@ export class GithubClient {
       throw new GithubApiError(response.status, "GitHub GraphQL query returned errors", body.errors);
     }
     return body.data as T;
+  }
+
+  /**
+   * Confirms the token can read `owner/repo`. Search only returns results
+   * from repositories a GitHub App is installed on, so without this check a
+   * repo name typo or an uninstalled App would sync zero pull requests and
+   * look healthy. GitHub reports an unreadable repository as `NOT_FOUND`
+   * (it doesn't reveal whether a private repo exists), so that becomes a
+   * `GithubPermissionDeniedError`.
+   */
+  async verifyRepositoryAccess(owner: string, repo: string): Promise<void> {
+    try {
+      const data = await this.request<{ repository: { id: string } | null }>(REPOSITORY_ACCESS_QUERY, {
+        owner,
+        name: repo,
+      });
+      if (!data.repository) throw new GithubPermissionDeniedError(200);
+    } catch (error) {
+      if (
+        error instanceof GithubApiError &&
+        !(error instanceof GithubPermissionDeniedError) &&
+        Array.isArray(error.errors) &&
+        error.errors.some((e) => (e as { type?: unknown } | null)?.type === "NOT_FOUND")
+      ) {
+        throw new GithubPermissionDeniedError(error.status, error.errors);
+      }
+      throw error;
+    }
   }
 
   /**

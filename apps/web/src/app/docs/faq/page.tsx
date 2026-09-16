@@ -12,7 +12,7 @@ const faqs = [
   },
   {
     q: "Is SLA Breach Monitoring read-only?",
-    a: "Yes, for every connected data source (Zendesk, Jira, Linear, Intercom, GitHub) — it only reads. The only outbound writes anywhere in the product are a Slack message and an alert email. GitHub's OAuth scope is broader than the others purely because GitHub itself has no narrower read-only scope for private-repo pull requests — the product never uses that scope to write.",
+    a: "Yes, for every connected data source (Zendesk, Jira, Linear, Intercom, GitHub) — it only reads. The only outbound writes anywhere in the product are a Slack message and an alert email. GitHub is connected through a GitHub App you create with read-only permissions, installed only on the repositories you choose.",
   },
   {
     q: "Does SLA Breach Monitoring modify Zendesk?",

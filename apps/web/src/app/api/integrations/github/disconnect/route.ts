@@ -10,7 +10,7 @@ import { authOptions } from "@/lib/auth";
  * on. The worker's cycle query excludes `disconnected` integrations, so
  * polling stops on the next tick.
  *
- * No vendor-side token revocation call is made: GitHub OAuth Apps have a
+ * No vendor-side token revocation call is made: GitHub Apps have a
  * revoke endpoint, but scoping this to "clear the local credentials" matches
  * every other provider in this codebase (Zendesk/Jira/Linear/Intercom) and
  * is what actually stops further access from this app either way.

@@ -12,10 +12,10 @@ import { Label } from "@/components/ui/label";
 import type { GithubBackfillResult } from "@/lib/types/integrations";
 
 /**
- * GitHub OAuth Apps have no single "workspace" the way a Jira site or Linear
- * workspace does — a `repo`-scoped token can see every repo the authorizing
- * user can access — so the org picks one repo explicitly, entered here the
- * same way Zendesk's subdomain is entered before its OAuth redirect.
+ * A GitHub App can be installed on many repositories and has no single
+ * "workspace" the way a Jira site or Linear workspace does, so the org picks
+ * one repo explicitly, entered here the same way Zendesk's subdomain is
+ * entered before its OAuth redirect.
  */
 export function GithubConnectForm() {
   const [repo, setRepo] = useState("");

@@ -13,8 +13,9 @@ breach and shows which stage the time went to afterwards.
 - **Engineering sources:** Jira, Linear, GitHub (pull requests)
 - **Alerts:** Slack, email
 
-Every data-source connection is read-only. The one scope exception, GitHub,
-is explained in the [customer guide](docs/customer-guide.md#22-security-and-access).
+Every data-source connection is read-only. GitHub connects through a GitHub
+App with read-only repository permissions; see the
+[customer guide](docs/customer-guide.md#22-security-and-access).
 
 ## Repository layout
 

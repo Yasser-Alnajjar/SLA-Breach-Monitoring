@@ -618,7 +618,7 @@ the deployment target, per your answers above.
     reused data-access helpers (`case-detail-data.ts`, `dashboard-data.ts`,
     the settings write routes) rather than exhaustive coverage.
 
-- [ ] 38 — Minimize GitHub's OAuth scope
+- [x] 38 — Minimize GitHub's OAuth scope
 
   Why:
   Every other integration in this product requests a genuinely read-only

@@ -7,8 +7,8 @@ export { computeSourceHash } from "./hash";
 export { runGithubBackfill } from "./backfill";
 export type { BackfillResult } from "./backfill";
 export type { GithubOAuthConfig } from "./oauth";
-export { buildAuthorizeUrl, exchangeCodeForToken, GithubOAuthError } from "./oauth";
-export { loadFreshGithubCredentials, markReauthRequired, GithubReauthRequiredError } from "./tokenLifecycle";
+export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, GithubOAuthError } from "./oauth";
+export { loadFreshGithubCredentials, refreshAfterUnauthorized, GithubReauthRequiredError } from "./tokenLifecycle";
 export {
   normalizeGithubTimelineItemType,
   resolveGithubActor,

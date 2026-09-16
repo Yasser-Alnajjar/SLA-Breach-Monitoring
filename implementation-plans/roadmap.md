@@ -1037,10 +1037,63 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `worker:dev`, first sign-up and the bring-your-own-OAuth-app step),
       tests, a pointer to `docs/deployment.md`, and where each doc set lives,
       with a note to keep the guide and in-app docs updated together.
-- [ ] **37 — Backup runbook and tenant-isolation regression tests** (document + minimally automate Postgres backup/restore; add regression tests
+- [x] **37 — Backup runbook and tenant-isolation regression tests** (document + minimally automate Postgres backup/restore; add regression tests
       proving the org-scoping pattern the IDOR audit verified by hand
       actually holds, since nothing currently would catch a future
       regression in it).
+      Tenant isolation: `apps/web/test/tenant-isolation.test.ts`, the one suite
+      in the repo that runs against a real Postgres. Isolation lives in Prisma
+      query semantics (nested relation filters, composite unique lookups,
+      `findFirst` guards before updates), so an in-memory fake would mostly
+      test itself. It seeds two orgs with identical data shapes and distinct
+      markers, then, as org A:
+      - Reads: dashboard, case list, case detail (org B's case ID returns
+        null), compliance report helper and the CSV export route, findings,
+        SLA policies, calendars, customers, and the integrations page. Each
+        must contain A's marker and never B's, case-insensitively.
+      - Writes naming B's rows: customer-calendar assignment with B's
+        customer or B's calendar (404, nothing changed), policy override on
+        B's policy (404, no new version), the engineering-leg target, email
+        settings (saved to A only, and B can't read them), Jira disconnect
+        (B stays connected), and a Zendesk webhook for B's integration sent
+        with A's secret (401, nothing ingested). Each write test also runs
+        the same call against A's own rows, so a 404 can't pass just
+        because the route is broken.
+      Verified by breaking three org filters on purpose (case list,
+      dashboard's open-commitment query, `setCustomerCalendar`'s calendar
+      check): each made its test fail, and restoring them made it pass.
+      Safety: skipped unless `TEST_DATABASE_URL` is set, and refuses a
+      database whose name lacks "test", because it truncates every table
+      before each test. `pnpm test:db:prepare` migrates the test database.
+      CI gains a `postgres:16-alpine` service, `TEST_DATABASE_URL`, and a
+      migrate step before `pnpm test`, so the suite runs on every PR. The
+      README documents the local setup.
+      Backups: `scripts/backup.sh` and `scripts/restore.sh`, scheduled with
+      host cron, plus a "Backups" runbook in `docs/deployment.md`.
+      - `backup.sh` runs `pg_dump` in custom format inside the `postgres`
+        container, so no credentials go on the host's command line. It writes
+        to a `.partial` file with owner-only permissions and checks it with
+        `pg_restore --list` before renaming. Only after a good dump does it
+        prune dumps older than `RETENTION_DAYS` (default 14), so a broken
+        dump never rotates good ones out.
+      - `restore.sh` checks the dump, asks for the database name (or
+        `--yes`), takes a safety backup, and stops `web`/`worker`. It then
+        restores with `--clean --single-transaction --exit-on-error` and
+        restarts the apps on exit, even if the restore failed.
+      - The runbook covers backing up `.env.prod` separately (dumps are
+        useless for encrypted secrets without the keys), off-host copies,
+        managed-Postgres users, post-restore migrations and reconnects, and a
+        quarterly restore drill into a scratch database.
+      Verified against the local dev Postgres: backup, then restore into a
+      scratch database with matching row counts in every table checked;
+      restore over existing data; a truncated dump rejected; a wrong
+      confirmation aborting; retention pruning; and the safety backup. That
+      testing found and fixed a bug where `docker compose exec -T` swallowed
+      the piped confirmation.
+      `.gitignore` gains `backups/` and `.env.prod`. Note: `.env.prod` is
+      already tracked, with real generated secrets committed in history, so
+      the ignore rule alone doesn't untrack it. Untracking it and rotating
+      those secrets is still open.
 - [ ] **38 — Minimize GitHub's OAuth scope** — GitHub is the one integration
       requesting a write-capable scope (`repo`, a Classic OAuth App
       limitation); evaluate migrating to a GitHub App with read-only,

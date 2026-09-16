@@ -215,17 +215,18 @@ export default function DeploymentPage() {
           <p className="leading-7 text-muted-foreground">
             Copy{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
-              .env.example
+              .env.prod.example
             </code>{" "}
             to{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
               .env.prod
             </code>{" "}
-            and fill in the production values.
+            and fill in the production values. <code className="rounded bg-muted px-1.5 py-0.5 text-sm">.env.prod</code>{" "}
+            is gitignored: keep it on the host and never commit it.
           </p>
 
           <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-sm">
-            <code>{`cp .env.example .env.prod`}</code>
+            <code>{`cp .env.prod.example .env.prod`}</code>
           </pre>
 
           <p className="text-sm leading-6 text-muted-foreground">

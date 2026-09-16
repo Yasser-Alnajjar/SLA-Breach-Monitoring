@@ -101,11 +101,32 @@ pnpm test
 pnpm type-check
 ```
 
+The tenant-isolation suite (`apps/web/test/tenant-isolation.test.ts`) runs
+against a real Postgres, and is skipped unless `TEST_DATABASE_URL` is set. It
+truncates every table, so it refuses a database whose name doesn't contain
+`test`. To run it locally, create a database next to your dev one:
+
+```bash
+docker compose exec postgres createdb -U user sla_test
+```
+
+```bash
+export TEST_DATABASE_URL="postgresql://user:password@localhost:5432/sla_test?schema=public"
+```
+
+```bash
+pnpm test:db:prepare
+```
+
+`test:db:prepare` applies migrations to that database; run it again after
+pulling new migrations. CI does all of this against a Postgres service
+container.
+
 ## Deploying
 
-Self-hosting with Docker Compose (environment variables, migrations, health
-checks, Sentry, and alerts for a stalled worker) is covered in
-[docs/deployment.md](docs/deployment.md).
+Self-hosting with Docker Compose (environment variables, migrations,
+backups and restore, health checks, Sentry, and alerts for a stalled worker)
+is covered in [docs/deployment.md](docs/deployment.md).
 
 ## Documentation
 

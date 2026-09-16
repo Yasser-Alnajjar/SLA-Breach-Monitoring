@@ -26,13 +26,14 @@ there's no shared filesystem between them to worry about.
 
 ## 1. Configure environment
 
-Copy [`.env.example`](../.env.example) to `.env.prod` and fill in real
-values. `docker-compose.prod.yml` refuses to start any service that's
-missing a required variable, so this errors loudly rather than booting with
-blanks:
+Copy [`.env.prod.example`](../.env.prod.example) to `.env.prod` and fill in
+real values. `.env.prod` is gitignored: keep it on the host (and in your
+backups), never commit it. `docker-compose.prod.yml` refuses to start any
+service that's missing a required variable, so this errors loudly rather
+than booting with blanks:
 
 ```bash
-cp .env.example .env.prod
+cp .env.prod.example .env.prod
 ```
 
 | Variable | Used by | Notes |
@@ -99,6 +100,119 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod \
   run --rm --user root worker pnpm --filter @sla/db exec prisma migrate deploy
 ```
 
+## Backups
+
+The database is the only state this stack has: both app containers are
+stateless. Back it up on a schedule, keep copies off the host, and practice
+a restore before you need one.
+
+### What to back up
+
+1. **The database**, with [`scripts/backup.sh`](../scripts/backup.sh).
+2. **`.env.prod`**, stored separately and securely (for example, in a
+   password manager). A database dump without the matching
+   `INTEGRATION_CONFIG_ENCRYPTION_KEY` and `SMTP_ENCRYPTION_KEY` still
+   restores, but every saved integration OAuth secret and SMTP password in it
+   becomes unreadable, and each organization would have to re-enter them.
+   Never put `.env.prod` in the same place as the dumps: whoever holds both
+   holds everything.
+
+### Scheduled backups
+
+`scripts/backup.sh` runs `pg_dump` inside the `postgres` container. It
+writes a compressed, custom-format dump to `backups/sla-<UTC timestamp>.dump`
+(owner-only permissions), confirms `pg_restore` can read it, and only then
+deletes dumps older than `RETENTION_DAYS`. A failed or unreadable dump exits
+non-zero and leaves the previous backups in place.
+
+Run it once by hand to check it works:
+
+```bash
+scripts/backup.sh
+```
+
+Then schedule it with the host's crontab (`crontab -e`). This takes a
+backup at 03:15 every day and logs the output:
+
+```cron
+15 3 * * * cd /srv/sla && scripts/backup.sh >> /var/log/sla-backup.log 2>&1
+```
+
+Replace `/srv/sla` with the checkout path. Settings are environment
+variables, set inline in the cron line if you need them:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `BACKUP_DIR` | `./backups` | Ignored by git. |
+| `RETENTION_DAYS` | `14` | Dumps older than this are deleted after each successful backup. |
+| `COMPOSE_FILE` | `docker-compose.prod.yml` | |
+| `ENV_FILE` | `.env.prod` | |
+| `DB_NAME` | the container's `POSTGRES_DB` | |
+
+**Copy dumps off the host.** A backup on the same disk as the database
+won't survive losing the server. Add a second cron line that syncs
+`backups/` to object storage or another machine with your usual tool
+(`rclone`, `aws s3 sync`, `restic`), scheduled after the backup.
+
+If you run your own managed Postgres instead of the bundled service, use the
+provider's automated snapshots and point-in-time recovery; these scripts
+only target the bundled `postgres` container.
+
+### Restoring
+
+`scripts/restore.sh` replaces the database's entire contents with a dump.
+
+```bash
+scripts/restore.sh backups/sla-20260916T031500Z.dump
+```
+
+In order, it:
+
+1. Checks the file is a readable dump.
+2. Asks you to type the database name. Pass `--yes` to skip the prompt.
+3. Takes a safety backup of the current data, so a mistaken restore can be
+   undone. Set `SKIP_SAFETY_BACKUP=1` to skip it.
+4. Stops `web` and `worker` so nothing writes mid-restore.
+5. Restores in a single transaction. If anything fails, the old data stays.
+6. Starts `web` and `worker` again, even if the restore failed.
+
+After restoring, run migrations in case the dump predates the running code
+(the command under [Updating](#updating)), then check `GET /api/health`.
+Each integration's sync cursor is restored along with the data, so the
+worker re-fetches provider changes made since the dump on its next cycles.
+OAuth tokens are restored as they were at dump time too. If a provider
+rotated a refresh token after that, the integration shows **Needs
+reconnect**, and one click on the Integrations page fixes it.
+
+### Test the restore
+
+An untested backup is a guess. Once a quarter, and after any change to the
+setup, restore the latest dump into a scratch database next to the real one
+and check the row counts:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+  sh -c 'createdb -U "$POSTGRES_USER" sla_restore_check'
+```
+
+```bash
+DB_NAME=sla_restore_check SKIP_SAFETY_BACKUP=1 \
+  scripts/restore.sh "$(ls backups/sla-*.dump | tail -1)" --yes
+```
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d sla_restore_check -c "select count(*) from cases"'
+```
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+  sh -c 'dropdb -U "$POSTGRES_USER" sla_restore_check'
+```
+
+A restore into a scratch database still briefly stops `web` and `worker`,
+so run the check at a quiet time.
+
 ## Security notes
 
 - Both app containers run as a non-root user (`nextjs` in the web image,
@@ -110,8 +224,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod \
 - `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`, and
   `SMTP_ENCRYPTION_KEY` are three independent secrets by design — see the
   table above and the comments on each in `.env.example`. Back them up
-  alongside the database: losing any of them makes the data it encrypts
-  unrecoverable, not just un-decryptable-until-fixed.
+  with the database, but store them separately (see [Backups](#backups)):
+  losing any of them makes the data it encrypts unrecoverable, not just
+  un-decryptable-until-fixed.
 - Basic rate limiting and webhook replay protection (roadmap step 30) are
   in place: `/api/sign-up`, `/api/auth/callback/credentials`, and
   `/api/webhooks/**` are throttled per client IP in `apps/web/src/proxy.ts`

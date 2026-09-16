@@ -12,11 +12,28 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      # Only for the tenant-isolation suite (apps/web/test/tenant-isolation.test.ts),
+      # which needs real Prisma query semantics. Every other test uses fakes.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: sla_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d sla_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      # Build-time only — nothing here connects to a real database or sends
-      # real mail. No package.json script in this repo touches the network
-      # at build/typecheck/test time.
+      # Build-time only — nothing here sends real mail. The only database
+      # connection is the tenant-isolation suite's, via TEST_DATABASE_URL;
+      # DATABASE_URL stays a placeholder that nothing connects to.
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      TEST_DATABASE_URL: "postgresql://ci:ci@localhost:5432/sla_test?schema=public"
       NEXTAUTH_SECRET: "ci-nextauth-secret"
       NEXTAUTH_URL: "http://localhost:3000"
       INTEGRATION_CONFIG_ENCRYPTION_KEY: "ci-integration-config-encryption-key"
@@ -41,6 +58,9 @@ jobs:
 
       - name: Type-check
         run: pnpm type-check
+
+      - name: Migrate test database
+        run: pnpm test:db:prepare
 
       - name: Test
         run: pnpm test

@@ -591,7 +591,7 @@ the deployment target, per your answers above.
   Explicit non-goals:
   - Rewriting `docs/customer-guide.md`, which is already accurate.
 
-- [ ] 37 — Backup runbook and tenant-isolation regression tests
+- [x] 37 — Backup runbook and tenant-isolation regression tests
 
   Why:
   Two different kinds of safety net are both currently absent: a documented

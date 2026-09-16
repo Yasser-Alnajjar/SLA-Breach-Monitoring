@@ -110,6 +110,7 @@ const securityNotes = [
   "Put a reverse proxy such as Caddy, nginx, or Traefik in front of web for TLS. Zendesk and Jira webhooks and OAuth redirects require HTTPS in practice.",
   "NEXTAUTH_SECRET, INTEGRATION_CONFIG_ENCRYPTION_KEY, and SMTP_ENCRYPTION_KEY are independent secrets. Keep them separate and back them up alongside the database.",
   "Losing any encryption key makes the data protected by that key unrecoverable.",
+  "To rotate secrets, run scripts/rotate-secrets.sh --apply-to-db .env.prod after a backup, then restart the stack. Changing NEXTAUTH_SECRET signs everyone out. Changing either encryption key means each organization must re-enter its saved integration secrets or SMTP password. See the Rotating secrets section of docs/deployment.md.",
   "Security headers, CSRF hardening, rate limiting, and health-check endpoints are tracked separately in the roadmap and are not provided by containerization alone.",
 ];
 
@@ -221,12 +222,19 @@ export default function DeploymentPage() {
             <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
               .env.prod
             </code>{" "}
-            and fill in the production values. <code className="rounded bg-muted px-1.5 py-0.5 text-sm">.env.prod</code>{" "}
+            on the host, then generate its secrets with{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
+              scripts/rotate-secrets.sh
+            </code>{" "}
+            and fill in the remaining values.{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-sm">.env.prod</code>{" "}
             is gitignored: keep it on the host and never commit it.
           </p>
 
           <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-sm">
-            <code>{`cp .env.prod.example .env.prod`}</code>
+            <code>{`cp .env.prod.example .env.prod
+chmod 600 .env.prod
+scripts/rotate-secrets.sh .env.prod`}</code>
           </pre>
 
           <p className="text-sm leading-6 text-muted-foreground">

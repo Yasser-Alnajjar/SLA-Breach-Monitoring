@@ -1169,6 +1169,41 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       app password flagged at the top of `production.md`.
       Non-goal: rewriting git history. Rotation makes the old values worthless,
       so history rewriting isn't needed.
+      Progress (2026-09-16). Repo side done; the actual rotation is still open:
+      - `git rm --cached .env.prod` is staged (not committed). The file stays
+        on disk. `.gitignore` also covers `.env.prod.*` (rotation backups),
+        with an exception for `.env.prod.example`.
+      - New `.env.prod.example` with `change-me` placeholders. This fixes a
+        broken link: `docs/deployment.md` already told people to copy this
+        file, but it didn't exist.
+      - New `scripts/rotate-secrets.sh` rewrites `POSTGRES_PASSWORD` (and
+        the password in `DATABASE_URL`), `NEXTAUTH_SECRET`, and both
+        encryption keys in place. It never prints the new values, asks for
+        confirmation (or `--yes`), and keeps an owner-only backup of the old
+        file. With `--apply-to-db` it first runs `ALTER USER` in the running
+        `postgres` container, with the SQL sent over stdin, since Postgres
+        ignores `POSTGRES_PASSWORD` on an existing volume. Tested on scratch
+        copies: abort path, quoted and unquoted values, a missing key, other
+        lines left unchanged, and 32-byte keys that differ from each other.
+        `--apply-to-db` is untested because Docker wasn't running.
+      - `docs/deployment.md` now creates `.env.prod` on the host with the
+        script and has a "Rotating secrets" runbook covering what each
+        rotation costs, pre-rotation dumps needing the old keys, and
+        third-party credentials. The in-app deployment page matches.
+      - What the audit found: the committed file is on `origin/main` (the
+        repo is private). Its `POSTGRES_PASSWORD` was a weak dictionary
+        default, and its `OPS_ALERT_SMTP_PASSWORD` is the same Gmail app
+        password as in the local `.env`, so it's a live credential.
+        `NEXTAUTH_SECRET` and both encryption keys differ from `.env`, so dev
+        is unaffected. No value changed across the three commits that
+        touched the file.
+      Still to do by the owner. The agent was not permitted to write secret
+      values:
+      1. `scripts/rotate-secrets.sh .env.prod`, with `--apply-to-db` if a
+         prod database volume already exists.
+      2. Revoke that Gmail app password in the Google account, create a new
+         one, and put it in both `.env` and `.env.prod`.
+      3. Commit the staged removal together with the new files.
 
 - [ ] **40 — Concierge CSV analysis (validation Week 3, due 21 Sep)**
       `plans/05` Week 3: take a prospect's Zendesk ticket export (with audit

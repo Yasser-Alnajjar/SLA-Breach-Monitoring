@@ -26,15 +26,22 @@ there's no shared filesystem between them to worry about.
 
 ## 1. Configure environment
 
-Copy [`.env.prod.example`](../.env.prod.example) to `.env.prod` and fill in
-real values. `.env.prod` is gitignored: keep it on the host (and in your
-backups), never commit it. `docker-compose.prod.yml` refuses to start any
-service that's missing a required variable, so this errors loudly rather
-than booting with blanks:
+Create `.env.prod` on the host from [`.env.prod.example`](../.env.prod.example),
+then generate its secrets. `.env.prod` is gitignored: it lives only on the
+host and in your secure backups, never in the repository.
+`docker-compose.prod.yml` refuses to start any service that's missing a
+required variable, so this errors loudly rather than booting with blanks:
 
 ```bash
 cp .env.prod.example .env.prod
+chmod 600 .env.prod
+scripts/rotate-secrets.sh .env.prod
 ```
+
+`scripts/rotate-secrets.sh` replaces the `change-me` placeholders for
+`POSTGRES_PASSWORD` (and the matching password in `DATABASE_URL`),
+`NEXTAUTH_SECRET`, and both encryption keys with fresh random values, without
+printing them. Then set `NEXTAUTH_URL` and any optional values by hand.
 
 | Variable | Used by | Notes |
 | --- | --- | --- |
@@ -227,6 +234,9 @@ so run the check at a quiet time.
   with the database, but store them separately (see [Backups](#backups)):
   losing any of them makes the data it encrypts unrecoverable, not just
   un-decryptable-until-fixed.
+- `.env.prod` is never committed. It was tracked in this repository until
+  roadmap step 39, so every value in any copy of it from before then must
+  be treated as leaked (see [Rotating secrets](#rotating-secrets)).
 - Basic rate limiting and webhook replay protection (roadmap step 30) are
   in place: `/api/sign-up`, `/api/auth/callback/credentials`, and
   `/api/webhooks/**` are throttled per client IP in `apps/web/src/proxy.ts`
@@ -243,6 +253,36 @@ so run the check at a quiet time.
   matching `NEXTAUTH_URL` or the forwarded host, or they get `403`. Make sure
   `NEXTAUTH_URL` is the exact public origin, and that the reverse proxy
   forwards `Host` or sets `X-Forwarded-Host`.
+
+### Rotating secrets
+
+Rotate when a secret may have leaked (for example, `.env.prod` ended up in
+git, a chat, or a shared drive), or when someone with access leaves.
+
+```bash
+scripts/backup.sh
+scripts/rotate-secrets.sh --apply-to-db .env.prod
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+```
+
+Know what each rotation costs before running it:
+
+| Secret | What happens when it changes |
+| --- | --- |
+| `POSTGRES_PASSWORD` / `DATABASE_URL` | Postgres only reads `POSTGRES_PASSWORD` when it first creates its volume. For an existing database, `--apply-to-db` runs `ALTER USER` in the running `postgres` container before the file is rewritten. Without that flag, web and worker can't connect after the restart. If you use a managed database, change the password there and update `DATABASE_URL` yourself. |
+| `NEXTAUTH_SECRET` | Every user is signed out. Nothing is lost. |
+| `INTEGRATION_CONFIG_ENCRYPTION_KEY` | Every saved integration OAuth client secret becomes unreadable (`IntegrationConfigUnreadableError`), and each organization must re-enter it under **Settings → Integrations → Configure**. There's no re-encryption path. |
+| `SMTP_ENCRYPTION_KEY` | Every saved SMTP password becomes unreadable, and each organization must re-enter it under **Settings → Notifications**. |
+
+The script keeps the previous file as `.env.prod.before-rotate-<timestamp>`
+(owner-only, gitignored). Delete it once the stack is healthy. Dumps taken
+before the rotation still hold ciphertext for the old encryption keys, so
+restoring one also needs that old `.env.prod`.
+
+The script can't rotate third-party credentials. Revoke and replace these with
+their provider, then edit `.env.prod`: `OPS_ALERT_SMTP_PASSWORD` (for Gmail,
+delete the app password in your Google account and create a new one),
+`OPS_ALERT_SLACK_WEBHOOK_URL`, and `SENTRY_DSN`.
 
 ## Health checks and observability
 

@@ -5,7 +5,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ["poking-hypertext-fade.ngrok-free.dev"],
+  allowedDevOrigins: [
+    "poking-hypertext-fade.ngrok-free.dev",
+    "192.168.1.46",
+    "192.168.1.49",
+  ],
   // Self-contained server bundle for the Docker image (docs/deployment.md) —
   // the tracing root is the monorepo root so workspace packages under
   // packages/* are traced correctly instead of just this app's own tree.

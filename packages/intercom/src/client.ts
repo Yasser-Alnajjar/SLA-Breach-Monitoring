@@ -4,6 +4,7 @@ import type {
   IntercomConversationSearchPage,
   IntercomConversationWithParts,
   IntercomCredentials,
+  IntercomMe,
 } from "./types";
 
 const API_URL = "https://api.intercom.io";
@@ -17,6 +18,20 @@ export class IntercomApiError extends Error {
     super(`Intercom API error ${status} for ${url}`);
     this.name = "IntercomApiError";
     this.status = status;
+  }
+}
+
+/**
+ * A 403: the token is still valid, but the workspace/user it was issued for
+ * can no longer read what was asked for. Distinct from a 401 — reconnecting
+ * would mint a token with the same access, so the fix is restoring it in
+ * Intercom, not a new OAuth grant. Subclasses `IntercomApiError` so existing
+ * `status` checks keep working.
+ */
+export class IntercomPermissionDeniedError extends IntercomApiError {
+  constructor(url: string) {
+    super(403, url);
+    this.name = "IntercomPermissionDeniedError";
   }
 }
 
@@ -68,6 +83,10 @@ export class IntercomClient {
       return this.request<T>(path, init, true);
     }
 
+    if (response.status === 403) {
+      throw new IntercomPermissionDeniedError(url);
+    }
+
     if (!response.ok) {
       throw new IntercomApiError(response.status, url);
     }
@@ -100,6 +119,11 @@ export class IntercomClient {
     return this.request<IntercomCompaniesPage>(`/companies?page=${page}&per_page=${PAGE_SIZE}`);
   }
 
+  /** https://developers.intercom.com/docs/references/rest-api/api.intercom.io/admins/identifyadmin — the token's admin, including its workspace (`app.id_code`). */
+  fetchMe(): Promise<IntercomMe> {
+    return this.request<IntercomMe>("/me");
+  }
+
   /** https://developers.intercom.com/docs/references/rest-api/api.intercom.io/contacts/retrievecontact — resolves a conversation's primary contact to its company. */
   fetchContact(contactId: string): Promise<IntercomContact> {
     return this.request<IntercomContact>(`/contacts/${contactId}`);
@@ -108,4 +132,9 @@ export class IntercomClient {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Inbox link to one conversation (or ticket — Intercom tickets are conversations) in the given workspace. */
+export function buildIntercomConversationUrl(workspaceId: string, conversationId: string): string {
+  return `https://app.intercom.com/a/apps/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}`;
 }

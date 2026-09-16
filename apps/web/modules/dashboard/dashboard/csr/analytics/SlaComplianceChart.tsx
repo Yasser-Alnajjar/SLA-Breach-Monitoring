@@ -57,6 +57,9 @@ export function SlaComplianceChart({ data }: { data: SlaComplianceBreakdown }) {
                       `${value} (${Math.round((Number(value) / data.total) * 100)}%)`,
                       name,
                     ]}
+                    wrapperStyle={{
+                      zIndex: 9999,
+                    }}
                     contentStyle={{
                       background: "var(--popover)",
                       borderColor: "var(--border)",

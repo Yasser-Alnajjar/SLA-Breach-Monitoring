@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@sla/db";
-import { IntercomClient } from "./client";
+import { IntercomApiError, IntercomClient } from "./client";
 import {
   mapCompanyToRawEvent,
   mapContactToRawEvent,
@@ -7,7 +7,7 @@ import {
   mapConversationToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
-import { loadFreshIntercomCredentials, markReauthRequired } from "./tokenLifecycle";
+import { loadFreshIntercomCredentials, markReauthRequired, recordIntercomWorkspaceId } from "./tokenLifecycle";
 import type { IntercomCursor } from "./types";
 
 const DEFAULT_BACKFILL_DAYS = 90;
@@ -55,6 +55,7 @@ export async function runIntercomBackfill(
   };
   const contactIdsFetchedThisRun = new Set<string>();
 
+  await recordWorkspaceIdIfMissing();
   await backfillConversations();
   await backfillCompanies();
 
@@ -62,6 +63,20 @@ export async function runIntercomBackfill(
   await persistCursor();
 
   return result;
+
+  /** One-time `/me` lookup so the web app can link cases back to the Intercom inbox. */
+  async function recordWorkspaceIdIfMissing(): Promise<void> {
+    if (credentials.workspaceId) return;
+    try {
+      const workspaceId = (await client.fetchMe()).app?.id_code;
+      if (workspaceId) await recordIntercomWorkspaceId(prisma, integrationId, credentials, workspaceId);
+    } catch (error) {
+      // Only a missing link is at stake — never fail (or flag permission loss
+      // on) the sync for it. A revoked token still surfaces via the reauth
+      // error, which isn't an IntercomApiError, and the next request anyway.
+      if (!(error instanceof IntercomApiError)) throw error;
+    }
+  }
 
   async function backfillConversations(): Promise<void> {
     const updatedSince = cursor.conversations?.updatedSince ?? defaultUpdatedSince;

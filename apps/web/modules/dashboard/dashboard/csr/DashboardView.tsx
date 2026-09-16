@@ -1,5 +1,12 @@
 "use client";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
   ChevronDown,
@@ -28,6 +35,7 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
     data.compliance.current !== null && data.compliance.previous !== null
       ? data.compliance.current - data.compliance.previous
       : null;
+  console.log("data.breachedThisPeriod", data.breachedThisPeriod);
 
   return (
     <>
@@ -133,46 +141,64 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
           <div className="flex flex-col gap-4">
             <Reveal delay={0.34}>
               <Card>
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle>Breached cases</CardTitle>
                 </CardHeader>
+
                 <CardContent>
                   {data.breachedThisPeriod.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No breaches in the last {data.periodDays} days.
                     </p>
                   ) : (
-                    <details className="group">
-                      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
-                        Show {data.breachedThisPeriod.length} breached case(s)
-                        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-                      </summary>
-                      <ul className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
-                        {data.breachedThisPeriod.map((row, i) => (
-                          <li
-                            key={`${row.caseId}-${row.kind}-${i}`}
-                            className="text-muted-foreground"
-                          >
-                            <span className="text-foreground">
-                              {row.customerName ?? "—"}
-                            </span>{" "}
-                            ·{" "}
-                            <a
-                              href={`/cases/${row.caseId}`}
-                              className="text-primary hover:underline"
-                            >
-                              {row.subject}
-                            </a>{" "}
-                            · {formatCommitmentKind(row.kind)}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <div className="cursor-pointer text-sm flex w-full justify-between text-muted-foreground">
+                          <span>
+                            {data.breachedThisPeriod.length} breached case
+                            {data.breachedThisPeriod.length !== 1 ? "s" : ""}
+                          </span>
+
+                          <span>View cases →</span>
+                        </div>
+                      </DialogTrigger>
+
+                      <DialogContent className="max-w-3xl ">
+                        <DialogHeader>
+                          <DialogTitle>
+                            Breached cases · {data.periodDays}d
+                          </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="max-h-[60vh] overflow-y-auto">
+                          <ul className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
+                            {data.breachedThisPeriod.map((row, i) => (
+                              <li
+                                key={`${row.caseId}-${row.kind}-${i}`}
+                                className="text-muted-foreground flex"
+                              >
+                                <span className="text-foreground">
+                                  {row.customerName ?? "—"}
+                                </span>{" "}
+                                ·{" "}
+                                <a
+                                  href={`/cases/${row.caseId}`}
+                                  title={row.subject ?? `#${row.externalId}`}
+                                  className="text-primary hover:underline truncate max-w-lg block"
+                                >
+                                  {row.subject ?? `#${row.externalId}`}
+                                </a>{" "}
+                                · {formatCommitmentKind(row.kind)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   )}
                 </CardContent>
               </Card>
             </Reveal>
-
             <Reveal delay={0.36}>
               <Card>
                 <CardHeader>

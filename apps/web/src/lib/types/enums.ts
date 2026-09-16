@@ -10,6 +10,7 @@ export enum IntegrationStatus {
   connected = "connected",
   disconnected = "disconnected",
   reauth_required = "reauth_required",
+  permission_denied = "permission_denied",
 }
 
 export enum CaseLinkMethod {

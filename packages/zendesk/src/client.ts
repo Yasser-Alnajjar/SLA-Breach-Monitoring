@@ -18,6 +18,21 @@ export class ZendeskApiError extends Error {
   }
 }
 
+/**
+ * A 403: the token is still valid, but the user who connected the
+ * integration can no longer read what was asked for (role downgraded,
+ * access revoked on Zendesk's side). Distinct from a 401 — reconnecting
+ * would mint the same user's token with the same permissions, so the fix is
+ * restoring that user's access in Zendesk, not a new OAuth grant.
+ * Subclasses `ZendeskApiError` so existing `status` checks keep working.
+ */
+export class ZendeskPermissionDeniedError extends ZendeskApiError {
+  constructor(url: string) {
+    super(403, url);
+    this.name = "ZendeskPermissionDeniedError";
+  }
+}
+
 export interface ZendeskClientOptions {
   /**
    * Called at most once per request when Zendesk responds 401. Receives the
@@ -57,6 +72,10 @@ export class ZendeskClient {
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
       return this.request<T>(path, true);
+    }
+
+    if (response.status === 403) {
+      throw new ZendeskPermissionDeniedError(url);
     }
 
     if (!response.ok) {

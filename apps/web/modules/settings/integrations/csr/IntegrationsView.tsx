@@ -9,11 +9,15 @@ import {
   Ticket,
   Workflow,
 } from "lucide-react";
+import { PermissionDeniedBanner } from "@/components/shared/permission-denied-banner";
 import { Reveal } from "@/components/shared/reveal";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { IntegrationsPageData } from "@/lib/types/integrations";
+import type {
+  IntegrationConnectionView,
+  IntegrationsPageData,
+} from "@/lib/types/integrations";
 import { ZendeskConnectForm } from "./ZendeskCard";
 import { JiraConnectButton } from "./JiraCard";
 import { LinearConnectButton } from "./LinearCard";
@@ -65,6 +69,16 @@ function StatusIndicator({
       <span className={text}>{label}</span>
     </span>
   );
+}
+
+function ConnectedStatus({ view }: { view: IntegrationConnectionView }) {
+  if (view.reauthRequired) {
+    return <StatusIndicator tone="warning" label="Needs reconnect" />;
+  }
+  if (view.permissionDenied) {
+    return <StatusIndicator tone="warning" label="Access restricted" />;
+  }
+  return <StatusIndicator tone="success" label="Connected" />;
 }
 
 function formatDateTime(iso: string | Date): string {
@@ -130,15 +144,18 @@ function ConnectedCardBody({
   provider,
   providerLabel,
   connectedAt,
+  permissionDenied,
   disconnectHint,
 }: {
   provider: "zendesk" | "jira" | "linear" | "intercom" | "github";
   providerLabel: string;
   connectedAt: Date;
+  permissionDenied: boolean;
   disconnectHint?: string;
 }) {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col gap-3">
+      {permissionDenied && <PermissionDeniedBanner provider={providerLabel} />}
       <p className={descriptionClass}>
         Connected {formatDateTime(connectedAt)}.
         {disconnectHint && ` ${disconnectHint}`}
@@ -194,11 +211,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             status={
               zendeskConfig.configured &&
               (zendesk.connected ? (
-                zendesk.reauthRequired ? (
-                  <StatusIndicator tone="warning" label="Needs reconnect" />
-                ) : (
-                  <StatusIndicator tone="success" label="Connected" />
-                )
+                <ConnectedStatus view={zendesk} />
               ) : (
                 zendesk.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
@@ -219,6 +232,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   provider="zendesk"
                   providerLabel="Zendesk"
                   connectedAt={zendesk.connectedAt!}
+                  permissionDenied={zendesk.permissionDenied}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
@@ -246,11 +260,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             status={
               jiraConfig.configured &&
               (jira.connected ? (
-                jira.reauthRequired ? (
-                  <StatusIndicator tone="warning" label="Needs reconnect" />
-                ) : (
-                  <StatusIndicator tone="success" label="Connected" />
-                )
+                <ConnectedStatus view={jira} />
               ) : (
                 jira.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
@@ -271,6 +281,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   provider="jira"
                   providerLabel="Jira"
                   connectedAt={jira.connectedAt!}
+                  permissionDenied={jira.permissionDenied}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
@@ -296,11 +307,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             title="Linear"
             status={
               linear.connected ? (
-                linear.reauthRequired ? (
-                  <StatusIndicator tone="warning" label="Needs reconnect" />
-                ) : (
-                  <StatusIndicator tone="success" label="Connected" />
-                )
+                <ConnectedStatus view={linear} />
               ) : (
                 linear.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
@@ -321,6 +328,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   provider="linear"
                   providerLabel="Linear"
                   connectedAt={linear.connectedAt!}
+                  permissionDenied={linear.permissionDenied}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
@@ -349,11 +357,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             status={
               intercomConfig.configured &&
               (intercom.connected ? (
-                intercom.reauthRequired ? (
-                  <StatusIndicator tone="warning" label="Needs reconnect" />
-                ) : (
-                  <StatusIndicator tone="success" label="Connected" />
-                )
+                <ConnectedStatus view={intercom} />
               ) : (
                 intercom.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
@@ -374,6 +378,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   provider="intercom"
                   providerLabel="Intercom"
                   connectedAt={intercom.connectedAt!}
+                  permissionDenied={intercom.permissionDenied}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">
@@ -402,11 +407,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             status={
               githubConfig.configured &&
               (github.connected ? (
-                github.reauthRequired ? (
-                  <StatusIndicator tone="warning" label="Needs reconnect" />
-                ) : (
-                  <StatusIndicator tone="success" label="Connected" />
-                )
+                <ConnectedStatus view={github} />
               ) : (
                 github.disconnectedAt && (
                   <StatusIndicator tone="muted" label="Disconnected" />
@@ -427,6 +428,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                   provider="github"
                   providerLabel="GitHub"
                   connectedAt={github.connectedAt!}
+                  permissionDenied={github.permissionDenied}
                 />
               ) : (
                 <div className="flex flex-1 flex-col">

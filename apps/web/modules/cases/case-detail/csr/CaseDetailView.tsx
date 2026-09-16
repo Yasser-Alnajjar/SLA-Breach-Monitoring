@@ -183,10 +183,10 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
           </p>
         </div>
 
-        {caseData.zendeskUrl && (
+        {caseData.ticketUrl && (
           <Button variant="outline" size="sm" asChild className="shrink-0">
-            <a href={caseData.zendeskUrl} target="_blank" rel="noreferrer">
-              Open in Zendesk
+            <a href={caseData.ticketUrl} target="_blank" rel="noreferrer">
+              Open in {formatTicketSource(caseData.system)}
               <ExternalLink />
             </a>
           </Button>
@@ -393,6 +393,10 @@ function ActivityTimeline({ data }: { data: CaseDetailData }) {
   );
 }
 
+function formatTicketSource(system: CaseDetailData["case"]["system"]): string {
+  return system === "intercom" ? "Intercom" : "Zendesk";
+}
+
 function LinkedRecords({ data }: { data: CaseDetailData }) {
   return (
     <Reveal delay={0.05}>
@@ -403,17 +407,17 @@ function LinkedRecords({ data }: { data: CaseDetailData }) {
 
         <CardContent className="max-h-128 overflow-y-auto">
           <ul className="space-y-3">
-            {data.case.zendeskUrl && (
+            {data.case.ticketUrl && (
               <li>
                 <a
-                  href={data.case.zendeskUrl}
+                  href={data.case.ticketUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="group flex items-center justify-between gap-3 rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
                 >
                   <span className="min-w-0">
                     <span className="block text-xs text-muted-foreground">
-                      Zendesk
+                      {formatTicketSource(data.case.system)}
                     </span>
                     <span className="block truncate text-sm font-medium">
                       #{data.case.externalId}
@@ -505,7 +509,7 @@ function LinkedRecords({ data }: { data: CaseDetailData }) {
               );
             })}
 
-            {!data.case.zendeskUrl && data.links.length === 0 && (
+            {!data.case.ticketUrl && data.links.length === 0 && (
               <li className="py-4 text-center text-sm text-muted-foreground">
                 No linked records.
               </li>

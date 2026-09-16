@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ZendeskApiError, ZendeskClient } from "../src/client";
+import { ZendeskApiError, ZendeskClient, ZendeskPermissionDeniedError } from "../src/client";
 import type { ZendeskCredentials } from "../src/types";
 
 const baseCredentials: ZendeskCredentials = {
@@ -56,5 +56,33 @@ describe("ZendeskClient 401 handling", () => {
 
     const client = new ZendeskClient(baseCredentials);
     await expect(client.fetchSlaPoliciesPage()).rejects.toBeInstanceOf(ZendeskApiError);
+  });
+});
+
+describe("ZendeskClient 403 handling", () => {
+  it("throws ZendeskPermissionDeniedError on a 403 without attempting a token refresh", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { error: "Forbidden" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onUnauthorized = vi.fn();
+    const client = new ZendeskClient(baseCredentials, { onUnauthorized });
+
+    const error = await client.fetchSlaPoliciesPage().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ZendeskPermissionDeniedError);
+    // Still a ZendeskApiError, so existing `status` checks keep working.
+    expect(error).toBeInstanceOf(ZendeskApiError);
+    expect((error as ZendeskApiError).status).toBe(403);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves other failures as a plain ZendeskApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, { error: "boom" })));
+    const client = new ZendeskClient(baseCredentials);
+
+    const error = await client.fetchSlaPoliciesPage().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ZendeskApiError);
+    expect(error).not.toBeInstanceOf(ZendeskPermissionDeniedError);
   });
 });

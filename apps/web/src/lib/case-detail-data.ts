@@ -18,6 +18,7 @@ import {
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import type { ZendeskCredentials } from "@sla/zendesk";
+import { buildIntercomConversationUrl, type IntercomCredentials } from "@sla/intercom";
 import type { JiraCredentials } from "@sla/jira";
 import type {
   CaseDetailData,
@@ -82,7 +83,7 @@ export async function getCaseDetailData(
   });
   if (!caseRow) return null;
 
-  const [eventRows, zendeskIntegration, jiraIntegration, organization] =
+  const [eventRows, zendeskIntegration, jiraIntegration, intercomIntegration, organization] =
     await Promise.all([
       prisma.normalizedEvent.findMany({
         where: { caseId },
@@ -96,6 +97,11 @@ export async function getCaseDetailData(
       prisma.integration.findUnique({
         where: {
           organizationId_provider: { organizationId, provider: "jira" },
+        },
+      }),
+      prisma.integration.findUnique({
+        where: {
+          organizationId_provider: { organizationId, provider: "intercom" },
         },
       }),
       prisma.organization.findUnique({
@@ -268,17 +274,21 @@ export async function getCaseDetailData(
   const jiraCredentials =
     (jiraIntegration?.credentials as JiraCredentials | null) ?? null;
 
+  const intercomWorkspaceId =
+    (intercomIntegration?.credentials as IntercomCredentials | null)?.workspaceId ?? null;
+
   // Gated on caseRow.system (roadmap step 22), not just "is Zendesk
-  // connected": once Intercom can create cases too, an org with both
-  // integrations connected would otherwise build a Zendesk ticket link for
-  // an Intercom-sourced case whose externalId was never a Zendesk ticket id.
-  // Intercom itself gets no equivalent link here yet — unlike Zendesk's
-  // subdomain or Jira's siteUrl, its stored credentials carry no workspace
-  // identifier to build an inbox URL from (same gap @sla/linear has).
-  const zendeskUrl =
-    zendeskCredentials && caseRow.system === "zendesk"
+  // connected": an org with both ticket sources connected would otherwise
+  // build a Zendesk ticket link for an Intercom-sourced case whose externalId
+  // was never a Zendesk ticket id, or vice versa. Intercom's link needs the
+  // workspace id the backfill records from `GET /me` — null until the first
+  // sync after connecting.
+  const ticketUrl =
+    caseRow.system === "zendesk" && zendeskCredentials
       ? `https://${zendeskCredentials.subdomain}.zendesk.com/agent/tickets/${caseRow.externalId}`
-      : null;
+      : caseRow.system === "intercom" && intercomWorkspaceId
+        ? buildIntercomConversationUrl(intercomWorkspaceId, caseRow.externalId)
+        : null;
 
   // Every CaseLink system this page knows how to render — a Zendesk CaseLink
   // never actually occurs (Case itself *is* the Zendesk side), but the type
@@ -343,7 +353,8 @@ export async function getCaseDetailData(
       openedAt: caseRow.openedAt.toISOString(),
       closedAt: caseRow.closedAt?.toISOString() ?? null,
       customerName: caseRow.customer?.name ?? null,
-      zendeskUrl,
+      system: caseRow.system,
+      ticketUrl,
     },
     currentLeg,
     commitments,

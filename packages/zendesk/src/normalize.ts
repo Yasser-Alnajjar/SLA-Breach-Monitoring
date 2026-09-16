@@ -162,16 +162,24 @@ export interface NormalizationResult {
   ticketsFailed: { ticketId: number; error: string }[];
 }
 
-/** Keeps, per numeric `id` embedded in each row's JSON payload, the row with the latest fetchedAt. */
+/**
+ * Keeps, per numeric `id` embedded in each row's JSON payload, the row with
+ * the latest fetchedAt. `rawEventIds` lists every snapshot row seen for that
+ * id (not just the latest), so a regenerate-in-place delete can also clear
+ * events an older snapshot sourced.
+ */
 export function latestSnapshotById<T extends { id: number }>(
   rows: { id: string; payload: unknown; fetchedAt: Date }[],
-): Map<number, { rawEventId: string; value: T; fetchedAt: Date }> {
-  const byId = new Map<number, { rawEventId: string; value: T; fetchedAt: Date }>();
+): Map<number, { rawEventId: string; value: T; fetchedAt: Date; rawEventIds: string[] }> {
+  const byId = new Map<number, { rawEventId: string; value: T; fetchedAt: Date; rawEventIds: string[] }>();
   for (const row of rows) {
     const value = row.payload as T;
     const existing = byId.get(value.id);
+    const rawEventIds = [...(existing?.rawEventIds ?? []), row.id];
     if (!existing || row.fetchedAt >= existing.fetchedAt) {
-      byId.set(value.id, { rawEventId: row.id, value, fetchedAt: row.fetchedAt });
+      byId.set(value.id, { rawEventId: row.id, value, fetchedAt: row.fetchedAt, rawEventIds });
+    } else {
+      existing.rawEventIds = rawEventIds;
     }
   }
   return byId;
@@ -241,7 +249,7 @@ export async function runZendeskNormalization(
   const latestTickets = latestSnapshotById<ZendeskTicket>(ticketRows);
   const auditsByTicketId = groupAuditsByTicketId(auditRows);
 
-  for (const { rawEventId: ticketRawEventId, value: ticket } of latestTickets.values()) {
+  for (const { rawEventId: ticketRawEventId, value: ticket, rawEventIds: ticketSnapshotRawEventIds } of latestTickets.values()) {
     try {
       // Defense in depth: `runZendeskBackfill` routes "deleted"-status tickets
       // to soft-delete directly and never writes them as RawEvents, but a row
@@ -268,11 +276,13 @@ export async function runZendeskNormalization(
       const derived = deriveNormalizedEventsForTicket(ticket, auditsForTicket, ticketRawEventId);
       const closedAt = deriveCaseClosedAt(ticket, derived);
       // Every RawEvent this ticket's own derivation could ever have sourced
-      // an event from — the ticket snapshot plus its own audits. Scoping the
+      // an event from — every ticket snapshot (each re-fetch with changes is
+      // a new RawEvent, and an older one's case_created must not linger)
+      // plus its own audits. Scoping the
       // regenerate-in-place delete to just these (like jira/normalize.ts and
       // linear/normalize.ts already do) keeps it from wiping NormalizedEvent
       // rows another provider (Jira/Linear) wrote onto the same case.
-      const ownRawEventIds = [ticketRawEventId, ...auditsForTicket.map((a) => a.rawEventId)];
+      const ownRawEventIds = [...ticketSnapshotRawEventIds, ...auditsForTicket.map((a) => a.rawEventId)];
 
       const caseRow = await prisma.case.upsert({
         where: { organizationId_externalId: { organizationId, externalId: String(ticket.id) } },

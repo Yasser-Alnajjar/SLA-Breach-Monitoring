@@ -1,7 +1,7 @@
 export { mapAttachmentToRawEvent, mapHistoryEntryToRawEvent, mapIssueToRawEvent } from "./rawEvents";
 export type { RawEventInput } from "./rawEvents";
 export * from "./types";
-export { LinearClient, LinearApiError } from "./client";
+export { LinearClient, LinearApiError, LinearPermissionDeniedError } from "./client";
 export type { LinearClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runLinearBackfill } from "./backfill";

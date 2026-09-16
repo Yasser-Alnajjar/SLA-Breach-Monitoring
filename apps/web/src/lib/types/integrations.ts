@@ -18,10 +18,13 @@ import type {
  * credentials" (true for `connected` and `reauth_required` status, false for
  * `disconnected` or no row); `connectedAt`/`disconnectedAt` stay populated
  * across a disconnect so the UI can still show "Disconnected {date}."
+ * `permissionDenied` (roadmap step 32) means the token works but the
+ * connecting user lost access provider-side — also `connected: true`.
  */
 export interface IntegrationConnectionView {
   connected: boolean;
   reauthRequired: boolean;
+  permissionDenied: boolean;
   connectedAt: Date | null;
   disconnectedAt: Date | null;
 }
@@ -102,6 +105,8 @@ export interface IntegrationDetailData {
   integrationId: string;
   connectedAt: Date;
   reauthRequired: boolean;
+  /** The token works, but the connecting user lost provider-side access (roadmap step 32). */
+  permissionDenied: boolean;
   lastSyncAt: Date | null;
   lastSyncError: string | null;
   /** ISO 8601, matching the provider cursor's own `backfillCompletedAt`. */

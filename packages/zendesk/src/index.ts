@@ -46,7 +46,7 @@ export {
 } from "./calendars";
 export type { BusinessCalendarImportResult } from "./calendars";
 export * from "./types";
-export { ZendeskClient, ZendeskApiError } from "./client";
+export { ZendeskClient, ZendeskApiError, ZendeskPermissionDeniedError } from "./client";
 export type { ZendeskClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runZendeskBackfill } from "./backfill";

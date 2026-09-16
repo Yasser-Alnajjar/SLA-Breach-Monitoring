@@ -6,6 +6,7 @@ import {
   runZendeskWebhookIngest,
   verifyZendeskWebhookSecret,
   ZendeskApiError,
+  ZendeskPermissionDeniedError,
   ZendeskReauthRequiredError,
 } from "@sla/zendesk";
 import { getPrismaClient } from "@sla/db";
@@ -83,6 +84,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
       where: { id: integration.id },
       data: { lastSyncAt: new Date(), lastSyncError: null },
     });
+    // Access is evidently back — same compare-and-set self-clearing rule as
+    // the worker cycle (a no-op unless the row is still `permission_denied`).
+    await prisma.integration.updateMany({
+      where: { id: integration.id, status: "permission_denied" },
+      data: { status: "connected" },
+    });
 
     // The ticket is gone: its Case was just soft-deleted, there's nothing new
     // to normalize, and the pipeline tail would only re-evaluate commitments
@@ -111,6 +118,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
       // Accepted, not retried: reconnecting requires a human, which no
       // number of Zendesk retries will produce.
       return NextResponse.json({ status: "ignored", reason: "reauth required" });
+    }
+
+    if (error instanceof ZendeskPermissionDeniedError) {
+      await prisma.integration.update({
+        where: { id: integration.id },
+        data: {
+          lastSyncAt: new Date(),
+          lastSyncError: "Zendesk denied access — the connecting user's Zendesk permissions may have changed",
+        },
+      });
+      // Compare-and-set, like the worker cycle: never overwrites a concurrent disconnect/reauth.
+      await prisma.integration.updateMany({
+        where: { id: integration.id, status: "connected" },
+        data: { status: "permission_denied" },
+      });
+      // Accepted, not retried: restoring the user's access is a human step.
+      // The next clean worker cycle clears the status on its own.
+      return NextResponse.json({ status: "ignored", reason: "permission denied" });
     }
 
     const message = error instanceof Error ? error.message : String(error);

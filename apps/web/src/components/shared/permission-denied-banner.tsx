@@ -1,0 +1,31 @@
+import { ShieldAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface PermissionDeniedBannerProps {
+  /** Display name shown in the banner copy, e.g. "Zendesk", "Jira". */
+  provider: string;
+}
+
+/**
+ * Roadmap step 32's counterpart to `ReauthBanner`, with deliberately different
+ * advice: the token still works, but the account that connected it lost
+ * access on the provider's side — reconnecting would just mint the same
+ * restricted token again. The status clears itself on the next clean sync.
+ */
+export function PermissionDeniedBanner({ provider }: PermissionDeniedBannerProps) {
+  return (
+    <Alert variant="warning">
+      <ShieldAlert />
+      <AlertDescription>
+        <p>
+          {provider} is denying access to the account this integration was connected with, so some data may have
+          stopped syncing.
+        </p>
+        <p className="mt-1">
+          Ask a {provider} admin to restore that user&apos;s permissions — no reconnect needed. Syncing resumes on its
+          own once access is back.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}

@@ -13,6 +13,11 @@ const toc = [
     title: "Create the Intercom app",
     level: 2 as const,
   },
+  {
+    id: "configure-redirect-url",
+    title: "Configure the OAuth redirect URL",
+    level: 2 as const,
+  },
   { id: "configure-in-app", title: "Add the credentials", level: 2 as const },
   { id: "connection", title: "Connect Intercom", level: 2 as const },
   { id: "permissions", title: "Permissions", level: 2 as const },
@@ -78,16 +83,14 @@ export default function IntercomIntegrationPage() {
                 a new app for your workspace.
               </>,
               <>
-                In the app&apos;s <strong>Authentication</strong> settings, set
-                the <strong>Redirect URL</strong> to{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                  https://your-app-domain/api/integrations/intercom/callback
-                </code>
-                , replacing{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                  your-app-domain
-                </code>{" "}
-                with the domain you access this product at.
+                Enable OAuth and add the redirect URL — see{" "}
+                <Link
+                  href="#configure-redirect-url"
+                  className="underline underline-offset-4"
+                >
+                  Configure the OAuth redirect URL
+                </Link>{" "}
+                below.
               </>,
               <>
                 Under <strong>Basic Information</strong>, copy the{" "}
@@ -112,7 +115,78 @@ export default function IntercomIntegrationPage() {
               Unlike Zendesk, Jira, and Linear, Intercom does not take a
               redirect URI as part of each authorization request — it uses
               whatever Redirect URL is saved on the app in the Developer Hub.
-              Make sure the URL above is saved there before connecting.
+              Make sure it is saved there before connecting.
+            </AlertDescription>
+          </Alert>
+        </section>
+
+        <section id="configure-redirect-url" className="scroll-mt-24 space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Configure the OAuth redirect URL
+          </h2>
+
+          <p className="leading-7 text-muted-foreground">
+            To configure the OAuth redirect URL for the Intercom application:
+          </p>
+
+          <ol className="space-y-3">
+            {[
+              <>
+                Open the Intercom Developer Hub OAuth configuration page:{" "}
+                <a
+                  href="https://app.intercom.com/a/apps/v9jrtlg9/developer-hub/app-packages/206109/oauth"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all underline underline-offset-4"
+                >
+                  https://app.intercom.com/a/apps/v9jrtlg9/developer-hub/app-packages/206109/oauth
+                </a>
+              </>,
+              <>
+                Click <strong>Edit</strong> to modify the OAuth configuration.
+              </>,
+              <>
+                Enable <strong>Use OAuth</strong>.
+              </>,
+              <>
+                Under <strong>Redirect URLs</strong>, add the callback URL used
+                by the application:
+                <pre className="mt-2 overflow-x-auto rounded bg-muted px-3 py-2 text-xs">
+                  <code>http://localhost:3000/api/integrations/intercom/callback</code>
+                </pre>
+              </>,
+              <>
+                Make sure the application callback URL is added as the{" "}
+                <strong>first</strong> URL, since Intercom uses the first URL as
+                the default redirect URL.
+              </>,
+              <>Save the changes.</>,
+            ].map((content, index) => (
+              <li key={index} className="flex gap-4 rounded-lg border p-4">
+                <div className="flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">
+                  {index + 1}
+                </div>
+                <div className="min-w-0 text-sm text-muted-foreground">
+                  {content}
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <p className="leading-7 text-muted-foreground">
+            After saving the configuration, the Intercom OAuth flow can redirect
+            the user back to the application after authorization.
+          </p>
+
+          <Alert variant="warning">
+            <Info className="size-4" />
+            <AlertTitle>Important</AlertTitle>
+            <AlertDescription>
+              The Redirect URL configured in Intercom must match the callback
+              endpoint implemented by the application. If the URL is missing or
+              incorrect, Intercom may complete the authorization but fail to
+              redirect the user back to the application with the authorization
+              code.
             </AlertDescription>
           </Alert>
         </section>

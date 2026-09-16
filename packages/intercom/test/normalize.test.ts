@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveCaseClosedAt,
+  deriveIntercomSubject,
   deriveNormalizedEventsForConversation,
+  normalizeIntercomPriority,
   normalizeIntercomState,
   resolveIntercomActor,
   sortPartsChronologically,
@@ -219,5 +221,71 @@ describe("deriveCaseClosedAt", () => {
     };
     const closedAt = deriveCaseClosedAt({ ...conversation, state: "closed" }, [createdEvent, closedEvent, secondClose]);
     expect(closedAt?.toISOString()).toBe("2026-01-04T10:00:00.000Z");
+  });
+});
+
+describe("normalizeIntercomPriority", () => {
+  it("maps Intercom's binary priority onto the policy-matchable vocabulary", () => {
+    expect(normalizeIntercomPriority("priority")).toBe("high");
+    expect(normalizeIntercomPriority("not_priority")).toBe("normal");
+  });
+
+  it("passes through unknown values and nulls", () => {
+    expect(normalizeIntercomPriority("urgent")).toBe("urgent");
+    expect(normalizeIntercomPriority(null)).toBeNull();
+    expect(normalizeIntercomPriority(undefined)).toBeNull();
+  });
+});
+
+describe("deriveIntercomSubject", () => {
+  it("prefers the conversation's own title", () => {
+    expect(deriveIntercomSubject({ ...conversation, title: "Login broken" })).toBe("Login broken");
+  });
+
+  it("falls back to the ticket title attribute when the title is blank", () => {
+    expect(
+      deriveIntercomSubject({
+        ...conversation,
+        title: "",
+        ticket: { custom_attributes: { _default_title_: { value: "Cannot export CSV" } } },
+      }),
+    ).toBe("Cannot export CSV");
+  });
+
+  it("falls back to the source subject, else null", () => {
+    expect(
+      deriveIntercomSubject({ ...conversation, source: { type: "email", subject: "Invoice question" } }),
+    ).toBe("Invoice question");
+    expect(deriveIntercomSubject(conversation)).toBeNull();
+  });
+
+  it("falls back to the opening message's plain text for a chat with no title", () => {
+    expect(
+      deriveIntercomSubject({
+        ...conversation,
+        source: { type: "conversation", body: "<p>How do I reset my&nbsp;password?</p>" },
+      }),
+    ).toBe("How do I reset my password?");
+  });
+
+  it("truncates a long opening message", () => {
+    const subject = deriveIntercomSubject({
+      ...conversation,
+      source: { type: "conversation", body: `<p>${"a".repeat(300)}</p>` },
+    });
+    expect(subject).toHaveLength(120);
+    expect(subject?.endsWith("…")).toBe(true);
+  });
+
+  it("uses the first customer comment with text when the opening message is empty", () => {
+    const parts = [
+      part({ id: "p1", part_type: "comment", author: { type: "admin", id: "a" }, body: "<p>Agent reply</p>" }),
+      part({ id: "p2", part_type: "comment", author: { type: "user", id: "u" }, body: '<img src="x.png">' }),
+      part({ id: "p2b", part_type: "comment", author: { type: "user", id: "u" }, body: "<a href=\"https://x.io/a.png\">https://x.io/a.png</a>" }),
+      part({ id: "p3", part_type: "comment", author: { type: "user", id: "u" }, body: "<p>https://x.io/b.gif</p><p>My SMS is broken</p>" }),
+    ];
+    expect(deriveIntercomSubject({ ...conversation, source: { type: "conversation", body: null } }, parts)).toBe(
+      "My SMS is broken",
+    );
   });
 });

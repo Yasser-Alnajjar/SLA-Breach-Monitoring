@@ -10,7 +10,10 @@ type IntegrationRow = {
   connectedAt: Date;
   disconnectedAt: Date | null;
   credentials: unknown;
+  status: string;
 } | null;
+
+const ROW_SELECT = { connectedAt: true, disconnectedAt: true, credentials: true, status: true } as const;
 
 /** Never return `credentials`/the row itself — only these display-only scalars. */
 function toConnectionView(
@@ -20,6 +23,7 @@ function toConnectionView(
     return {
       connected: false,
       reauthRequired: false,
+      permissionDenied: false,
       connectedAt: null,
       disconnectedAt: null,
     };
@@ -30,6 +34,7 @@ function toConnectionView(
   return {
     connected: credentials !== null,
     reauthRequired: credentials?.reauthRequired === true,
+    permissionDenied: integration.status === "permission_denied",
     connectedAt: integration.connectedAt,
     disconnectedAt: integration.disconnectedAt,
   };
@@ -58,29 +63,29 @@ export async function getIntegrationsData(
       where: {
         organizationId_provider: { organizationId, provider: "zendesk" },
       },
-      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+      select: ROW_SELECT,
     }),
     prisma.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: "jira" } },
-      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+      select: ROW_SELECT,
     }),
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId, provider: "linear" },
       },
-      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+      select: ROW_SELECT,
     }),
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId, provider: "intercom" },
       },
-      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+      select: ROW_SELECT,
     }),
     prisma.integration.findUnique({
       where: {
         organizationId_provider: { organizationId, provider: "github" },
       },
-      select: { connectedAt: true, disconnectedAt: true, credentials: true },
+      select: ROW_SELECT,
     }),
     prisma.slackIntegration.findUnique({
       where: { organizationId },

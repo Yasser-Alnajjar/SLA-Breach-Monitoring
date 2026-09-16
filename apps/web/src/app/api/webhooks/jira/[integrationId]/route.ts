@@ -3,6 +3,7 @@ import {
   extractJiraWebhookIssueKey,
   isJiraWebhookTimestampFresh,
   JiraApiError,
+  JiraPermissionDeniedError,
   JiraReauthRequiredError,
   runJiraCorrelation,
   runJiraNormalization,
@@ -93,6 +94,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
       where: { id: integration.id },
       data: { lastSyncAt: new Date(), lastSyncError: null },
     });
+    // Access is evidently back — same compare-and-set self-clearing rule as
+    // the worker cycle (a no-op unless the row is still `permission_denied`).
+    await prisma.integration.updateMany({
+      where: { id: integration.id, status: "permission_denied" },
+      data: { status: "connected" },
+    });
 
     return NextResponse.json({ status: "processed", issueKey, ...pipeline });
   } catch (error) {
@@ -111,6 +118,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
       // Accepted, not retried: reconnecting requires a human, which no
       // number of Jira retries will produce.
       return NextResponse.json({ status: "ignored", reason: "reauth required" });
+    }
+
+    if (error instanceof JiraPermissionDeniedError) {
+      await prisma.integration.update({
+        where: { id: integration.id },
+        data: {
+          lastSyncAt: new Date(),
+          lastSyncError: "Jira denied access — the connecting user's Jira permissions may have changed",
+        },
+      });
+      // Compare-and-set, like the worker cycle: never overwrites a concurrent disconnect/reauth.
+      await prisma.integration.updateMany({
+        where: { id: integration.id, status: "connected" },
+        data: { status: "permission_denied" },
+      });
+      // Accepted, not retried: restoring the user's access is a human step.
+      // The next clean worker cycle clears the status on its own.
+      return NextResponse.json({ status: "ignored", reason: "permission denied" });
     }
 
     const message = error instanceof Error ? error.message : String(error);

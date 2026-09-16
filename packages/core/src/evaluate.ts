@@ -73,8 +73,15 @@ export function evaluateEngineeringLegTarget(
   };
 }
 
-/** Event types that carry Zendesk's own view of the case's lifecycle state. */
-const ZENDESK_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
+/**
+ * Ticket-source systems — the ones that create Cases and so own their
+ * lifecycle (roadmap step 22 added Intercom beside Zendesk). Matches the
+ * support-side systems `deriveLegSpans` in legs.ts already reads.
+ */
+const TICKET_SOURCE_SYSTEMS = new Set<NormalizedEvent["system"]>(["zendesk", "intercom"]);
+
+/** Event types that carry the ticket source's own view of the case's lifecycle state. */
+const TICKET_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
   "case_created",
   "state_changed",
   "case_closed",
@@ -82,10 +89,10 @@ const ZENDESK_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
 
 /**
  * The event that determines whether a case is open or closed as of `asOf`:
- * the most recent Zendesk-origin lifecycle event, if any, or null if none
- * has happened yet or the case is currently open.
+ * the most recent ticket-source (Zendesk or Intercom) lifecycle event, if
+ * any, or null if none has happened yet or the case is currently open.
  *
- * Only Zendesk ever anchors a case's lifecycle — a linked Jira issue is
+ * Only the ticket source ever anchors a case's lifecycle — a linked Jira issue is
  * never the anchor, and its normalizer never emits `case_created`/
  * `case_closed` (packages/jira/src/normalize.ts) — so a Jira transition
  * (e.g. reaching its own "done" category) can never close or reopen a case
@@ -103,8 +110,8 @@ export function findCaseCloseEvent(
   const lifecycleEvents = events
     .filter(
       (e) =>
-        e.system === "zendesk" &&
-        ZENDESK_LIFECYCLE_EVENT_TYPES.has(e.type) &&
+        TICKET_SOURCE_SYSTEMS.has(e.system) &&
+        TICKET_LIFECYCLE_EVENT_TYPES.has(e.type) &&
         e.occurredAt <= asOf,
     )
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));

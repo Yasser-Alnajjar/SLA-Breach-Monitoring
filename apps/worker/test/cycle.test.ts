@@ -1,0 +1,248 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "@sla/db";
+import { runCycle } from "../src/cycle";
+import { captureException } from "../src/sentry";
+import type { WorkerConfig } from "../src/config";
+
+// Everything downstream of ingestion is out of scope here — stubbed so the
+// cycle's per-integration status handling is what's under test.
+vi.mock("../src/sentry", () => ({ captureException: vi.fn() }));
+vi.mock("@sla/commitments", () => ({
+  runCommitmentPipeline: vi.fn().mockResolvedValue({ commitmentsCreated: 0 }),
+  runEvaluationPipeline: vi.fn().mockResolvedValue({
+    commitmentsConsidered: 0,
+    evaluationsCreated: 0,
+    commitmentsFinalized: 0,
+    notificationCandidates: [],
+  }),
+}));
+vi.mock("@sla/notifications", () => ({
+  runNotificationPipeline: vi.fn().mockResolvedValue({ notificationsSent: 0, notificationsSkipped: 0, notificationsFailed: [] }),
+}));
+// Linear's *real* backfill, client and token lifecycle run against a stubbed
+// `fetch`, so each case below starts from an actual HTTP status code. Only the
+// post-ingest DB-heavy stages are stubbed.
+vi.mock("@sla/linear", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@sla/linear")>()),
+  runLinearCorrelation: vi.fn().mockResolvedValue({}),
+  runLinearNormalization: vi.fn().mockResolvedValue({}),
+}));
+
+const captureExceptionMock = vi.mocked(captureException);
+const config = { appUrl: "https://app.example.com" } as WorkerConfig;
+
+type Status = "connected" | "disconnected" | "reauth_required" | "permission_denied";
+
+interface Row {
+  id: string;
+  provider: "linear";
+  status: Status;
+  credentials: Record<string, unknown>;
+  cursor: unknown;
+  lastSyncAt: Date | null;
+  lastSyncError: string | null;
+}
+
+/** A one-integration "database" with the same read/compare-and-set semantics the code relies on. */
+function fakeDb(status: Status) {
+  const row: Row = {
+    id: "int_1",
+    provider: "linear",
+    status,
+    credentials: { accessToken: "token-1", tokenType: "Bearer", scope: "read" },
+    cursor: null,
+    lastSyncAt: null,
+    lastSyncError: null,
+  };
+
+  const prisma = {
+    organization: {
+      findMany: vi.fn(async () => [
+        {
+          id: "org_1",
+          integrations:
+            row.status === "disconnected"
+              ? []
+              : [{ id: row.id, provider: row.provider, credentials: row.credentials, status: row.status }],
+        },
+      ]),
+    },
+    integration: {
+      findUniqueOrThrow: vi.fn(async () => ({ ...row })),
+      update: vi.fn(async ({ data }: { data: Partial<Row> }) => {
+        Object.assign(row, data);
+        return { ...row };
+      }),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status?: Status; credentials?: { equals: unknown } };
+          data: Partial<Row>;
+        }) => {
+          const matches =
+            where.id === row.id &&
+            (where.status === undefined || where.status === row.status) &&
+            (where.credentials === undefined || JSON.stringify(where.credentials.equals) === JSON.stringify(row.credentials));
+          if (!matches) return { count: 0 };
+          Object.assign(row, data);
+          return { count: 1 };
+        },
+      ),
+    },
+    rawEvent: { createMany: vi.fn(async () => ({ count: 0 })) },
+  };
+
+  return { row, prisma: prisma as unknown as PrismaClient };
+}
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+const emptyIssuesPage = { data: { issues: { nodes: [], pageInfo: { hasNextPage: false } } } };
+
+function stubFetch(...responses: (() => Response)[]) {
+  const fetchMock = vi.fn();
+  for (const response of responses) fetchMock.mockImplementationOnce(async () => response());
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+beforeEach(() => {
+  captureExceptionMock.mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("runCycle — provider permission loss (roadmap step 32)", () => {
+  it("HTTP 403 → permission_denied, one Sentry event, no token refresh or retry", async () => {
+    const { row, prisma } = fakeDb("connected");
+    const fetchMock = stubFetch(() => jsonResponse(403, { errors: [{ message: "Forbidden" }] }));
+
+    const result = await runCycle(prisma, config, "active_set_poll");
+
+    expect(row.status).toBe("permission_denied");
+    expect(row.lastSyncError).toBe("Linear denied access — the connecting user's Linear permissions may have changed");
+    // Credentials untouched: a 403 is not a token problem.
+    expect(row.credentials).toEqual({ accessToken: "token-1", tokenType: "Bearer", scope: "read" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    expect(result.failures).toEqual([
+      { organizationId: "org_1", stage: "ingest:linear", error: row.lastSyncError },
+    ]);
+  });
+
+  it("HTTP 401 → existing reauth behavior: reauth_required, credentials flagged, no Sentry event", async () => {
+    const { row, prisma } = fakeDb("connected");
+    const fetchMock = stubFetch(() => jsonResponse(401, { errors: [{ message: "Authentication required" }] }));
+
+    await runCycle(prisma, config, "active_set_poll");
+
+    expect(row.status).toBe("reauth_required");
+    expect(row.lastSyncError).toBe("Linear needs to be reconnected");
+    expect(row.credentials.reauthRequired).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("HTTP 500 → existing generic error behavior: status unchanged, raw error recorded, Sentry event", async () => {
+    const { row, prisma } = fakeDb("connected");
+    stubFetch(() => jsonResponse(500, { error: "boom" }));
+
+    await runCycle(prisma, config, "active_set_poll");
+
+    expect(row.status).toBe("connected");
+    expect(row.lastSyncError).toBe("Linear API error 500");
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("permission_denied + successful sync → connected, error cleared", async () => {
+    const { row, prisma } = fakeDb("permission_denied");
+    stubFetch(() => jsonResponse(200, emptyIssuesPage));
+
+    const result = await runCycle(prisma, config, "active_set_poll");
+
+    expect(row.status).toBe("connected");
+    expect(row.lastSyncError).toBeNull();
+    expect(result.failures).toEqual([]);
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("a transient failure while permission_denied neither clears nor changes the status", async () => {
+    const { row, prisma } = fakeDb("permission_denied");
+    stubFetch(() => jsonResponse(500, { error: "boom" }));
+
+    await runCycle(prisma, config, "active_set_poll");
+
+    expect(row.status).toBe("permission_denied");
+    expect(row.lastSyncError).toBe("Linear API error 500");
+  });
+
+  it("full lifecycle: connected → permission_denied (Sentry once across repeated 403s) → connected", async () => {
+    const { row, prisma } = fakeDb("connected");
+
+    stubFetch(() => jsonResponse(403, {}));
+    await runCycle(prisma, config, "active_set_poll");
+    expect(row.status).toBe("permission_denied");
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+
+    // Still denied on the next two cycles — no new Sentry event for either.
+    stubFetch(() => jsonResponse(403, {}));
+    await runCycle(prisma, config, "active_set_poll");
+    stubFetch(() => jsonResponse(403, {}));
+    await runCycle(prisma, config, "reconciliation_sweep");
+    expect(row.status).toBe("permission_denied");
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+
+    // Access restored provider-side: the next clean cycle recovers on its own.
+    stubFetch(() => jsonResponse(200, emptyIssuesPage));
+    await runCycle(prisma, config, "active_set_poll");
+    expect(row.status).toBe("connected");
+    expect(row.lastSyncError).toBeNull();
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+
+    // And a fresh loss after recovery is a new incident, reported again.
+    stubFetch(() => jsonResponse(403, {}));
+    await runCycle(prisma, config, "active_set_poll");
+    expect(row.status).toBe("permission_denied");
+    expect(captureExceptionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("never overwrites a disconnect that lands mid-cycle — neither the 403 nor the recovery transition", async () => {
+    const denied = fakeDb("connected");
+    stubFetch(() => {
+      denied.row.status = "disconnected";
+      return jsonResponse(403, {});
+    });
+    await runCycle(denied.prisma, config, "active_set_poll");
+    expect(denied.row.status).toBe("disconnected");
+
+    const recovering = fakeDb("permission_denied");
+    stubFetch(() => {
+      recovering.row.status = "disconnected";
+      return jsonResponse(200, emptyIssuesPage);
+    });
+    await runCycle(recovering.prisma, config, "active_set_poll");
+    expect(recovering.row.status).toBe("disconnected");
+  });
+
+  it("still selects permission_denied integrations for sync, but not disconnected ones", async () => {
+    const { prisma } = fakeDb("permission_denied");
+    const fetchMock = stubFetch(() => jsonResponse(200, emptyIssuesPage));
+
+    await runCycle(prisma, config, "active_set_poll");
+
+    expect(prisma.organization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          integrations: expect.objectContaining({ where: { status: { not: "disconnected" } } }),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,7 +1,7 @@
 export { mapPullRequestToRawEvent, mapTimelineItemToRawEvent } from "./rawEvents";
 export type { RawEventInput } from "./rawEvents";
 export * from "./types";
-export { GithubClient, GithubApiError } from "./client";
+export { GithubClient, GithubApiError, GithubPermissionDeniedError } from "./client";
 export type { GithubClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runGithubBackfill } from "./backfill";

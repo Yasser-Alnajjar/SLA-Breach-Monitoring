@@ -22,6 +22,31 @@ export class GithubApiError extends Error {
   }
 }
 
+/**
+ * The token is still valid, but the user who connected the integration can
+ * no longer read the repository (removed from it, or an org's SAML SSO
+ * enforcement now blocks the token). Distinct from a 401 — reconnecting would
+ * mint the same user's token with the same access, so the fix is restoring
+ * that user's access in GitHub, not a new OAuth grant. Subclasses
+ * `GithubApiError` so existing `status` checks keep working.
+ */
+export class GithubPermissionDeniedError extends GithubApiError {
+  constructor(status: number, errors?: unknown) {
+    super(status, "GitHub denied access to this repository", errors);
+    this.name = "GithubPermissionDeniedError";
+  }
+}
+
+/** GraphQL error `type`s GitHub uses for access problems — returned with HTTP 200, not a 403. */
+const PERMISSION_ERROR_TYPES = new Set(["FORBIDDEN", "INSUFFICIENT_SCOPES"]);
+
+function isPermissionGraphqlError(errors: unknown): boolean {
+  return (
+    Array.isArray(errors) &&
+    errors.some((error) => PERMISSION_ERROR_TYPES.has((error as { type?: unknown } | null)?.type as string))
+  );
+}
+
 export interface GithubClientOptions {
   /**
    * Called at most once per request when GitHub responds 401. Receives the
@@ -110,8 +135,8 @@ export class GithubClient {
     });
 
     // GitHub's secondary rate limits surface as 403 with a Retry-After
-    // header, unlike Linear's plain 429 — a normal 403 (e.g. insufficient
-    // scope) carries no such header and falls through to the error below.
+    // header, unlike Linear's plain 429 — a normal 403 (e.g. lost repo
+    // access) carries no such header and falls through to the checks below.
     if (response.status === 403 && response.headers.has("Retry-After")) {
       const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "60");
       await sleep(retryAfterSeconds * 1000);
@@ -123,11 +148,26 @@ export class GithubClient {
       return this.request<T>(query, variables, true);
     }
 
+    // A 403 without Retry-After can still be rate limiting: primary-limit
+    // exhaustion (`x-ratelimit-remaining: 0`), or a secondary limit GitHub
+    // only identifies in the message body. Both stay a plain GithubApiError,
+    // as before roadmap step 32 — only a non-rate-limit 403 means lost access.
+    if (response.status === 403) {
+      const text = await response.text();
+      if (response.headers.get("x-ratelimit-remaining") === "0" || /rate limit/i.test(text)) {
+        throw new GithubApiError(403, "GitHub API rate limit exceeded");
+      }
+      throw new GithubPermissionDeniedError(403);
+    }
+
     if (!response.ok) {
       throw new GithubApiError(response.status, `GitHub API error ${response.status}`);
     }
 
     const body = (await response.json()) as { data?: T; errors?: unknown };
+    if (isPermissionGraphqlError(body.errors)) {
+      throw new GithubPermissionDeniedError(response.status, body.errors);
+    }
     if (body.errors) {
       throw new GithubApiError(response.status, "GitHub GraphQL query returned errors", body.errors);
     }

@@ -27,7 +27,10 @@ export class IntercomOAuthError extends Error {
  * same Developer Hub), not a `scope` parameter here (Phase 10: stay read-only
  * in v1).
  */
-export function buildAuthorizeUrl(config: Pick<IntercomOAuthConfig, "clientId">, state: string): string {
+export function buildAuthorizeUrl(
+  config: Pick<IntercomOAuthConfig, "clientId">,
+  state: string,
+): string {
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("state", state);
@@ -45,7 +48,10 @@ interface IntercomTokenResponseBody {
  * Linear's form-encoding) and returns the access token under `token`, not
  * `access_token`. No `redirect_uri` here either — same as the authorize step.
  */
-export async function exchangeCodeForToken(code: string, config: IntercomOAuthConfig): Promise<IntercomCredentials> {
+export async function exchangeCodeForToken(
+  code: string,
+  config: IntercomOAuthConfig,
+): Promise<IntercomCredentials> {
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -56,12 +62,17 @@ export async function exchangeCodeForToken(code: string, config: IntercomOAuthCo
     }),
   });
 
-  const parsed = (await response.json().catch(() => null)) as IntercomTokenResponseBody | null;
+  const parsed = (await response
+    .json()
+    .catch(() => null)) as IntercomTokenResponseBody | null;
 
   if (!response.ok || !parsed?.token) {
-    throw new IntercomOAuthError(`Intercom OAuth token request failed with status ${response.status}`, {
-      status: response.status,
-    });
+    throw new IntercomOAuthError(
+      `Intercom OAuth token request failed with status ${response.status}`,
+      {
+        status: response.status,
+      },
+    );
   }
 
   return {

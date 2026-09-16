@@ -75,6 +75,8 @@ const INTEGRATIONS = [
 
 export const HomeView = () => {
   const { status } = useSession();
+  console.log(status);
+
   const isAuthenticated = status === "authenticated";
 
   return (

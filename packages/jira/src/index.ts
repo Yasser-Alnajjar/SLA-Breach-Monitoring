@@ -6,7 +6,7 @@ export {
 } from "./rawEvents";
 export type { RawEventInput } from "./rawEvents";
 export * from "./types";
-export { JiraClient, JiraApiError } from "./client";
+export { JiraClient, JiraApiError, JiraPermissionDeniedError } from "./client";
 export type { JiraClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runJiraBackfill, formatJqlDateTime } from "./backfill";

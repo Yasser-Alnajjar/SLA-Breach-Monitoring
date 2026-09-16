@@ -23,6 +23,20 @@ export class LinearApiError extends Error {
   }
 }
 
+/**
+ * An HTTP 403: the token is still valid, but the user who connected the
+ * integration can no longer read what was asked for. Distinct from a 401 —
+ * reconnecting would mint the same user's token with the same permissions,
+ * so the fix is restoring that user's access in Linear, not a new OAuth
+ * grant. Subclasses `LinearApiError` so existing `status` checks keep working.
+ */
+export class LinearPermissionDeniedError extends LinearApiError {
+  constructor() {
+    super(403, "Linear API error 403: access denied");
+    this.name = "LinearPermissionDeniedError";
+  }
+}
+
 export interface LinearClientOptions {
   /**
    * Called at most once per request when Linear responds 401. Receives the
@@ -132,6 +146,10 @@ export class LinearClient {
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
       return this.request<T>(query, variables, true);
+    }
+
+    if (response.status === 403) {
+      throw new LinearPermissionDeniedError();
     }
 
     if (!response.ok) {

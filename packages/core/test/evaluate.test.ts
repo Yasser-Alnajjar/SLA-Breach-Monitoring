@@ -338,6 +338,21 @@ describe("findCaseCloseEvent", () => {
     expect(findCaseCloseEvent([...baseEvents, closeEvent], minutesAfterStart(100))).toBeNull();
   });
 
+  it("returns a closed Intercom conversation's case_closed event", () => {
+    const closeEvent = {
+      id: "evt-intercom-close",
+      caseId: "case-1",
+      type: "case_closed" as const,
+      occurredAt: minutesAfterStart(50),
+      actor: "agent" as const,
+      system: "intercom" as const,
+      fromState: "open" as const,
+      toState: "resolved" as const,
+      sourceRawEventId: "raw-intercom-close",
+    };
+    expect(findCaseCloseEvent([...baseEvents, closeEvent], minutesAfterStart(100))).toEqual(closeEvent);
+  });
+
   it("ignores a Jira issue reaching a resolved/done category", () => {
     const jiraDone = {
       id: "evt-jira-done",

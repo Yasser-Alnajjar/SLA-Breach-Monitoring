@@ -1,6 +1,8 @@
 export {
   deriveNormalizedEventsForConversation,
   deriveCaseClosedAt,
+  deriveIntercomSubject,
+  normalizeIntercomPriority,
   normalizeIntercomState,
   resolveIntercomActor,
   runIntercomNormalization,
@@ -20,7 +22,12 @@ export {
 } from "./rawEvents";
 export type { RawEventInput } from "./rawEvents";
 export * from "./types";
-export { IntercomClient, IntercomApiError } from "./client";
+export {
+  buildIntercomConversationUrl,
+  IntercomClient,
+  IntercomApiError,
+  IntercomPermissionDeniedError,
+} from "./client";
 export type { IntercomClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runIntercomBackfill } from "./backfill";
@@ -30,5 +37,6 @@ export { buildAuthorizeUrl, exchangeCodeForToken, IntercomOAuthError } from "./o
 export {
   loadFreshIntercomCredentials,
   markReauthRequired,
+  recordIntercomWorkspaceId,
   IntercomReauthRequiredError,
 } from "./tokenLifecycle";

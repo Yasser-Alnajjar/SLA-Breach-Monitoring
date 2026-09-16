@@ -15,6 +15,12 @@ export interface IntercomCredentials {
    * user reconnecting. Cleared automatically on reconnect.
    */
   reauthRequired?: boolean;
+  /**
+   * The workspace's app id (`app.id_code` from `GET /me`), e.g. "v9jrtlg9".
+   * Recorded by the backfill the first time it's missing — the only piece
+   * needed to build an inbox link back to a conversation.
+   */
+  workspaceId?: string;
 }
 
 /** One entry in `conversation.contacts.contacts` — the conversation's participants, not full Contact records. */
@@ -25,6 +31,9 @@ export interface IntercomConversationContactRef {
 
 export interface IntercomConversationSource {
   type: string;
+  subject?: string | null;
+  /** The opening message, as HTML. */
+  body?: string | null;
   author?: { type: string; id: string; name?: string; email?: string };
 }
 
@@ -44,6 +53,11 @@ export interface IntercomConversation {
   admin_assignee_id?: number | string | null;
   contacts?: { contacts: IntercomConversationContactRef[] };
   source?: IntercomConversationSource;
+  title?: string | null;
+  /** Present when the conversation is an Intercom ticket. Only the title attribute is read. */
+  ticket?: {
+    custom_attributes?: { _default_title_?: { value?: string | null } };
+  } | null;
   [key: string]: unknown;
 }
 
@@ -59,8 +73,15 @@ export interface IntercomConversationPart {
   id: string;
   part_type: string;
   created_at: number;
+  /** HTML; null for parts that carry no message (assignments, state changes, ...). */
+  body?: string | null;
   author?: { type: string; id: string; name?: string };
   [key: string]: unknown;
+}
+
+/** `GET /me` — only the workspace identifier is read. */
+export interface IntercomMe {
+  app?: { id_code?: string } | null;
 }
 
 /** `GET /conversations/{id}` — the only endpoint that returns the full part list. */

@@ -161,6 +161,72 @@ export function deriveCaseClosedAt(
   return closureEvent ? new Date(closureEvent.occurredAt) : new Date(conversation.updated_at * 1000);
 }
 
+/**
+ * Intercom's binary conversation priority, mapped onto the Zendesk priority
+ * vocabulary SLA policies match on (`{ priority: ["normal"] }`, etc.) — left
+ * raw, "not_priority"/"priority" would match no policy, so an Intercom case
+ * would never get commitments and never reach the dashboard.
+ */
+const PRIORITY_TO_NORMALIZED_PRIORITY: Record<string, string> = {
+  priority: "high",
+  not_priority: "normal",
+};
+
+export function normalizeIntercomPriority(priority: string | null | undefined): string | null {
+  if (!priority) return null;
+  return PRIORITY_TO_NORMALIZED_PRIORITY[priority] ?? priority;
+}
+
+const MAX_MESSAGE_SUBJECT_LENGTH = 120;
+
+/** Message HTML → one line of plain text, cut to a subject-sized length. */
+function messageHtmlToSubject(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const text = html
+    .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    // Bare links (inline image/attachment URLs) say nothing as a subject.
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text === "") return null;
+  return text.length > MAX_MESSAGE_SUBJECT_LENGTH ? `${text.slice(0, MAX_MESSAGE_SUBJECT_LENGTH - 1).trimEnd()}…` : text;
+}
+
+/**
+ * Display subject for a conversation: its own title, else the ticket's
+ * title attribute (Intercom tickets keep it there, often AI-generated), else
+ * the opening message's email subject. A plain chat that was never made a
+ * ticket has none of those, so it falls back to the opening message's text,
+ * then the first customer comment with any text. Null when all are empty.
+ */
+export function deriveIntercomSubject(
+  conversation: IntercomConversationWithParts,
+  partsForConversation: ConversationPartRecord[] = [],
+): string | null {
+  const ticketTitle = conversation.ticket?.custom_attributes?._default_title_?.value;
+  const explicit = [conversation.title, ticketTitle, conversation.source?.subject].find(
+    (value): value is string => typeof value === "string" && value.trim() !== "",
+  );
+  if (explicit) return explicit.trim();
+
+  const openingMessage = messageHtmlToSubject(conversation.source?.body);
+  if (openingMessage) return openingMessage;
+
+  for (const { part } of sortPartsChronologically(partsForConversation)) {
+    if (part.part_type !== "comment" || resolveIntercomActor(part.author) !== "customer") continue;
+    const text = messageHtmlToSubject(part.body);
+    if (text) return text;
+  }
+  return null;
+}
+
 export interface NormalizationResult {
   customersUpserted: number;
   casesUpserted: number;
@@ -168,16 +234,24 @@ export interface NormalizationResult {
   conversationsFailed: { conversationId: string; error: string }[];
 }
 
-/** Keeps, per string `id` embedded in each row's JSON payload, the row with the latest fetchedAt. */
+/**
+ * Keeps, per string `id` embedded in each row's JSON payload, the row with
+ * the latest fetchedAt. `rawEventIds` lists every snapshot row seen for that
+ * id (not just the latest), so a regenerate-in-place delete can also clear
+ * events an older snapshot sourced.
+ */
 function latestSnapshotById<T extends { id: string }>(
   rows: { id: string; payload: unknown; fetchedAt: Date }[],
-): Map<string, { rawEventId: string; value: T; fetchedAt: Date }> {
-  const byId = new Map<string, { rawEventId: string; value: T; fetchedAt: Date }>();
+): Map<string, { rawEventId: string; value: T; fetchedAt: Date; rawEventIds: string[] }> {
+  const byId = new Map<string, { rawEventId: string; value: T; fetchedAt: Date; rawEventIds: string[] }>();
   for (const row of rows) {
     const value = row.payload as T;
     const existing = byId.get(value.id);
+    const rawEventIds = [...(existing?.rawEventIds ?? []), row.id];
     if (!existing || row.fetchedAt >= existing.fetchedAt) {
-      byId.set(value.id, { rawEventId: row.id, value, fetchedAt: row.fetchedAt });
+      byId.set(value.id, { rawEventId: row.id, value, fetchedAt: row.fetchedAt, rawEventIds });
+    } else {
+      existing.rawEventIds = rawEventIds;
     }
   }
   return byId;
@@ -209,9 +283,9 @@ function groupPartsByConversationId(
  * A conversation's customer is resolved by following its primary contact
  * (`conversation.contacts.contacts[0]`) to that contact's first company —
  * Intercom conversations carry no company id directly, unlike a Zendesk
- * ticket's `organization_id`. A conversation with no contact, or a contact
- * with no company, gets a case with `customerId: null` rather than being
- * skipped — same as an unmatched Zendesk ticket.
+ * ticket's `organization_id`. A contact with no company becomes its own
+ * contact-keyed Customer; only a conversation with no contact at all gets a
+ * case with `customerId: null`.
  */
 export async function runIntercomNormalization(
   prisma: PrismaClient,
@@ -263,32 +337,42 @@ export async function runIntercomNormalization(
   const latestConversations = latestSnapshotById<IntercomConversationWithParts>(conversationRows);
   const partsByConversationId = groupPartsByConversationId(partRows);
 
-  for (const { rawEventId: conversationRawEventId, value: conversation } of latestConversations.values()) {
+  for (const {
+    rawEventId: conversationRawEventId,
+    value: conversation,
+    rawEventIds: conversationSnapshotRawEventIds,
+  } of latestConversations.values()) {
     try {
       const primaryContactId = conversation.contacts?.contacts[0]?.id;
-      const companyId = primaryContactId
-        ? latestContacts.get(primaryContactId)?.value.companies?.data[0]?.id
-        : undefined;
+      const primaryContact = primaryContactId ? latestContacts.get(primaryContactId)?.value : undefined;
+      const companyId = primaryContact?.companies?.data[0]?.id;
       const customer = companyId
         ? await prisma.customer.findUnique({
             where: { organizationId_intercomCompanyId: { organizationId, intercomCompanyId: companyId } },
           })
-        : null;
+        : primaryContactId
+          ? await upsertContactCustomer(primaryContactId, primaryContact, conversation)
+          : null;
+      const priority = normalizeIntercomPriority(conversation.priority);
 
       const partsForConversation = partsByConversationId.get(conversation.id) ?? [];
+      const subject = deriveIntercomSubject(conversation, partsForConversation);
       const derived = deriveNormalizedEventsForConversation(conversation, partsForConversation, conversationRawEventId);
       const closedAt = deriveCaseClosedAt(conversation, derived);
       // Every RawEvent this conversation's own derivation could ever have
-      // sourced an event from — scoping the regenerate-in-place delete to
+      // sourced an event from — every conversation snapshot (each changed
+      // re-fetch is a new RawEvent; an older one's case_created must not
+      // linger as a duplicate) plus its parts. Scoping the regenerate-in-place delete to
       // just these (like @sla/zendesk's normalizer) keeps it from wiping
       // NormalizedEvent rows another provider wrote onto the same case.
-      const ownRawEventIds = [conversationRawEventId, ...partsForConversation.map((p) => p.rawEventId)];
+      const ownRawEventIds = [...conversationSnapshotRawEventIds, ...partsForConversation.map((p) => p.rawEventId)];
 
       const caseRow = await prisma.case.upsert({
         where: { organizationId_externalId: { organizationId, externalId: conversation.id } },
         update: {
           customerId: customer?.id ?? null,
-          priority: conversation.priority ?? null,
+          subject,
+          priority,
           channel: conversation.source?.type ?? null,
           closedAt,
         },
@@ -297,7 +381,8 @@ export async function runIntercomNormalization(
           customerId: customer?.id ?? null,
           externalId: conversation.id,
           system: "intercom",
-          priority: conversation.priority ?? null,
+          subject,
+          priority,
           channel: conversation.source?.type ?? null,
           openedAt: new Date(conversation.created_at * 1000),
           closedAt,
@@ -332,4 +417,24 @@ export async function runIntercomNormalization(
   }
 
   return result;
+
+  /**
+   * A conversation whose primary contact belongs to no company still has a
+   * real customer — the contact themself. Keyed by contact id so the same
+   * person's conversations share one Customer row.
+   */
+  async function upsertContactCustomer(
+    contactId: string,
+    contact: IntercomContact | undefined,
+    conversation: IntercomConversationWithParts,
+  ) {
+    const author = conversation.source?.author;
+    const authorName = author?.id === contactId ? author.name || author.email : undefined;
+    const name = contact?.name || contact?.email || authorName || `Intercom contact ${contactId}`;
+    return prisma.customer.upsert({
+      where: { organizationId_intercomContactId: { organizationId, intercomContactId: contactId } },
+      update: { name },
+      create: { organizationId, name, intercomContactId: contactId },
+    });
+  }
 }

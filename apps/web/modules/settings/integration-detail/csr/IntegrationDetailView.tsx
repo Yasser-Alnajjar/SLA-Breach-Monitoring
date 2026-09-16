@@ -12,6 +12,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { PermissionDeniedBanner } from "@/components/shared/permission-denied-banner";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +80,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     integrationId,
     connectedAt,
     reauthRequired,
+    permissionDenied,
     lastSyncAt,
     lastSyncError,
     backfillCompletedAt,
@@ -122,10 +124,14 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           </div>
 
           <Badge
-            variant={reauthRequired ? "warning" : "success"}
+            variant={reauthRequired || permissionDenied ? "warning" : "success"}
             className="shrink-0"
           >
-            {reauthRequired ? "Needs reconnect" : "Connected"}
+            {reauthRequired
+              ? "Needs reconnect"
+              : permissionDenied
+                ? "Access restricted"
+                : "Connected"}
           </Badge>
         </div>
 
@@ -149,6 +155,12 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           description="Backfill and polling health"
         >
           <div className="space-y-2">
+            {permissionDenied && !reauthRequired && (
+              <PermissionDeniedBanner
+                provider={INTEGRATION_PROVIDER_LABELS[provider]}
+              />
+            )}
+
             <p className={descriptionClass}>
               {backfillCompletedAt
                 ? `90-day backfill complete as of ${Utils.formatDateTimeV2(

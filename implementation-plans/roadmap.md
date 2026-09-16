@@ -838,10 +838,78 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       lost claim sending nothing, and all-channels-failed releasing the
       claim. The ordering, concurrency, and lost-claim tests were confirmed
       to fail against the previous implementation.
-- [ ] **32 — Detect silent permission loss (403)** across all five
+- [x] **32 — Detect silent permission loss (403)** across all five
       `tokenLifecycle.ts` files — today a connecting user losing
       Browse/Read access degrades ingestion silently, with no
       `reauthRequired` signal and no operator-visible symptom.
+      Detection happens in each provider's `client.ts`, not
+      `tokenLifecycle.ts`: a 403 isn't a credentials problem (the token is
+      still valid, so there's nothing for token lifecycle to do), and the
+      clients are where the HTTP status is visible. Each client now throws
+      a `{Provider}PermissionDeniedError` on 403. It subclasses the existing
+      `{Provider}ApiError` with `status: 403`, so existing `status` checks
+      (the webhooks' and Zendesk backfill's 404 handling) behave the same.
+      A 403 never goes through `onUnauthorized`. GitHub has two special
+      cases. First, a 403 that is really rate limiting stays a plain
+      `GithubApiError`, exactly as before. That covers primary-limit
+      exhaustion (`x-ratelimit-remaining: 0`) and secondary limits that
+      GitHub identifies only in the message body ("rate limit"), with no
+      `Retry-After` and a non-zero remaining count. The existing
+      `Retry-After` wait-and-retry is unchanged. GitHub also
+      reports lost access as GraphQL errors with `type: "FORBIDDEN"` (e.g.
+      SAML SSO enforcement) or `"INSUFFICIENT_SCOPES"` inside an HTTP 200,
+      and both are treated as permission loss too. Linear is HTTP-403 only;
+      its GraphQL error shape for forbidden access isn't confirmed here, so
+      it isn't pattern-matched.
+      State lives in a new `IntegrationStatus.permission_denied`
+      (migration `20260914230000_add_integration_permission_denied`, a
+      single `ALTER TYPE ... ADD VALUE`), not in the credentials JSON like
+      `reauthRequired`, since the credentials are fine. The migration was
+      verified by applying all migrations to a throwaway Postgres 16 and
+      running `prisma migrate diff` from that database to `schema.prisma`:
+      no difference. Transitions into and out of `permission_denied` are
+      compare-and-set on the current status (`updateMany` guarded by
+      `status`), in the worker and both webhook receivers. So a
+      disconnect or reconnect that lands mid-cycle is never overwritten:
+      only `connected` becomes `permission_denied`, and only
+      `permission_denied` clears to `connected`. The reauth write path is
+      unchanged. `apps/worker/src/cycle.ts` sets it on a permission error with
+      a `lastSyncError` of "{Provider} denied access — the connecting
+      user's {Provider} permissions may have changed". It clears back to
+      `connected` on the first clean sync, unlike reauth, which only the
+      OAuth callback clears. Restoring the user's access provider-side
+      needs no action in this app. The worker already processes every
+      non-`disconnected` row, so a `permission_denied` integration keeps
+      getting retried and can recover. Sentry capture happens once, on
+      the transition into the status, not on every cycle, so the operator
+      hears about it without being paged every 5 minutes. The Zendesk and
+      Jira webhook receivers do the same: set the status on a permission
+      error (accepted, not retried) and clear it on success.
+      UI: new `PermissionDeniedBanner` (`components/shared/`), deliberately
+      different advice from `ReauthBanner`: ask a provider admin to restore
+      the user's permissions, no reconnect needed. Shown on the integration
+      cards (status indicator "Access restricted", via a new
+      `ConnectedStatus` helper replacing five copies of the reauth ternary)
+      and on `/settings/integrations/[provider]` (badge plus banner).
+      Scope limit, per this step's non-goal: only an actual 403 is caught.
+      A permission change that makes the provider silently return
+      *narrower* results (e.g. Jira JQL dropping a project the user can no
+      longer browse) is still undetectable without per-resource probing or
+      volume heuristics.
+      Tests: new `packages/{jira,intercom}/test/client.test.ts` plus 403
+      cases in the Zendesk/Linear/GitHub client tests. These cover
+      no-refresh-on-403 for all five providers, both GitHub rate-limit
+      exclusions, `RATE_LIMITED` staying generic, and the GraphQL
+      `FORBIDDEN`/`INSUFFICIENT_SCOPES` cases. The root vitest config now
+      also includes `apps/worker/test`. The new `apps/worker/test/cycle.test.ts`
+      drives `runCycle` through Linear's real backfill, client and token
+      lifecycle, with a stubbed `fetch` and a fake Prisma that honors
+      compare-and-set. It covers: 403 → `permission_denied`; 401 → the
+      existing reauth path; 500 → the existing generic path; recovery on a
+      clean sync; a transient error leaving the status alone; Sentry firing
+      once across repeated 403s (and again for a fresh loss after
+      recovery); a mid-cycle disconnect never being overwritten; and
+      `permission_denied` rows still being selected for sync.
 - [ ] **33 — Security headers and CSRF hardening** (CSP/HSTS/X-Frame-Options/
       X-Content-Type-Options; an Origin-header check on state-changing
       `/api/settings/**` and disconnect routes as defense in depth beyond

@@ -95,7 +95,10 @@ export interface CaseDetailData {
     openedAt: string;
     closedAt: string | null;
     customerName: string | null;
-    zendeskUrl: string | null;
+    /** Which ticket source created this case. */
+    system: "zendesk" | "jira" | "linear" | "intercom" | "github";
+    /** Outbound link to the source ticket (Zendesk ticket or Intercom conversation), when buildable. */
+    ticketUrl: string | null;
   };
   currentLeg: Leg;
   commitments: CommitmentDetail[];

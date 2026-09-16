@@ -5,20 +5,54 @@ import {
   type EvaluationScope,
 } from "@sla/commitments";
 import { getIntegrationConfig, type PrismaClient } from "@sla/db";
-import { GithubReauthRequiredError, runGithubBackfill, runGithubCorrelation, runGithubNormalization } from "@sla/github";
-import { IntercomReauthRequiredError, runIntercomBackfill, runIntercomNormalization } from "@sla/intercom";
-import { JiraReauthRequiredError, runJiraBackfill, runJiraCorrelation, runJiraNormalization } from "@sla/jira";
-import { LinearReauthRequiredError, runLinearBackfill, runLinearCorrelation, runLinearNormalization } from "@sla/linear";
+import {
+  GithubPermissionDeniedError,
+  GithubReauthRequiredError,
+  runGithubBackfill,
+  runGithubCorrelation,
+  runGithubNormalization,
+} from "@sla/github";
+import {
+  IntercomPermissionDeniedError,
+  IntercomReauthRequiredError,
+  runIntercomBackfill,
+  runIntercomNormalization,
+} from "@sla/intercom";
+import {
+  JiraPermissionDeniedError,
+  JiraReauthRequiredError,
+  runJiraBackfill,
+  runJiraCorrelation,
+  runJiraNormalization,
+} from "@sla/jira";
+import {
+  LinearPermissionDeniedError,
+  LinearReauthRequiredError,
+  runLinearBackfill,
+  runLinearCorrelation,
+  runLinearNormalization,
+} from "@sla/linear";
 import { runNotificationPipeline } from "@sla/notifications";
 import {
   runZendeskBackfill,
   runZendeskBusinessCalendarImport,
   runZendeskNormalization,
   runZendeskSlaPolicyImport,
+  ZendeskPermissionDeniedError,
   ZendeskReauthRequiredError,
 } from "@sla/zendesk";
 import type { WorkerConfig } from "./config";
 import { captureException } from "./sentry";
+
+function isPermissionDeniedError(error: unknown): boolean {
+  return (
+    error instanceof ZendeskPermissionDeniedError ||
+    error instanceof JiraPermissionDeniedError ||
+    error instanceof LinearPermissionDeniedError ||
+    error instanceof IntercomPermissionDeniedError ||
+    error instanceof GithubPermissionDeniedError
+  );
+}
 
 export type CycleKind = "active_set_poll" | "reconciliation_sweep";
 
@@ -87,7 +121,7 @@ export async function runCycle(
       // ingest with, so the cycle must not touch them.
       integrations: {
         where: { status: { not: "disconnected" } },
-        select: { id: true, provider: true, credentials: true },
+        select: { id: true, provider: true, credentials: true, status: true },
       },
     },
   });
@@ -102,6 +136,8 @@ export async function runCycle(
     for (const integration of orderedIntegrations) {
       let syncError: string | null = null;
       let reauthRequired = false;
+      let permissionDenied = false;
+      const providerLabel = `${integration.provider[0]!.toUpperCase()}${integration.provider.slice(1)}`;
 
       try {
         if (integration.provider === "zendesk") {
@@ -164,16 +200,25 @@ export async function runCycle(
           error instanceof LinearReauthRequiredError ||
           error instanceof IntercomReauthRequiredError ||
           error instanceof GithubReauthRequiredError;
+        // A 403 (roadmap step 32): the token works but the connecting user
+        // lost access provider-side — surfaced as its own status, since the
+        // fix is restoring that user's permissions, not reconnecting.
+        permissionDenied = !reauthRequired && isPermissionDeniedError(error);
         syncError = reauthRequired
-          ? `${integration.provider[0]!.toUpperCase()}${integration.provider.slice(1)} needs to be reconnected`
-          : error instanceof Error
-            ? error.message
-            : String(error);
+          ? `${providerLabel} needs to be reconnected`
+          : permissionDenied
+            ? `${providerLabel} denied access — the connecting user's ${providerLabel} permissions may have changed`
+            : error instanceof Error
+              ? error.message
+              : String(error);
         result.failures.push({ organizationId: organization.id, stage: `ingest:${integration.provider}`, error: syncError });
         // Reauth is an expected, already-surfaced state (the settings page's
         // ReauthBanner) — not a bug — so it's excluded here to keep Sentry
         // for actual failures worth investigating, not routine reauth churn.
-        if (!reauthRequired) {
+        // Permission loss is reported once, on the transition into
+        // `permission_denied`: the operator should hear about it, but not
+        // again on every cycle until the customer fixes it.
+        if (!reauthRequired && !(permissionDenied && integration.status === "permission_denied")) {
           captureException(error, {
             organizationId: organization.id,
             integrationId: integration.id,
@@ -194,6 +239,25 @@ export async function runCycle(
           ...(reauthRequired ? { status: "reauth_required" as const } : {}),
         },
       });
+
+      // `permission_denied` transitions (roadmap step 32) are compare-and-set
+      // on the current status, so a disconnect or reconnect that landed
+      // mid-cycle is never overwritten: only `connected` becomes
+      // `permission_denied`, and only `permission_denied` clears back to
+      // `connected`. Unlike reauth (cleared only by the OAuth callback), that
+      // happens on the first clean sync — restoring the user's access
+      // provider-side needs no action in this app.
+      const permissionTransition = permissionDenied
+        ? { from: "connected" as const, to: "permission_denied" as const }
+        : syncError === null && integration.status === "permission_denied"
+          ? { from: "permission_denied" as const, to: "connected" as const }
+          : null;
+      if (permissionTransition) {
+        await prisma.integration.updateMany({
+          where: { id: integration.id, status: permissionTransition.from },
+          data: { status: permissionTransition.to },
+        });
+      }
     }
 
     // Evaluation runs even when ingestion failed: time keeps passing, so a

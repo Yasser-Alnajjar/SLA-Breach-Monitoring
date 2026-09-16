@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GithubApiError, GithubClient } from "../src/client";
+import { GithubApiError, GithubClient, GithubPermissionDeniedError } from "../src/client";
 import type { GithubCredentials } from "../src/types";
 
 const baseCredentials: GithubCredentials = {
@@ -77,13 +77,62 @@ describe("GithubClient rate-limit handling", () => {
     vi.useRealTimers();
   });
 
-  it("does not retry a plain 403 with no Retry-After header", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(403, { message: "insufficient scope" })));
+  it("does not retry a plain 403 with no Retry-After header — it's lost access", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { message: "Resource not accessible" }));
+    vi.stubGlobal("fetch", fetchMock);
     const client = new GithubClient(baseCredentials);
+
+    const error = await client
+      .searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GithubPermissionDeniedError);
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a 403 with x-ratelimit-remaining: 0 as rate-limit exhaustion, not lost access", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(403, { message: "Forbidden" }, { "x-ratelimit-remaining": "0" }),
+      ),
+    );
+    const client = new GithubClient(baseCredentials);
+
+    const error = await client
+      .searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(error).not.toBeInstanceOf(GithubPermissionDeniedError);
+  });
+
+  it("treats a secondary-rate-limit 403 identified only by its message as rate limiting, not lost access", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(403, { message: "You have exceeded a secondary rate limit. Please wait a few minutes." }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GithubClient(baseCredentials);
+
+    const error = await client
+      .searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(error).not.toBeInstanceOf(GithubPermissionDeniedError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never calls onUnauthorized for a 403", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(403, { message: "Resource not accessible" })));
+    const onUnauthorized = vi.fn();
+    const client = new GithubClient(baseCredentials, { onUnauthorized });
 
     await expect(
       client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
-    ).rejects.toBeInstanceOf(GithubApiError);
+    ).rejects.toBeInstanceOf(GithubPermissionDeniedError);
+    expect(onUnauthorized).not.toHaveBeenCalled();
   });
 });
 
@@ -95,10 +144,43 @@ describe("GithubClient GraphQL error handling", () => {
     );
     const client = new GithubClient(baseCredentials);
 
-    await expect(
-      client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
-    ).rejects.toBeInstanceOf(GithubApiError);
+    const error = await client
+      .searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(error).not.toBeInstanceOf(GithubPermissionDeniedError);
   });
+
+  it("keeps a RATE_LIMITED GraphQL error as a plain GithubApiError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(200, { errors: [{ type: "RATE_LIMITED", message: "rate limited" }] })),
+    );
+    const client = new GithubClient(baseCredentials);
+
+    const error = await client
+      .searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(GithubApiError);
+    expect(error).not.toBeInstanceOf(GithubPermissionDeniedError);
+  });
+
+  it.each(["FORBIDDEN", "INSUFFICIENT_SCOPES"])(
+    "throws GithubPermissionDeniedError for a %s GraphQL error returned with HTTP 200",
+    async (type) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(200, { data: null, errors: [{ type, message: "denied" }] })),
+      );
+      const client = new GithubClient(baseCredentials);
+
+      await expect(
+        client.searchPullRequests("acme", "widgets", "2026-01-01T00:00:00.000Z"),
+      ).rejects.toBeInstanceOf(GithubPermissionDeniedError);
+    },
+  );
 });
 
 describe("GithubClient search filtering", () => {

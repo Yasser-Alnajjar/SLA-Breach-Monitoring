@@ -70,7 +70,9 @@ model Integration {
   /// provider-specific `credentials.reauthRequired` flag each package's
   /// tokenLifecycle.ts already sets — kept in sync here so the settings UI
   /// and worker can read integration health without unpacking per-provider
-  /// JSON. Disconnect is always a soft transition to `disconnected`, never a
+  /// JSON. `permission_denied` (roadmap step 32) has no credentials-JSON
+  /// counterpart — the credentials are fine, the provider-side access isn't.
+  /// Disconnect is always a soft transition to `disconnected`, never a
   /// row delete: `RawEvent.integrationId` cascades on delete and would
   /// destroy the immutable replay log this row anchors.
   status         IntegrationStatus   @default(connected)
@@ -144,6 +146,11 @@ model Customer {
   /// organization and an unrelated Intercom company onto the same Customer
   /// row just because they reused the same upstream numeric id.
   intercomCompanyId String?
+  /// Intercom contact id — the fallback key for a conversation whose primary
+  /// contact belongs to no company (common for self-serve/Messenger users),
+  /// so the case still gets a real customer instead of none. Only ever set
+  /// when `intercomCompanyId` is not.
+  intercomContactId String?
   tier              String?
   /// Optional override (roadmap step 24): which `BusinessCalendar` this
   /// customer's commitments are anchored to, in place of whatever the
@@ -161,6 +168,7 @@ model Customer {
 
   @@unique([organizationId, zendeskOrgId])
   @@unique([organizationId, intercomCompanyId])
+  @@unique([organizationId, intercomContactId])
   @@map("customers")
 }
 
@@ -471,6 +479,11 @@ enum IntegrationStatus {
   connected
   disconnected
   reauth_required
+  // Roadmap step 32: the token still works but the provider answered 403 —
+  // the connecting user lost access on the provider's side. Set by the
+  // worker cycle (and the Zendesk/Jira webhook receivers); cleared back to
+  // `connected` by the next clean sync, since the fix needs no reconnect.
+  permission_denied
 }
 
 enum CaseLinkMethod {

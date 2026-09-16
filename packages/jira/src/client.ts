@@ -11,6 +11,21 @@ export class JiraApiError extends Error {
   }
 }
 
+/**
+ * A 403: the token is still valid, but the user who connected the
+ * integration can no longer read what was asked for (project/site access
+ * revoked on Atlassian's side). Distinct from a 401 — reconnecting would mint
+ * the same user's token with the same permissions, so the fix is restoring
+ * that user's access in Jira, not a new OAuth grant. Subclasses
+ * `JiraApiError` so existing `status` checks keep working.
+ */
+export class JiraPermissionDeniedError extends JiraApiError {
+  constructor(url: string) {
+    super(403, url);
+    this.name = "JiraPermissionDeniedError";
+  }
+}
+
 export interface JiraClientOptions {
   /**
    * Called at most once per request when Jira responds 401. Receives the
@@ -53,6 +68,10 @@ export class JiraClient {
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
       return this.request<T>(path, true);
+    }
+
+    if (response.status === 403) {
+      throw new JiraPermissionDeniedError(url);
     }
 
     if (!response.ok) {

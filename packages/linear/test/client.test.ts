@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LinearApiError, LinearClient } from "../src/client";
+import { LinearApiError, LinearClient, LinearPermissionDeniedError } from "../src/client";
 import type { LinearCredentials } from "../src/types";
 
 const baseCredentials: LinearCredentials = {
@@ -50,6 +50,23 @@ describe("LinearClient 401 handling", () => {
     await expect(client.searchIssues("2026-01-01T00:00:00.000Z")).rejects.toBeInstanceOf(LinearApiError);
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("LinearClient 403 handling", () => {
+  it("throws LinearPermissionDeniedError on a 403 without attempting a token refresh", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { error: "forbidden" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onUnauthorized = vi.fn();
+    const client = new LinearClient(baseCredentials, { onUnauthorized });
+
+    const error = await client.searchIssues("2026-01-01T00:00:00.000Z").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LinearPermissionDeniedError);
+    expect(error).toBeInstanceOf(LinearApiError);
+    expect((error as LinearApiError).status).toBe(403);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

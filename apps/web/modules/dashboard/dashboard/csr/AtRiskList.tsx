@@ -65,6 +65,7 @@ export const AtRiskList = ({ data }: { data: AtRiskRow[] }) => {
                   <Button
                     size="icon"
                     variant={"ghost"}
+                    disabled={table.getFilteredRowModel().rows.length === 0}
                     onClick={() => {
                       const exportRows = table
                         .getFilteredRowModel()

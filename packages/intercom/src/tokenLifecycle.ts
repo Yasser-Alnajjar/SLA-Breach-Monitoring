@@ -71,3 +71,17 @@ export async function markReauthRequired(
   await persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, reauthRequired: true });
   throw new IntercomReauthRequiredError();
 }
+
+/**
+ * Stores the workspace id alongside the token. Compare-and-swap like
+ * `markReauthRequired`, so it never clobbers a concurrent reconnect or
+ * reauth flag — losing that race just means the next run records it.
+ */
+export async function recordIntercomWorkspaceId(
+  prisma: PrismaClient,
+  integrationId: string,
+  current: IntercomCredentials,
+  workspaceId: string,
+): Promise<IntercomCredentials> {
+  return persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, workspaceId });
+}

@@ -23,6 +23,7 @@ export async function getIntegrationDetailData(
     select: {
       id: true,
       connectedAt: true,
+      status: true,
       lastSyncAt: true,
       lastSyncError: true,
       webhookSecret: true,
@@ -47,6 +48,7 @@ export async function getIntegrationDetailData(
     integrationId: integration.id,
     connectedAt: integration.connectedAt,
     reauthRequired: credentials.reauthRequired === true,
+    permissionDenied: integration.status === "permission_denied",
     lastSyncAt: integration.lastSyncAt,
     lastSyncError: integration.lastSyncError,
     backfillCompletedAt: cursor?.backfillCompletedAt ?? null,

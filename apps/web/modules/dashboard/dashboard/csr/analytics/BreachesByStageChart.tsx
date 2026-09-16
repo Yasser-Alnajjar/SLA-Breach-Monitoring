@@ -73,14 +73,30 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                   tickLine={false}
                 />
                 <Tooltip
-                  formatter={(value) => [value, "Breaches"]}
+                  wrapperStyle={{
+                    zIndex: 9999,
+                  }}
                   cursor={{ fill: "var(--interactive)" }}
-                  contentStyle={{
-                    background: "var(--popover)",
-                    borderColor: "var(--border)",
-                    borderRadius: 8,
-                    color: "var(--popover-foreground)",
-                    fontSize: 12,
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+
+                    const entry = payload[0]
+                      ?.payload as (typeof chartData)[number];
+                    const color = LEG_COLORS[entry.leg] ?? "var(--primary)";
+
+                    return (
+                      <div
+                        className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md"
+                        style={{ color }}
+                      >
+                        <div className="font-medium text-foreground">
+                          {entry.label}
+                        </div>
+                        <div className="mt-1 font-semibold">
+                          {entry.count} Breaches
+                        </div>
+                      </div>
+                    );
                   }}
                 />
                 <Bar
@@ -90,10 +106,7 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                   maxBarSize={28}
                 >
                   {chartData.map((entry) => (
-                    <Cell
-                      key={entry.leg}
-                      fill={LEG_COLORS[entry.leg] ?? "var(--primary)"}
-                    />
+                    <Cell key={entry.leg} fill={LEG_COLORS[entry.leg]} />
                   ))}
                 </Bar>
               </BarChart>

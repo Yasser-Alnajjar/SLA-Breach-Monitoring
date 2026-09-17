@@ -2,8 +2,10 @@ import type { PrismaClient } from "@sla/db";
 import {
   runCommitmentPipeline,
   runEvaluationPipeline,
+  runNextReplyCyclePipeline,
   type CommitmentPipelineResult,
   type EvaluationPipelineResult,
+  type NextReplyCyclePipelineResult,
 } from "@sla/commitments";
 import {
   runZendeskBusinessCalendarImport,
@@ -42,6 +44,13 @@ export interface SourceSyncProjectionResult {
   } | null;
   jira: { correlation: CorrelationResult; normalization: JiraNormalizationResult } | null;
   commitments: CommitmentPipelineResult;
+  /**
+   * Unlike `evaluation`, never deferred by `pendingProviders`: Next Reply
+   * cycles are derived only from the case's own ticket-source events
+   * (zendesk/intercom), never Jira's, so an outstanding Jira backfill has no
+   * bearing on them — same treatment as `commitments`.
+   */
+  nextReplyCycles: NextReplyCyclePipelineResult;
   /** Null while `pendingProviders` is non-empty — evaluation is deferred, not skipped. */
   evaluation: EvaluationPipelineResult | null;
   pendingProviders: SourceProvider[];
@@ -78,14 +87,20 @@ async function withSourceSyncLock<T>(
  * the worker's next poll.
  *
  * Mirrors the worker cycle's order (Zendesk, then Jira, then commitments,
- * then evaluation). Every source whose backfill has completed is re-projected
- * from its stored RawEvents, not just the caller's: the other route may have
- * fetched without projecting yet, or run Jira correlation before Zendesk's
- * cases existed. All steps are idempotent, so the redundant pass is harmless.
+ * then Next Reply cycles, then evaluation). Every source whose backfill has
+ * completed is re-projected from its stored RawEvents, not just the
+ * caller's: the other route may have fetched without projecting yet, or run
+ * Jira correlation before Zendesk's cases existed. All steps are idempotent,
+ * so the redundant pass is harmless.
  *
  * Evaluation uses the reconciliation scope ("all"): a commitment finalized
  * before Jira was connected is re-checked against the now-complete event set
- * rather than left on its earlier result.
+ * rather than left on its earlier result. Commitment creation and Next Reply
+ * cycle derivation both run unconditionally, not gated by `pendingProviders`
+ * like evaluation is — see `nextReplyCycles` above for why that's safe.
+ *
+ * One `asOf` snapshot covers commitment creation, cycle derivation, and
+ * evaluation, so all three agree on "now" for this sync.
  */
 export async function projectAndEvaluateSourceSyncs(
   prisma: PrismaClient,
@@ -121,12 +136,15 @@ export async function projectAndEvaluateSourceSyncs(
           }
         : null;
 
+    const asOf = new Date().toISOString();
+
     const commitments = await runCommitmentPipeline(prisma, organizationId);
+    const nextReplyCycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
     const evaluation =
       pendingProviders.length === 0
-        ? await runEvaluationPipeline(prisma, organizationId, { scope: "all" })
+        ? await runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" })
         : null;
 
-    return { zendesk: zendeskResult, jira: jiraResult, commitments, evaluation, pendingProviders };
+    return { zendesk: zendeskResult, jira: jiraResult, commitments, nextReplyCycles, evaluation, pendingProviders };
   });
 }

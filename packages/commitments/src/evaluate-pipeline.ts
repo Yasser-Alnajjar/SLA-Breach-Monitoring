@@ -13,6 +13,7 @@ import {
   type SLAPolicyVersion,
   type WeeklyWindow,
 } from "@sla/core";
+import { COMMITMENT_KINDS } from "./pipeline";
 
 export interface CommitmentRecord {
   id: string;
@@ -228,10 +229,17 @@ export interface EvaluationPipelineResult {
  * `scope: "all"` is the 60-minute reconciliation sweep — re-checks every
  * commitment, including already-finalized ones, as a safety net against a
  * missed or failed active-set cycle. Neither scope includes a `cancelled`
- * commitment — its cycle no longer exists (`persistCycleCommitments`), so
+ * commitment — its cycle no longer exists (`persistNextReplyCommitments`), so
  * there is nothing to measure. Only meaningful evaluations are written
  * (see `shouldPersistEvaluation`), and an Evaluation's id is a deterministic
  * hash of its inputs, so a re-run at the same `asOf` writes nothing twice.
+ *
+ * Scoped to `COMMITMENT_KINDS` (first_response, resolution) only:
+ * `evaluateCommitment` has no support for `next_reply` yet (it throws — see
+ * `findCompletionEvent` in packages/core), so a live Next Reply commitment
+ * created by `runNextReplyCyclePipeline` (cycle-pipeline.ts) is left alone
+ * here rather than landing in `commitmentsFailed` every single sweep. Remove
+ * this filter once Next Reply evaluation is implemented.
  */
 export async function runEvaluationPipeline(
   prisma: PrismaClient,
@@ -253,6 +261,7 @@ export async function runEvaluationPipeline(
     where: {
       case: { organizationId, deletedAt: null },
       status: { not: "cancelled" },
+      kind: { in: COMMITMENT_KINDS },
       ...(scope === "active" ? { closedAt: null } : {}),
     },
   });

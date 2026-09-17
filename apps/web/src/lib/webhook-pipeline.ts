@@ -1,9 +1,12 @@
-import { runCommitmentPipeline, runEvaluationPipeline } from "@sla/commitments";
+import { runCommitmentPipeline, runEvaluationPipeline, runNextReplyCyclePipeline } from "@sla/commitments";
 import { runNotificationPipeline } from "@sla/notifications";
 import type { PrismaClient } from "@sla/db";
 
 export interface WebhookPipelineResult {
   commitmentsCreated: number;
+  cyclesCreated: number;
+  cyclesCancelled: number;
+  cyclesRestored: number;
   commitmentsConsidered: number;
   evaluationsCreated: number;
   commitmentsFinalized: number;
@@ -12,7 +15,7 @@ export interface WebhookPipelineResult {
 }
 
 /**
- * The commitment/evaluation/notification tail of one worker cycle
+ * The commitment/cycle/evaluation/notification tail of one worker cycle
  * (`apps/worker/src/cycle.ts`'s per-organization body), run synchronously
  * right after a webhook receiver ingests one fresh ticket/issue — this is
  * what actually "closes the gap" roadmap step 20 is for: writing a RawEvent
@@ -22,17 +25,26 @@ export interface WebhookPipelineResult {
  * Notification dedup is safe under concurrent execution with the worker's
  * own cycle: both paths go through the same `@@unique([commitmentId,
  * threshold])`-guarded `runNotificationPipeline`.
+ *
+ * One `asOf` snapshot for commitment creation, Next Reply cycle derivation,
+ * and evaluation, so the three agree on "now" for this webhook.
  */
 export async function runWebhookPipelineTail(
   prisma: PrismaClient,
   organizationId: string,
 ): Promise<WebhookPipelineResult> {
+  const asOf = new Date().toISOString();
+
   const commitments = await runCommitmentPipeline(prisma, organizationId);
-  const evaluations = await runEvaluationPipeline(prisma, organizationId, { scope: "active" });
+  const cycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
+  const evaluations = await runEvaluationPipeline(prisma, organizationId, { asOf, scope: "active" });
   const notifications = await runNotificationPipeline(prisma, organizationId, evaluations.notificationCandidates);
 
   return {
     commitmentsCreated: commitments.commitmentsCreated,
+    cyclesCreated: cycles.cyclesCreated,
+    cyclesCancelled: cycles.cyclesCancelled,
+    cyclesRestored: cycles.cyclesRestored,
     commitmentsConsidered: evaluations.commitmentsConsidered,
     evaluationsCreated: evaluations.evaluationsCreated,
     commitmentsFinalized: evaluations.commitmentsFinalized,

@@ -27,6 +27,8 @@ export type {
   PersistNextReplyCommitmentsInput,
   PersistNextReplyCommitmentsResult,
 } from "./cycle-commitments";
+export { runNextReplyCyclePipeline } from "./cycle-pipeline";
+export type { NextReplyCyclePipelineResult } from "./cycle-pipeline";
 export { overridePolicyTargets, PolicyNotFoundError } from "./override";
 export type { PolicyOverrideResult } from "./override";
 export { CalendarNotFoundError, CustomerNotFoundError, setCustomerCalendar } from "./customer-calendar";

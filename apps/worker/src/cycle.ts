@@ -1,6 +1,7 @@
 import {
   runCommitmentPipeline,
   runEvaluationPipeline,
+  runNextReplyCyclePipeline,
   type EvaluationPipelineResult,
   type EvaluationScope,
 } from "@sla/commitments";
@@ -60,6 +61,9 @@ export interface CycleResult {
   kind: CycleKind;
   organizationsProcessed: number;
   commitmentsCreated: number;
+  cyclesCreated: number;
+  cyclesCancelled: number;
+  cyclesRestored: number;
   commitmentsConsidered: number;
   evaluationsCreated: number;
   commitmentsFinalized: number;
@@ -106,6 +110,9 @@ export async function runCycle(
     kind,
     organizationsProcessed: 0,
     commitmentsCreated: 0,
+    cyclesCreated: 0,
+    cyclesCancelled: 0,
+    cyclesRestored: 0,
     commitmentsConsidered: 0,
     evaluationsCreated: 0,
     commitmentsFinalized: 0,
@@ -263,6 +270,11 @@ export async function runCycle(
 
     // Evaluation runs even when ingestion failed: time keeps passing, so a
     // commitment can cross a warn threshold or breach on already-stored events.
+    // One `asOf` snapshot for this organization's whole create -> derive
+    // Next Reply cycles -> evaluate pass, so the three pipelines agree on
+    // "now" instead of each independently calling `new Date()`.
+    const asOf = new Date().toISOString();
+
     try {
       const commitments = await runCommitmentPipeline(prisma, organization.id);
       result.commitmentsCreated += commitments.commitmentsCreated;
@@ -275,9 +287,23 @@ export async function runCycle(
       captureException(error, { organizationId: organization.id, kind, stage: "commitments" });
     }
 
+    try {
+      const cycles = await runNextReplyCyclePipeline(prisma, organization.id, { asOf });
+      result.cyclesCreated += cycles.cyclesCreated;
+      result.cyclesCancelled += cycles.cyclesCancelled;
+      result.cyclesRestored += cycles.cyclesRestored;
+    } catch (error) {
+      result.failures.push({
+        organizationId: organization.id,
+        stage: "next_reply_cycles",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      captureException(error, { organizationId: organization.id, kind, stage: "next_reply_cycles" });
+    }
+
     let notificationCandidates: EvaluationPipelineResult["notificationCandidates"] = [];
     try {
-      const evaluations = await runEvaluationPipeline(prisma, organization.id, { scope: SCOPE_BY_KIND[kind] });
+      const evaluations = await runEvaluationPipeline(prisma, organization.id, { asOf, scope: SCOPE_BY_KIND[kind] });
       result.commitmentsConsidered += evaluations.commitmentsConsidered;
       result.evaluationsCreated += evaluations.evaluationsCreated;
       result.commitmentsFinalized += evaluations.commitmentsFinalized;

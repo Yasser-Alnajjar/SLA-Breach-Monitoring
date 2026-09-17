@@ -11,7 +11,8 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 
-const COMMITMENT_KINDS: CommitmentKind[] = ["first_response", "resolution"];
+/** The single-cycle kinds this pipeline creates. Also `runNextReplyCyclePipeline`'s anchor kinds (cycle-pipeline.ts). */
+export const COMMITMENT_KINDS: CommitmentKind[] = ["first_response", "resolution"];
 
 export interface CaseRecord {
   id: string;
@@ -78,7 +79,8 @@ export function resolveCommitmentCalendarVersion(
   return customerCalendarVersion ?? policyCalendarVersion;
 }
 
-function toCalendarVersionDomain(row: {
+/** Maps a persisted BusinessCalendarVersion row to packages/core's pure `BusinessCalendarVersion`. Shared with `runNextReplyCyclePipeline` (cycle-pipeline.ts). */
+export function toCalendarVersionDomain(row: {
   id: string;
   version: number;
   timezone: string;

@@ -191,12 +191,13 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
       [cycle3!.id, "on_track", null],
     ]);
 
-    // Cancelled commitments are out of the evaluation pipeline's scope (the
-    // live ones fail: evaluating next_reply is not wired up yet).
+    // next_reply is entirely out of the evaluation pipeline's scope (Step 7:
+    // evaluating it isn't wired up yet) — cancelled or live, none of these
+    // three commitments are considered, and none show up as failed.
     const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
     const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf: cancelledAt, scope: "all" });
-    expect(swept.commitmentsConsidered).toBe(2);
-    expect(swept.commitmentsFailed.map((f) => f.commitmentId).sort()).toEqual([cycle1!.id, cycle3!.id].sort());
+    expect(swept.commitmentsConsidered).toBe(0);
+    expect(swept.commitmentsFailed).toEqual([]);
 
     // It comes back: the cancelled row is restored, not duplicated.
     const back = at("15:30").toISOString();
@@ -279,5 +280,48 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
     const created = await prisma.commitment.create({ data });
     expect(created.cycleKey).toBe(core.SINGLE_CYCLE_KEY);
     await expect(prisma.commitment.create({ data })).rejects.toThrow();
+  });
+
+  it("evaluates First Response/Resolution normally while live Next Reply commitments stay out of the evaluation pipeline's scope (Step 7)", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const cycles = await nextReplyRows();
+    expect(cycles).toHaveLength(3);
+    expect(cycles.every((c) => c.status === "on_track" && c.closedAt === null)).toBe(true);
+
+    const firstResponse = await prisma.commitment.create({
+      data: {
+        caseId,
+        kind: "first_response",
+        policyVersionId: policyVersion.id,
+        calendarVersionId: calendarVersion.id,
+        startedAt: at("09:00"),
+        targetMinutes: 120,
+        dueAt: at("11:00"),
+      },
+    });
+
+    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
+    const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" });
+
+    // Only the First Response commitment is considered; the three live Next
+    // Reply commitments are silently out of scope — no commitmentsFailed
+    // entry is generated merely because they exist.
+    expect(swept.commitmentsConsidered).toBe(1);
+    expect(swept.commitmentsFailed).toEqual([]);
+    expect(swept.evaluationsCreated).toBe(1);
+
+    const evaluatedFirstResponse = await prisma.commitment.findUniqueOrThrow({ where: { id: firstResponse.id } });
+    expect(evaluatedFirstResponse.status).toBe("met"); // first agent reply at 09:30, well inside the 120-minute target
+    expect(await prisma.evaluation.count({ where: { commitmentId: firstResponse.id } })).toBe(1);
+
+    // The Next Reply commitments are entirely untouched: same status, no evaluations.
+    const untouchedCycles = await nextReplyRows();
+    expect(untouchedCycles.map((r) => [r.id, r.status, r.closedAt])).toEqual(
+      cycles.map((r) => [r.id, "on_track", null]),
+    );
+    expect(
+      await prisma.evaluation.count({ where: { commitmentId: { in: cycles.map((r) => r.id) } } }),
+    ).toBe(0);
   });
 });

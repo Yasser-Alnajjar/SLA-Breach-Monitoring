@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@sla/db";
+import { runCommitmentPipeline, runEvaluationPipeline, runNextReplyCyclePipeline } from "@sla/commitments";
 import { runCycle } from "../src/cycle";
 import { captureException } from "../src/sentry";
 import type { WorkerConfig } from "../src/config";
@@ -9,6 +10,13 @@ import type { WorkerConfig } from "../src/config";
 vi.mock("../src/sentry", () => ({ captureException: vi.fn() }));
 vi.mock("@sla/commitments", () => ({
   runCommitmentPipeline: vi.fn().mockResolvedValue({ commitmentsCreated: 0 }),
+  runNextReplyCyclePipeline: vi.fn().mockResolvedValue({
+    casesConsidered: 0,
+    cyclesCreated: 0,
+    cyclesCancelled: 0,
+    cyclesRestored: 0,
+    casesFailed: [],
+  }),
   runEvaluationPipeline: vi.fn().mockResolvedValue({
     commitmentsConsidered: 0,
     evaluationsCreated: 0,
@@ -244,5 +252,63 @@ describe("runCycle — provider permission loss (roadmap step 32)", () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runCycle — Next Reply cycle pipeline wiring (Step 7)", () => {
+  function orgOnlyDb(): PrismaClient {
+    return {
+      organization: { findMany: vi.fn(async () => [{ id: "org_1", integrations: [] }]) },
+    } as unknown as PrismaClient;
+  }
+
+  beforeEach(() => {
+    vi.mocked(runCommitmentPipeline).mockClear();
+    vi.mocked(runNextReplyCyclePipeline).mockClear();
+    vi.mocked(runEvaluationPipeline).mockClear();
+  });
+
+  it("runs between commitments and evaluation, sharing one asOf, and rolls its counts into CycleResult", async () => {
+    const prisma = orgOnlyDb();
+    vi.mocked(runNextReplyCyclePipeline).mockResolvedValueOnce({
+      casesConsidered: 3,
+      cyclesCreated: 2,
+      cyclesCancelled: 1,
+      cyclesRestored: 1,
+      casesFailed: [],
+    });
+
+    const result = await runCycle(prisma, config, "active_set_poll");
+
+    expect(runCommitmentPipeline).toHaveBeenCalledWith(prisma, "org_1");
+    expect(runNextReplyCyclePipeline).toHaveBeenCalledTimes(1);
+    expect(runEvaluationPipeline).toHaveBeenCalledTimes(1);
+
+    // create -> derive cycles -> evaluate, in that order.
+    const commitmentsOrder = vi.mocked(runCommitmentPipeline).mock.invocationCallOrder[0]!;
+    const cyclesOrder = vi.mocked(runNextReplyCyclePipeline).mock.invocationCallOrder[0]!;
+    const evaluationOrder = vi.mocked(runEvaluationPipeline).mock.invocationCallOrder[0]!;
+    expect(commitmentsOrder).toBeLessThan(cyclesOrder);
+    expect(cyclesOrder).toBeLessThan(evaluationOrder);
+
+    // One asOf, shared rather than each pipeline computing its own `new Date()`.
+    const [, , cycleOptions] = vi.mocked(runNextReplyCyclePipeline).mock.calls[0]!;
+    const [, , evaluationOptions] = vi.mocked(runEvaluationPipeline).mock.calls[0]!;
+    expect(cycleOptions).toMatchObject({ asOf: expect.any(String) });
+    expect(evaluationOptions).toMatchObject({ asOf: (cycleOptions as { asOf: string }).asOf });
+
+    expect(result.cyclesCreated).toBe(2);
+    expect(result.cyclesCancelled).toBe(1);
+    expect(result.cyclesRestored).toBe(1);
+  });
+
+  it("records a Next Reply cycle pipeline failure without aborting commitments or evaluation", async () => {
+    const prisma = orgOnlyDb();
+    vi.mocked(runNextReplyCyclePipeline).mockRejectedValueOnce(new Error("boom"));
+
+    const result = await runCycle(prisma, config, "active_set_poll");
+
+    expect(result.failures).toEqual([{ organizationId: "org_1", stage: "next_reply_cycles", error: "boom" }]);
+    expect(runEvaluationPipeline).toHaveBeenCalledTimes(1);
   });
 });

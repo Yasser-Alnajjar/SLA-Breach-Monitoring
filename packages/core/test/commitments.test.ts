@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCommitment, matchPolicyVersion } from "../src/commitments.js";
+import { createCommitment, matchPolicyVersion, resolveCommitmentPolicyChange } from "../src/commitments.js";
 import { SINGLE_CYCLE_KEY } from "../src/types";
 import type {
   BusinessCalendarVersion,
@@ -138,5 +138,35 @@ describe("createCommitment", () => {
         calendar,
       ),
     ).toThrow();
+  });
+});
+
+describe("resolveCommitmentPolicyChange", () => {
+  it("reports no change when the matched policy version is the commitment's current one", () => {
+    const resolution = resolveCommitmentPolicyChange(
+      { kind: "resolution", policyVersionId: genericPolicy.id },
+      genericPolicy,
+    );
+    expect(resolution).toEqual({ changed: false, hasTarget: true });
+  });
+
+  it("reports a change generically — the comparison never inspects which CaseAttributes field moved", () => {
+    // p1Policy and p1Tier1Policy differ by priority+tier match criteria, not
+    // by anything resolveCommitmentPolicyChange itself looks at: it only
+    // ever compares ids.
+    const resolution = resolveCommitmentPolicyChange(
+      { kind: "resolution", policyVersionId: p1Policy.id },
+      p1Tier1Policy,
+    );
+    expect(resolution).toEqual({ changed: true, hasTarget: true });
+  });
+
+  it("flags a missing target when the newly matched policy has no target for the commitment's kind", () => {
+    const noNextReply: SLAPolicyVersion = { ...p1Policy, id: "policy-no-next-reply" };
+    const resolution = resolveCommitmentPolicyChange(
+      { kind: "next_reply", policyVersionId: genericPolicy.id },
+      noNextReply,
+    );
+    expect(resolution).toEqual({ changed: true, hasTarget: false });
   });
 });

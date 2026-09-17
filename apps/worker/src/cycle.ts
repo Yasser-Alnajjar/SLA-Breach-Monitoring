@@ -1,5 +1,6 @@
 import {
   runCommitmentPipeline,
+  runCommitmentReResolutionPipeline,
   runEvaluationPipeline,
   runNextReplyCyclePipeline,
   type EvaluationPipelineResult,
@@ -61,6 +62,7 @@ export interface CycleResult {
   kind: CycleKind;
   organizationsProcessed: number;
   commitmentsCreated: number;
+  commitmentsReResolved: number;
   cyclesCreated: number;
   cyclesCancelled: number;
   cyclesRestored: number;
@@ -110,6 +112,7 @@ export async function runCycle(
     kind,
     organizationsProcessed: 0,
     commitmentsCreated: 0,
+    commitmentsReResolved: 0,
     cyclesCreated: 0,
     cyclesCancelled: 0,
     cyclesRestored: 0,
@@ -285,6 +288,22 @@ export async function runCycle(
         error: error instanceof Error ? error.message : String(error),
       });
       captureException(error, { organizationId: organization.id, kind, stage: "commitments" });
+    }
+
+    // Before Next Reply cycle derivation: a future cycle reads its anchor
+    // commitment's *current* policy version fresh from the DB, so a
+    // policy-driving Case attribute change (priority, customer, tier) must
+    // already be re-resolved by the time that pipeline runs.
+    try {
+      const reResolution = await runCommitmentReResolutionPipeline(prisma, organization.id, { asOf });
+      result.commitmentsReResolved += reResolution.commitmentsUpdated;
+    } catch (error) {
+      result.failures.push({
+        organizationId: organization.id,
+        stage: "commitment_re_resolution",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      captureException(error, { organizationId: organization.id, kind, stage: "commitment_re_resolution" });
     }
 
     try {

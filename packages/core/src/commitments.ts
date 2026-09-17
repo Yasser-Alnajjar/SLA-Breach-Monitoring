@@ -70,11 +70,53 @@ export function matchPolicyVersion(
 }
 
 /**
+ * Whether an active Commitment's policy/target needs to change to match
+ * `matchedPolicyVersion` — the currently applicable policy version for the
+ * commitment's case, from a fresh `matchPolicyVersion` call (Active-Commitment
+ * Re-Resolution). Deliberately generic: it compares ids, never a specific
+ * `CaseAttributes` field, so it handles a priority, customer, tier, or any
+ * other future match-driving attribute change through the same path.
+ *
+ * `hasTarget` is false when `matchedPolicyVersion` has no target for the
+ * commitment's `kind` (e.g. the newly-applicable policy dropped `next_reply`)
+ * — the caller must leave the commitment's policy/target untouched in that
+ * case rather than null it out or replace the commitment, since a
+ * misconfigured newly-matched policy is not a reason to destroy an active
+ * SLA commitment.
+ */
+export interface CommitmentPolicyResolution {
+  /** True when `matchedPolicyVersion.id` differs from the commitment's current `policyVersionId`. */
+  changed: boolean;
+  /** False when `matchedPolicyVersion` has no target for the commitment's `kind`. */
+  hasTarget: boolean;
+}
+
+export function resolveCommitmentPolicyChange(
+  commitment: Pick<Commitment, "kind" | "policyVersionId">,
+  matchedPolicyVersion: SLAPolicyVersion,
+): CommitmentPolicyResolution {
+  return {
+    changed: matchedPolicyVersion.id !== commitment.policyVersionId,
+    hasTarget: matchedPolicyVersion.targets.some((t) => t.kind === commitment.kind),
+  };
+}
+
+/**
  * Creates a Commitment for a Case under a specific policy and calendar
  * version, freezing both ids onto the result permanently (Phase 13.1).
  * Later edits to the policy or calendar create new versions and never
  * retroactively affect this commitment. `cycleKey` defaults to
  * `SINGLE_CYCLE_KEY`; a Next Reply commitment passes its cycle's key.
+ *
+ * "Permanently" means for the lifetime of this exact policy match: while the
+ * commitment is still active (unfinalized, uncancelled), Active-Commitment
+ * Re-Resolution may update `policyVersionId`/`targetMinutes`/
+ * `calendarVersionId`/`dueAt` in place if the Case's attributes change enough
+ * that a different policy version now applies — `startedAt`, `cycleKey`, and
+ * the commitment's identity never change. A finalized or cancelled commitment
+ * is never touched by re-resolution, so "permanent" still holds once a
+ * commitment is done. See `resolveCommitmentPolicyChange` and
+ * `runCommitmentReResolutionPipeline` (packages/commitments).
  */
 export function createCommitment(
   caseId: string,

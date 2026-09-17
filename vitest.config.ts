@@ -11,6 +11,7 @@ const realDatabaseSuites = [
   "apps/web/test/multi-commitment-pipeline.test.ts",
   "apps/web/test/event-ordering-persistence.test.ts",
   "apps/web/test/zendesk-requester-name.test.ts",
+  "apps/web/test/commitment-re-resolution.test.ts",
 ];
 
 export default defineConfig({

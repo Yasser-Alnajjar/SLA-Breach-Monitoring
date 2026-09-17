@@ -125,11 +125,21 @@ export interface Commitment {
    * cycle's `NextReplyCycle.key` otherwise.
    */
   cycleKey: string;
-  policyVersionId: string; // frozen at creation — the reproducibility anchor
+  // Frozen at creation, the reproducibility anchor — but while the commitment
+  // is still active (unfinalized, uncancelled), Active-Commitment
+  // Re-Resolution may update this in place, along with `targetMinutes`,
+  // `calendarVersionId`, and `dueAt`, when the Case's attributes change
+  // enough that a different SLAPolicyVersion now applies
+  // (`resolveCommitmentPolicyChange`, packages/commitments'
+  // `runCommitmentReResolutionPipeline`). `startedAt` and the commitment's
+  // identity never change; the prior policy/target is preserved in the
+  // `CommitmentPolicyChange` audit trail, never overwritten silently.
+  policyVersionId: string;
   calendarVersionId: string;
   startedAt: string; // ISO 8601
   targetMinutes: number;
-  // Nominal deadline, frozen at creation as startedAt + target working time.
+  // Nominal deadline — startedAt + target working time under the commitment's
+  // *current* policy/calendar (recomputed by re-resolution when they change).
   // It ignores pauses, so it is not the SLA deadline once a pause can apply —
   // `Evaluation.effectiveDueAt` is.
   dueAt: string; // ISO 8601

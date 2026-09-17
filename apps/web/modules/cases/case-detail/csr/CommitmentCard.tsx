@@ -113,7 +113,7 @@ export const CommitmentCard = ({
 
         <Accordion type="single" collapsible className="mt-3">
           <AccordionItem value="calculation" className="border-b-0">
-            <AccordionTrigger className="items-center justify-start gap-1 py-0 text-xs text-muted-foreground transition-colors hover:text-foreground hover:no-underline [&>svg]:size-3.5 [&>svg]:translate-y-0 [&>svg]:text-current [&>svg]:duration-150">
+            <AccordionTrigger className="cursor-pointer items-center justify-start gap-1 py-0 text-xs text-muted-foreground transition-colors hover:text-foreground hover:no-underline [&>svg]:size-3.5 [&>svg]:translate-y-0 [&>svg]:text-current [&>svg]:duration-150">
               How this was calculated
             </AccordionTrigger>
 

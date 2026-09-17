@@ -328,34 +328,70 @@ model BusinessCalendarVersion {
 
 /// One obligation on one Case. Created once, resolved once. `policyVersionId`
 /// and `calendarVersionId` are frozen at creation — the reproducibility
-/// anchor that keeps historical numbers stable when today's policy changes.
+/// anchor that keeps historical numbers stable when today's policy changes —
+/// but while the commitment is still active (unfinalized, uncancelled),
+/// Active-Commitment Re-Resolution may update them in place, along with
+/// `targetMinutes` and `dueAt`, when the Case's attributes change enough that
+/// a different SLAPolicyVersion now applies (`runCommitmentReResolutionPipeline`
+/// in @sla/commitments). `startedAt`, `cycleKey`, and this row's identity
+/// never change; the prior policy/target is preserved in
+/// `CommitmentPolicyChange`, never overwritten silently. A finalized
+/// (`met`, or `breached` with `closedAt` set) or `cancelled` commitment is
+/// never touched by re-resolution.
 /// One SLA commitment on a case. `cycleKey` tells apart commitments of the
 /// same kind on one case: single-cycle kinds (first_response, resolution)
 /// always use "single"; next_reply has one commitment per reply cycle, keyed
 /// by `nextReplyCycleKey` so a cycle keeps its row across re-evaluation. A
 /// cycle that stops being derived is cancelled, never deleted.
 model Commitment {
-  id                String                  @id @default(cuid())
+  id                String                     @id @default(cuid())
   caseId            String
   kind              CommitmentKind
-  cycleKey          String                  @default("single")
+  cycleKey          String                     @default("single")
   policyVersionId   String
   calendarVersionId String
   startedAt         DateTime
   targetMinutes     Int
   dueAt             DateTime
-  status            CommitmentStatus        @default(on_track)
+  status            CommitmentStatus           @default(on_track)
   closedAt          DateTime?
-  createdAt         DateTime                @default(now())
-  calendarVersion   BusinessCalendarVersion @relation(fields: [calendarVersionId], references: [id])
-  case              Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  policyVersion     SLAPolicyVersion        @relation(fields: [policyVersionId], references: [id])
+  createdAt         DateTime                   @default(now())
+  calendarVersion   BusinessCalendarVersion    @relation(fields: [calendarVersionId], references: [id])
+  case              Case                       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  policyVersion     SLAPolicyVersion           @relation(fields: [policyVersionId], references: [id])
   evaluations       Evaluation[]
   notifications     Notification[]
+  policyChanges     CommitmentPolicyChange[]
 
   @@unique([caseId, kind, cycleKey])
   @@index([status])
   @@map("commitments")
+}
+
+/// Immutable audit record of an active Commitment's policy/target/calendar
+/// changing in place because the currently applicable SLA policy changed
+/// (Active-Commitment Re-Resolution) — never written on commitment creation,
+/// only when re-resolution actually finds a different policy version
+/// applies. Rows are append-only: nothing here is ever updated or deleted
+/// except by cascading with their Commitment. `reason` is a generic string
+/// (e.g. `policy_driving_attribute_changed`), never specific to one Case
+/// attribute — re-resolution has no priority/customer/tier-specific path.
+model CommitmentPolicyChange {
+  id                        String     @id @default(cuid())
+  commitmentId              String
+  previousPolicyVersionId   String
+  newPolicyVersionId        String
+  previousTargetMinutes     Int
+  newTargetMinutes          Int
+  previousCalendarVersionId String
+  newCalendarVersionId      String
+  changedAt                 DateTime
+  reason                    String
+  createdAt                 DateTime   @default(now())
+  commitment                Commitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@index([commitmentId, changedAt])
+  @@map("commitment_policy_changes")
 }
 
 /// A contiguous period during which one leg (support | engineering |

@@ -1,9 +1,15 @@
-import { runCommitmentPipeline, runEvaluationPipeline, runNextReplyCyclePipeline } from "@sla/commitments";
+import {
+  runCommitmentPipeline,
+  runCommitmentReResolutionPipeline,
+  runEvaluationPipeline,
+  runNextReplyCyclePipeline,
+} from "@sla/commitments";
 import { runNotificationPipeline } from "@sla/notifications";
 import type { PrismaClient } from "@sla/db";
 
 export interface WebhookPipelineResult {
   commitmentsCreated: number;
+  commitmentsReResolved: number;
   cyclesCreated: number;
   cyclesCancelled: number;
   cyclesRestored: number;
@@ -26,8 +32,15 @@ export interface WebhookPipelineResult {
  * own cycle: both paths go through the same `@@unique([commitmentId,
  * threshold])`-guarded `runNotificationPipeline`.
  *
- * One `asOf` snapshot for commitment creation, Next Reply cycle derivation,
- * and evaluation, so the three agree on "now" for this webhook.
+ * Re-resolution runs right after commitment creation and before Next Reply
+ * cycle derivation (Active-Commitment Re-Resolution): a webhook can carry a
+ * policy-driving attribute change (priority, customer/organization, tier)
+ * on an already-open case, and a future Next Reply cycle needs its anchor
+ * commitment's policy already re-resolved to pick up the new target.
+ *
+ * One `asOf` snapshot for commitment creation, re-resolution, Next Reply
+ * cycle derivation, and evaluation, so all four agree on "now" for this
+ * webhook.
  */
 export async function runWebhookPipelineTail(
   prisma: PrismaClient,
@@ -36,12 +49,14 @@ export async function runWebhookPipelineTail(
   const asOf = new Date().toISOString();
 
   const commitments = await runCommitmentPipeline(prisma, organizationId);
+  const reResolution = await runCommitmentReResolutionPipeline(prisma, organizationId, { asOf });
   const cycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
   const evaluations = await runEvaluationPipeline(prisma, organizationId, { asOf, scope: "active" });
   const notifications = await runNotificationPipeline(prisma, organizationId, evaluations.notificationCandidates);
 
   return {
     commitmentsCreated: commitments.commitmentsCreated,
+    commitmentsReResolved: reResolution.commitmentsUpdated,
     cyclesCreated: cycles.cyclesCreated,
     cyclesCancelled: cycles.cyclesCancelled,
     cyclesRestored: cycles.cyclesRestored,

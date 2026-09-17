@@ -10,6 +10,14 @@ import type { WorkerConfig } from "../src/config";
 vi.mock("../src/sentry", () => ({ captureException: vi.fn() }));
 vi.mock("@sla/commitments", () => ({
   runCommitmentPipeline: vi.fn().mockResolvedValue({ commitmentsCreated: 0 }),
+  runCommitmentReResolutionPipeline: vi.fn().mockResolvedValue({
+    casesConsidered: 0,
+    activeCommitmentsConsidered: 0,
+    commitmentsUpdated: 0,
+    casesWithNoMatchingPolicy: 0,
+    commitmentsMissingTarget: 0,
+    casesFailed: [],
+  }),
   runNextReplyCyclePipeline: vi.fn().mockResolvedValue({
     casesConsidered: 0,
     cyclesCreated: 0,

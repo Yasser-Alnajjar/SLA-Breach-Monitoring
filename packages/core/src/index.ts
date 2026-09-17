@@ -9,7 +9,8 @@ export { deriveLegSpans, validateLegSpans, sumLegMinutes, legAtTime } from "./le
 export type { DeriveLegSpansOptions } from "./legs";
 export { deriveNextReplyCycles, nextReplyCycleKey } from "./reply-cycles";
 export type { DeriveNextReplyCyclesOptions } from "./reply-cycles";
-export { matchPolicyVersion, createCommitment } from "./commitments";
+export { matchPolicyVersion, createCommitment, resolveCommitmentPolicyChange } from "./commitments";
+export type { CommitmentPolicyResolution } from "./commitments";
 export {
   computeBreachedAt,
   evaluateCommitment,

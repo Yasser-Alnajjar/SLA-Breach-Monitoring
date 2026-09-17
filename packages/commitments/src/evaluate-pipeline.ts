@@ -13,6 +13,7 @@ import {
   type SLAPolicyVersion,
   type WeeklyWindow,
 } from "@sla/core";
+import { ACTIVE_COMMITMENT_WHERE } from "./active-commitment";
 
 export interface CommitmentRecord {
   id: string;
@@ -258,8 +259,11 @@ export async function runEvaluationPipeline(
   const commitmentRows = await prisma.commitment.findMany({
     where: {
       case: { organizationId, deletedAt: null },
-      status: { not: "cancelled" },
-      ...(scope === "active" ? { closedAt: null } : {}),
+      // "all" (the reconciliation sweep) still excludes cancelled commitments
+      // — their cycle no longer exists — but otherwise re-checks every
+      // commitment, finalized or not; "active" narrows to the shared
+      // ACTIVE_COMMITMENT_WHERE definition.
+      ...(scope === "active" ? ACTIVE_COMMITMENT_WHERE : { status: { not: "cancelled" } }),
     },
   });
   result.commitmentsConsidered = commitmentRows.length;

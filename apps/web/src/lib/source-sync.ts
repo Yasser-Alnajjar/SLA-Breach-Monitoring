@@ -1,9 +1,11 @@
 import type { PrismaClient } from "@sla/db";
 import {
   runCommitmentPipeline,
+  runCommitmentReResolutionPipeline,
   runEvaluationPipeline,
   runNextReplyCyclePipeline,
   type CommitmentPipelineResult,
+  type CommitmentReResolutionResult,
   type EvaluationPipelineResult,
   type NextReplyCyclePipelineResult,
 } from "@sla/commitments";
@@ -44,6 +46,7 @@ export interface SourceSyncProjectionResult {
   } | null;
   jira: { correlation: CorrelationResult; normalization: JiraNormalizationResult } | null;
   commitments: CommitmentPipelineResult;
+  reResolution: CommitmentReResolutionResult;
   /**
    * Unlike `evaluation`, never deferred by `pendingProviders`: Next Reply
    * cycles are derived only from the case's own ticket-source events
@@ -87,7 +90,8 @@ async function withSourceSyncLock<T>(
  * the worker's next poll.
  *
  * Mirrors the worker cycle's order (Zendesk, then Jira, then commitments,
- * then Next Reply cycles, then evaluation). Every source whose backfill has
+ * then commitment re-resolution, then Next Reply cycles, then evaluation).
+ * Every source whose backfill has
  * completed is re-projected from its stored RawEvents, not just the
  * caller's: the other route may have fetched without projecting yet, or run
  * Jira correlation before Zendesk's cases existed. All steps are idempotent,
@@ -139,12 +143,21 @@ export async function projectAndEvaluateSourceSyncs(
     const asOf = new Date().toISOString();
 
     const commitments = await runCommitmentPipeline(prisma, organizationId);
+    const reResolution = await runCommitmentReResolutionPipeline(prisma, organizationId, { asOf });
     const nextReplyCycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
     const evaluation =
       pendingProviders.length === 0
         ? await runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" })
         : null;
 
-    return { zendesk: zendeskResult, jira: jiraResult, commitments, nextReplyCycles, evaluation, pendingProviders };
+    return {
+      zendesk: zendeskResult,
+      jira: jiraResult,
+      commitments,
+      reResolution,
+      nextReplyCycles,
+      evaluation,
+      pendingProviders,
+    };
   });
 }

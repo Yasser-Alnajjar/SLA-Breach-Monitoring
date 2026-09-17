@@ -17,27 +17,23 @@ export const useQueryParams = () => {
    * @returns {Object} The query parameters as a key-value object.
    */
   const getQueryObject = () => {
-    if (typeof window === "undefined") return {}; // Prevents server-side execution
-
     const params = new URLSearchParams(searchParams?.toString() || "");
-    const queryObject: Record<string, any> = {}; // Properly initialized
+    const queryObject: Record<string, any> = {};
 
     params.forEach((value, key) => {
-      // Convert value to the appropriate type
       if (value === "true") {
-        queryObject[key] = true; // Parse as boolean
+        queryObject[key] = true;
       } else if (value === "false") {
-        queryObject[key] = false; // Parse as boolean
+        queryObject[key] = false;
       } else if (!isNaN(Number(value))) {
-        queryObject[key] = Number(value); // Parse as number if possible
+        queryObject[key] = Number(value);
       } else {
-        queryObject[key] = value; // Keep as string for everything else
+        queryObject[key] = value;
       }
     });
 
     return queryObject;
   };
-
   /**
    * Creates a query string from an object and updates the URL.
    * @param {Object} queryObject - The object to convert to a query string.

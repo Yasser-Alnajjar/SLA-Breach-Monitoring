@@ -264,6 +264,11 @@ model SLAPolicyVersion {
   calendarVersionId String
   warnAtPercent     Int[]
   effectiveFrom     DateTime
+  /// `imported` versions mirror the provider's policy; `override` versions are
+  /// manual target edits on top of one. The importer only compares against
+  /// the latest `imported` version, so re-importing an unchanged policy
+  /// never reverts an override.
+  source            PolicyVersionSource     @default(imported)
   createdAt         DateTime                @default(now())
   commitments       Commitment[]
   calendarVersion   BusinessCalendarVersion @relation(fields: [calendarVersionId], references: [id])
@@ -355,18 +360,22 @@ model LegSpan {
 /// A point-in-time computation of a Commitment. Immutable snapshot — a
 /// breach is not a separate entity, it is an Evaluation with
 /// status = "breached". `inputs` records exactly what produced this number,
-/// so it can be re-derived and explained months later.
+/// so it can be re-derived and explained months later: its `lastEvent`
+/// names the source event by its immutable RawEvent and the event's own
+/// facts, never by a NormalizedEvent id (those are regenerated on every
+/// normalization run). Durations are whole seconds so a sub-minute SLA
+/// snapshot keeps its exact timing.
 model Evaluation {
-  id                    String           @id @default(cuid())
-  commitmentId          String
-  evaluatedAt           DateTime
-  elapsedWorkingMinutes Int
-  remainingMinutes      Int
-  status                CommitmentStatus
-  breachedByMinutes     Int?
-  inputs                Json
-  createdAt             DateTime         @default(now())
-  commitment            Commitment       @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  commitmentId      String
+  evaluatedAt       DateTime
+  elapsedSeconds    Int
+  remainingSeconds  Int
+  status            CommitmentStatus
+  breachedBySeconds Int?
+  inputs            Json
+  createdAt         DateTime         @default(now())
+  commitment        Commitment       @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
 
   @@index([commitmentId, evaluatedAt])
   @@map("evaluations")
@@ -460,6 +469,11 @@ enum EmailSecurity {
   none
   starttls
   ssl_tls
+}
+
+enum PolicyVersionSource {
+  imported
+  override
 }
 
 enum UserRole {

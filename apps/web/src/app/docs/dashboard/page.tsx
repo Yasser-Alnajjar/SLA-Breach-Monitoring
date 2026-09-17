@@ -52,7 +52,8 @@ const tiles = [
 const charts = [
   {
     name: "Breaches Over Time",
-    description: "A daily line chart of breach counts across the period.",
+    description:
+      "A daily line chart of breach counts across the period, by the UTC day each commitment actually ran out of time (business hours and customer pauses included), not the day it was first synced or evaluated.",
   },
   {
     name: "SLA Compliance",

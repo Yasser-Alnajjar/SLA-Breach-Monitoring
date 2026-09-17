@@ -35,7 +35,6 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
     data.compliance.current !== null && data.compliance.previous !== null
       ? data.compliance.current - data.compliance.previous
       : null;
-  console.log("data.breachedThisPeriod", data.breachedThisPeriod);
 
   return (
     <>

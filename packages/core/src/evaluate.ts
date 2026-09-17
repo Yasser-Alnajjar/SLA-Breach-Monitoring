@@ -1,9 +1,12 @@
-import { computeElapsedWorkingMinutes } from "./elapsed";
+import { computeDeadline, workingMinutesBetween } from "./calendar";
+import { foldClockIntervals, sumRunningWorkingMinutes } from "./elapsed";
 import type {
   BusinessCalendarVersion,
+  ClockState,
   Commitment,
   CommitmentStatus,
   Evaluation,
+  EvaluationEventRef,
   NormalizedEvent,
   SLAPolicyVersion,
 } from "./types";
@@ -88,9 +91,9 @@ const TICKET_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
 ]);
 
 /**
- * The event that determines whether a case is open or closed as of `asOf`:
- * the most recent ticket-source (Zendesk or Intercom) lifecycle event, if
- * any, or null if none has happened yet or the case is currently open.
+ * The event that closed the case, if it is closed as of `asOf`: the first
+ * ticket-source (Zendesk or Intercom) `case_closed` of the *current*
+ * closure, or null if none has happened yet or the case is currently open.
  *
  * Only the ticket source ever anchors a case's lifecycle — a linked Jira issue is
  * never the anchor, and its normalizer never emits `case_created`/
@@ -98,10 +101,16 @@ const TICKET_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
  * (e.g. reaching its own "done" category) can never close or reopen a case
  * here, regardless of when it lands relative to Zendesk's own events.
  *
- * Looking at the *most recent* lifecycle event, not merely "did a
- * case_closed ever happen", is what lets a Zendesk ticket that was solved
- * and later reopened correctly resume SLA tracking instead of staying
- * permanently resolved.
+ * Open vs closed is decided by the *most recent* lifecycle event, not
+ * merely "did a case_closed ever happen", which is what lets a Zendesk
+ * ticket that was solved and later reopened correctly resume SLA tracking
+ * instead of staying permanently resolved.
+ *
+ * But the event returned is the earliest `case_closed` in the unbroken run
+ * of closes ending at that most recent event: Zendesk's solved -> closed
+ * (typically an automation days later) is a second `case_closed` that
+ * doesn't reopen anything, so the case closed at the solve, not the
+ * auto-close.
  */
 export function findCaseCloseEvent(
   events: NormalizedEvent[],
@@ -116,8 +125,29 @@ export function findCaseCloseEvent(
     )
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-  const last = lifecycleEvents[lifecycleEvents.length - 1];
-  return last && last.type === "case_closed" ? last : null;
+  let closure: NormalizedEvent | null = null;
+  for (const event of lifecycleEvents) {
+    if (event.type !== "case_closed") closure = null;
+    else closure ??= event;
+  }
+  return closure;
+}
+
+/**
+ * Where a commitment's SLA clock stops as of `asOf`: the close instant if
+ * the case is closed (`findCaseCloseEvent`), otherwise `asOf` itself. The
+ * single cutoff rule `evaluateCommitment` and `computeBreachedAt` both use,
+ * so the status and the breach instant can never disagree about when the
+ * clock stopped.
+ */
+export function resolveClockCutoff(
+  events: NormalizedEvent[],
+  asOf: string,
+): { closeEvent: NormalizedEvent | null; cutoff: string } {
+  const closeEvent = findCaseCloseEvent(events, asOf);
+  const cutoff =
+    closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
+  return { closeEvent, cutoff };
 }
 
 /**
@@ -143,9 +173,7 @@ export function evaluateCommitment(
     .filter((e) => e.caseId === commitment.caseId)
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-  const closeEvent = findCaseCloseEvent(caseEvents, asOf);
-  const effectiveAsOf =
-    closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
+  const { closeEvent, cutoff: effectiveAsOf } = resolveClockCutoff(caseEvents, asOf);
 
   const eventsUpToCutoff = caseEvents.filter(
     (e) => e.occurredAt <= effectiveAsOf,
@@ -155,11 +183,14 @@ export function evaluateCommitment(
       ? eventsUpToCutoff[eventsUpToCutoff.length - 1]!
       : null;
 
-  const { elapsedWorkingMinutes } = computeElapsedWorkingMinutes(
+  const fold = foldClockIntervals(
     caseEvents,
     policyVersion.pauseOnStates,
-    calendar,
     effectiveAsOf,
+  );
+  const elapsedWorkingMinutes = sumRunningWorkingMinutes(
+    fold.runningIntervals,
+    calendar,
   );
   const remainingMinutes = commitment.targetMinutes - elapsedWorkingMinutes;
 
@@ -181,14 +212,37 @@ export function evaluateCommitment(
     warnThresholdCrossed = highestCrossedThreshold;
   }
 
+  const clockState: ClockState = closeEvent
+    ? "stopped"
+    : fold.currentPause
+      ? "paused"
+      : "running";
+
+  let effectiveDueAt: string | null = null;
+  if (status === "breached") {
+    effectiveDueAt = targetCrossingInstant(
+      fold.runningIntervals,
+      commitment.targetMinutes,
+      calendar,
+    );
+  } else if (clockState === "running") {
+    effectiveDueAt = projectDeadline(effectiveAsOf, remainingMinutes, calendar);
+  }
+
+  const elapsedSeconds = toWholeSeconds(elapsedWorkingMinutes);
+  const remainingSeconds = commitment.targetMinutes * 60 - elapsedSeconds;
+
   const inputs = {
-    lastEventId: lastEvent?.id ?? null,
+    lastEvent: lastEvent ? toEventRef(lastEvent) : null,
     policyVersionId: policyVersion.id,
     calendarVersionId: calendar.id,
   };
 
+  const lastEventKey = inputs.lastEvent
+    ? `${inputs.lastEvent.sourceRawEventId}:${inputs.lastEvent.type}:${inputs.lastEvent.occurredAt}:${inputs.lastEvent.toState}`
+    : null;
   const id = stableHash(
-    `${commitment.id}|${inputs.lastEventId}|${inputs.policyVersionId}|${inputs.calendarVersionId}|${asOf}`,
+    `${commitment.id}|${lastEventKey}|${inputs.policyVersionId}|${inputs.calendarVersionId}|${asOf}`,
   );
 
   return {
@@ -199,7 +253,110 @@ export function evaluateCommitment(
     remainingMinutes,
     status,
     breachedByMinutes: remainingMinutes < 0 ? -remainingMinutes : undefined,
+    elapsedSeconds,
+    remainingSeconds,
+    breachedBySeconds: remainingSeconds < 0 ? -remainingSeconds : undefined,
+    clock: {
+      state: clockState,
+      pausedSince: clockState === "paused" ? fold.currentPause!.since : null,
+      pauseCause: clockState === "paused" ? fold.currentPause!.cause : null,
+    },
+    effectiveDueAt,
     warnThresholdCrossed,
     inputs,
   };
+}
+
+/**
+ * Whole seconds in a working-minute count, rounded down. Event timestamps
+ * are millisecond-precise, so the tolerance only absorbs floating-point
+ * drift from summing minute fractions (e.g. 33.99999999997 → 34), never a
+ * real fraction of a second.
+ */
+function toWholeSeconds(minutes: number): number {
+  return Math.floor(minutes * 60 + 1e-6);
+}
+
+function toEventRef(event: NormalizedEvent): EvaluationEventRef {
+  return {
+    sourceRawEventId: event.sourceRawEventId,
+    system: event.system,
+    type: event.type,
+    occurredAt: event.occurredAt,
+    toState: event.toState,
+  };
+}
+
+/**
+ * The deadline if the clock keeps running from `from`. Null when the calendar
+ * has no working time within `computeDeadline`'s search horizon — a
+ * misconfigured calendar must not make the evaluation itself fail, since
+ * elapsed time and status never depended on it.
+ */
+function projectDeadline(
+  from: string,
+  remainingMinutes: number,
+  calendar: BusinessCalendarVersion,
+): string | null {
+  try {
+    return computeDeadline(from, remainingMinutes, calendar).toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The instant the running clock first accumulated `targetMinutes` working
+ * minutes across `runningIntervals`.
+ */
+function targetCrossingInstant(
+  runningIntervals: { start: Date; end: Date }[],
+  targetMinutes: number,
+  calendar: BusinessCalendarVersion,
+): string | null {
+  let remaining = targetMinutes;
+  for (const interval of runningIntervals) {
+    const available = workingMinutesBetween(interval.start, interval.end, calendar);
+    if (available >= remaining) {
+      return computeDeadline(interval.start, remaining, calendar).toISOString();
+    }
+    remaining -= available;
+  }
+
+  // Only reachable through floating-point drift when elapsed lands exactly
+  // on the target at the cutoff: the crossing is the end of the last
+  // running interval.
+  const last = runningIntervals[runningIntervals.length - 1];
+  return last ? last.end.toISOString() : null;
+}
+
+/**
+ * The instant a commitment actually breached: the moment its running SLA
+ * clock (working minutes per `calendar`, excluding `pauseOnStates` pauses)
+ * first reached `targetMinutes`. `null` unless `evaluateCommitment` reports
+ * the commitment `breached` as of `asOf` — a met, on-track or at-risk
+ * commitment has no breach instant.
+ *
+ * Derived from events, never stored ("store events, never store computed
+ * time"), and independent of when it was evaluated: a later `asOf` (the
+ * next poll, a reconciliation sweep days later) returns the same instant,
+ * because the clock's running intervals before the crossing don't change.
+ * Only new or corrected events before that instant can move it, which is
+ * the point. `Commitment.dueAt` isn't this: it's frozen at creation and
+ * ignores pauses.
+ *
+ * Consistent with `evaluateCommitment`'s own boundary: an open commitment
+ * is breached once elapsed reaches the target, so the crossing can be the
+ * `asOf` instant itself; a closed one only once it strictly exceeds the
+ * target before the close, so the crossing is always before the close.
+ */
+export function computeBreachedAt(
+  commitment: Commitment,
+  events: NormalizedEvent[],
+  policyVersion: SLAPolicyVersion,
+  calendar: BusinessCalendarVersion,
+  asOf: string,
+): string | null {
+  const evaluation = evaluateCommitment(commitment, events, policyVersion, calendar, asOf);
+  return evaluation.status === "breached" ? evaluation.effectiveDueAt : null;
 }

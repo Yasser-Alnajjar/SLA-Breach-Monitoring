@@ -58,7 +58,12 @@ export async function getSlaPolicies(
   return policies
     .filter((policy) => policy.versions.length > 0)
     .map((policy) => {
-      const imported = policy.versions[0]!;
+      // The baseline is the latest version the importer wrote, not the first:
+      // after a Zendesk-side change, "Imported" should show Zendesk's current
+      // targets. Overrides sit on top of it (`source: "override"`).
+      const imported =
+        [...policy.versions].reverse().find((version) => version.source === "imported") ??
+        policy.versions[0]!;
       const latest = policy.versions.at(-1)!;
 
       const importedTargets = normalizeTargets(imported.targets);

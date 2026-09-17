@@ -342,7 +342,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk connect evaluates imported commitme
       expect(met.status).toBe("met");
       expect(met.closedAt).not.toBeNull();
       expect(met.evaluations).toHaveLength(1);
-      expect(met.evaluations[0]).toMatchObject({ status: "met", elapsedWorkingMinutes: 5 });
+      expect(met.evaluations[0]).toMatchObject({ status: "met", elapsedSeconds: 5 * 60 });
     });
 
     it("finalizes a historically breached ticket as breached, with closedAt and an Evaluation", async () => {
@@ -352,7 +352,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk connect evaluates imported commitme
       expect(breached.status).toBe("breached");
       expect(breached.closedAt).not.toBeNull();
       expect(breached.evaluations).toHaveLength(1);
-      expect(breached.evaluations[0]).toMatchObject({ status: "breached", breachedByMinutes: 30 });
+      expect(breached.evaluations[0]).toMatchObject({ status: "breached", breachedBySeconds: 30 * 60 });
     });
 
     it("leaves no terminal case with a default on_track / unfinalized / unevaluated commitment", async () => {
@@ -413,7 +413,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk connect evaluates imported commitme
       expect(linked.status).toBe(expected.status);
       expect(evaluation).toMatchObject({
         status: expected.status,
-        elapsedWorkingMinutes: Math.round(expected.elapsedWorkingMinutes),
+        elapsedSeconds: expected.elapsedSeconds,
       });
       await expectNoUnfinalizedTerminalCommitments();
     }

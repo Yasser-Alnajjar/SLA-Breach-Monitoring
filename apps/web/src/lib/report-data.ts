@@ -161,8 +161,9 @@ export async function getComplianceReportRows(
       return {
         ...base,
         status: evaluation?.status ?? row.status,
-        elapsedWorkingMinutes: evaluation?.elapsedWorkingMinutes ?? null,
-        breachedByMinutes: evaluation?.breachedByMinutes ?? null,
+        elapsedWorkingMinutes: evaluation ? evaluation.elapsedSeconds / 60 : null,
+        breachedByMinutes:
+          evaluation?.breachedBySeconds != null ? evaluation.breachedBySeconds / 60 : null,
       };
     }
 

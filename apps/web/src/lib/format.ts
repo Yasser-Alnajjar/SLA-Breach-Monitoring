@@ -13,6 +13,23 @@ export function formatMinutes(totalMinutes: number): string {
   return (totalMinutes < 0 ? "-" : "") + parts.join(" ");
 }
 
+/**
+ * Formats a signed second count for SLA timing: "1m 26s" under an hour, where
+ * seconds matter, and "1d 2h 3m" (like `formatMinutes`) beyond it.
+ */
+export function formatSeconds(totalSeconds: number): string {
+  const abs = Math.abs(Math.trunc(totalSeconds));
+  if (abs >= 3600) return (totalSeconds < 0 ? "-" : "") + formatMinutes(Math.floor(abs / 60));
+
+  const minutes = Math.floor(abs / 60);
+  const seconds = abs % 60;
+  const parts: string[] = [];
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (minutes === 0 || seconds > 0) parts.push(`${seconds}s`);
+
+  return (totalSeconds < 0 ? "-" : "") + parts.join(" ");
+}
+
 const LEG_LABELS: Record<string, string> = {
   support: "Support",
   engineering: "Engineering",
@@ -143,6 +160,31 @@ export function formatDateTime(iso: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+/**
+ * The target and deadline line under a commitment's remaining time. Built
+ * only from the evaluator's pause-aware fields: a paused clock has no due
+ * time to show, so it says when the pause began instead of a fixed deadline.
+ */
+export function formatCommitmentDeadline(commitment: {
+  status: string;
+  targetMinutes: number;
+  clockState: "running" | "paused" | "stopped";
+  pausedSince: string | null;
+  effectiveDueAt: string | null;
+}): string {
+  const target = `Target ${formatMinutes(commitment.targetMinutes)}`;
+  if (commitment.status === "breached" && commitment.effectiveDueAt) {
+    return `${target} · Breached ${formatDateTime(commitment.effectiveDueAt)}`;
+  }
+  if (commitment.clockState === "paused" && commitment.pausedSince) {
+    return `${target} · Paused since ${formatDateTime(commitment.pausedSince)}, no due time until the clock resumes`;
+  }
+  if (commitment.clockState === "running" && commitment.effectiveDueAt) {
+    return `${target} · Due ${formatDateTime(commitment.effectiveDueAt)}`;
+  }
+  return target;
 }
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

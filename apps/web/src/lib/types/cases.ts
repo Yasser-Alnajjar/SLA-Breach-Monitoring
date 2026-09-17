@@ -1,4 +1,5 @@
 import type {
+  ClockState,
   CommitmentKind,
   CommitmentStatus,
   EngineeringLegEvaluation,
@@ -17,11 +18,20 @@ export interface CommitmentDetail {
   status: CommitmentStatus;
   startedAt: string;
   targetMinutes: number;
-  dueAt: string;
   closedAt: string | null;
-  elapsedWorkingMinutes: number;
-  remainingMinutes: number;
-  breachedByMinutes: number | null;
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  breachedBySeconds: number | null;
+  /** The SLA clock at `asOf`, from the same evaluation as the numbers above. */
+  clockState: ClockState;
+  pausedSince: string | null;
+  /**
+   * The pause-aware deadline (or breach instant) from `evaluateCommitment`;
+   * null while paused before the target, since no due time is knowable
+   * then. The stored `Commitment.dueAt` is deliberately not exposed here:
+   * it is a nominal startedAt + target that ignores pauses.
+   */
+  effectiveDueAt: string | null;
   policyVersion: {
     id: string;
     version: number;

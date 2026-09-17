@@ -22,7 +22,9 @@ export interface PolicyOverrideResult {
  * keeps a no-op submission from creating a redundant version. Existing
  * commitments keep pointing at whatever version they were created under
  * (`Commitment.policyVersionId` is frozen at creation) — only future
- * commitments pick up the override.
+ * commitments pick up the override. Written as `source: "override"` so the
+ * Zendesk importer, which compares only against imported versions, leaves
+ * it in place until the policy actually changes in Zendesk.
  */
 export async function overridePolicyTargets(
   prisma: PrismaClient,
@@ -62,6 +64,7 @@ export async function overridePolicyTargets(
       calendarVersionId: latestVersion.calendarVersionId,
       warnAtPercent: latestVersion.warnAtPercent,
       effectiveFrom: new Date(),
+      source: "override",
     },
   });
 

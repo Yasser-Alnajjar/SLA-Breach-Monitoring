@@ -7,6 +7,7 @@ export { deriveLegSpans, validateLegSpans, sumLegMinutes, legAtTime } from "./le
 export type { DeriveLegSpansOptions } from "./legs";
 export { matchPolicyVersion, createCommitment } from "./commitments";
 export {
+  computeBreachedAt,
   evaluateCommitment,
   findCaseCloseEvent,
   evaluateEngineeringLegTarget,

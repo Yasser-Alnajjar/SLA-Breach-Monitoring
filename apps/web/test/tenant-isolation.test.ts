@@ -174,9 +174,9 @@ async function seedOrg(prisma: PrismaClient, label: string, now: Date): Promise<
     data: {
       commitmentId: closed.id,
       evaluatedAt: new Date(openedAt.getTime() + 45 * 60_000),
-      elapsedWorkingMinutes: 45,
-      remainingMinutes: -15,
-      breachedByMinutes: 15,
+      elapsedSeconds: 45 * 60,
+      remainingSeconds: -15 * 60,
+      breachedBySeconds: 15 * 60,
       status: "breached",
       inputs: {},
     },

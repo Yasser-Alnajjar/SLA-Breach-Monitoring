@@ -162,7 +162,16 @@ export function resolvePolicyCalendarVersion(
   return { calendarVersionId: defaultCalendarVersion.id, scheduleUnresolved: true };
 }
 
-async function upsertPolicyVersion(
+/**
+ * Appends an `imported` version when Zendesk's policy content differs from
+ * the last one we imported. Compares against the latest *imported* version,
+ * not the latest version: a manual override (`source: "override"`, roadmap
+ * step 19) sits on top of an imported version, and comparing Zendesk's
+ * unchanged targets against the override would revert it on the next sync.
+ * A real change on the Zendesk side still creates a new imported version,
+ * which supersedes any override made against the old one.
+ */
+export async function upsertPolicyVersion(
   prisma: PrismaClient,
   organizationId: string,
   externalId: string,
@@ -175,18 +184,24 @@ async function upsertPolicyVersion(
     create: { organizationId, externalId, name },
   });
 
-  const latestVersion = await prisma.sLAPolicyVersion.findFirst({
-    where: { policyId: policy.id },
-    orderBy: { version: "desc" },
-  });
+  const [latestVersion, latestImportedVersion] = await Promise.all([
+    prisma.sLAPolicyVersion.findFirst({
+      where: { policyId: policy.id },
+      orderBy: { version: "desc" },
+    }),
+    prisma.sLAPolicyVersion.findFirst({
+      where: { policyId: policy.id, source: "imported" },
+      orderBy: { version: "desc" },
+    }),
+  ]);
 
   if (
-    latestVersion &&
+    latestImportedVersion &&
     policyVersionContentEquals(
       {
-        match: latestVersion.match as SLAPolicyMatch,
-        targets: latestVersion.targets as { kind: CommitmentKind; minutes: number }[],
-        calendarVersionId: latestVersion.calendarVersionId,
+        match: latestImportedVersion.match as SLAPolicyMatch,
+        targets: latestImportedVersion.targets as { kind: CommitmentKind; minutes: number }[],
+        calendarVersionId: latestImportedVersion.calendarVersionId,
       },
       desired,
     )
@@ -204,6 +219,7 @@ async function upsertPolicyVersion(
       calendarVersionId: desired.calendarVersionId,
       warnAtPercent: WARN_AT_PERCENT,
       effectiveFrom: new Date(),
+      source: "imported",
     },
   });
   return true;
@@ -223,9 +239,9 @@ export interface SlaPolicyImportResult {
  * `RawEvent` (sla_policy snapshots) -> `SLAPolicy`/`SLAPolicyVersion`
  * (Phase 10: "imported from Zendesk first, editable second"). Idempotent:
  * re-running only creates a new version when a policy's match or targets
- * actually changed since the last import. No fuzzy matching — a filter
- * condition or metric this importer doesn't understand is dropped and
- * counted, never guessed at.
+ * actually changed since the last import, so a manual override survives
+ * until then. No fuzzy matching — a filter condition or metric this
+ * importer doesn't understand is dropped and counted, never guessed at.
  */
 export async function runZendeskSlaPolicyImport(
   prisma: PrismaClient,

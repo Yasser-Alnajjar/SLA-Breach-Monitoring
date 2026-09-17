@@ -96,6 +96,7 @@ describe("overridePolicyTargets", () => {
       pauseOnStates: ["pending_customer"],
       calendarVersionId: "calv_1",
       warnAtPercent: [50, 80, 95],
+      source: "override",
     });
     expect(row.effectiveFrom.getTime()).toBeGreaterThanOrEqual(before);
   });

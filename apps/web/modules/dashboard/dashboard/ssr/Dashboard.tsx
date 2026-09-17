@@ -1,6 +1,7 @@
 import { Actions } from "@/actions";
 
 import { DashboardView } from "../csr/DashboardView";
+import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 
 /**
  * `AppShell` is itself an async server component (it reads the session
@@ -10,6 +11,14 @@ import { DashboardView } from "../csr/DashboardView";
  */
 export const Dashboard = async () => {
   const data = await Actions.Dashboard.getData();
+  const worker = await Actions.WorkerSettings.getData();
 
-  return <DashboardView data={data} />;
+  return (
+    <>
+      <DashboardView data={data} />
+      <SlaAutoRefreshProvider
+        initInterval={worker.activePollIntervalMs - 2000}
+      />
+    </>
+  );
 };

@@ -6,6 +6,7 @@ import {
   type Commitment,
   type CommitmentKind,
   type CommitmentStatus,
+  type Evaluation,
   type NormalizedEvent,
   type NormalizedEventType,
   type NormalizedState,
@@ -122,6 +123,62 @@ export function shouldPersistEvaluation(
   if (previousStatus === null) return true;
   if (status !== previousStatus) return true;
   return terminal && !alreadyFinalized;
+}
+
+/**
+ * The provider's own id for each RawEvent an evaluation's `lastEvent` was
+ * derived from (e.g. `ticket_audit:39016977009682`), so a persisted snapshot
+ * names its source in the provider's terms too, not only by RawEvent row id.
+ */
+async function loadProviderEventIds(
+  prisma: PrismaClient,
+  evaluations: Evaluation[],
+): Promise<Map<string, string>> {
+  const rawEventIds = [
+    ...new Set(
+      evaluations.flatMap((e) =>
+        e.inputs.lastEvent ? [e.inputs.lastEvent.sourceRawEventId] : [],
+      ),
+    ),
+  ];
+  if (rawEventIds.length === 0) return new Map();
+  const rows = await prisma.rawEvent.findMany({
+    where: { id: { in: rawEventIds } },
+    select: { id: true, providerEventId: true },
+  });
+  return new Map(rows.map((row) => [row.id, row.providerEventId]));
+}
+
+/**
+ * Maps an `evaluateCommitment` result onto an `evaluations` row: whole
+ * seconds for durations (never truncated minutes), and `inputs.lastEvent` as
+ * the stable source-event reference plus its provider event id when known.
+ */
+export function toEvaluationCreateInput(
+  evaluation: Evaluation,
+  providerEventIdByRawEventId: Map<string, string> = new Map(),
+): Prisma.EvaluationCreateManyInput {
+  const { lastEvent } = evaluation.inputs;
+  const inputs = {
+    ...evaluation.inputs,
+    lastEvent: lastEvent
+      ? {
+          ...lastEvent,
+          providerEventId:
+            providerEventIdByRawEventId.get(lastEvent.sourceRawEventId) ?? null,
+        }
+      : null,
+  };
+  return {
+    id: evaluation.id,
+    commitmentId: evaluation.commitmentId,
+    evaluatedAt: new Date(evaluation.evaluatedAt),
+    elapsedSeconds: evaluation.elapsedSeconds,
+    remainingSeconds: evaluation.remainingSeconds,
+    status: evaluation.status,
+    breachedBySeconds: evaluation.breachedBySeconds ?? null,
+    inputs: inputs as unknown as Prisma.InputJsonValue,
+  };
 }
 
 export type EvaluationScope = "active" | "all";
@@ -263,7 +320,7 @@ export async function runEvaluationPipeline(
     else eventsByCaseId.set(row.caseId, [domainEvent]);
   }
 
-  const evaluationsToCreate: Prisma.EvaluationCreateManyInput[] = [];
+  const evaluationsToCreate: Evaluation[] = [];
   const commitmentUpdates: {
     id: string;
     status: CommitmentStatus;
@@ -316,16 +373,7 @@ export async function runEvaluationPipeline(
           row.closedAt !== null,
         )
       ) {
-        evaluationsToCreate.push({
-          id: evaluation.id,
-          commitmentId: evaluation.commitmentId,
-          evaluatedAt: new Date(evaluation.evaluatedAt),
-          elapsedWorkingMinutes: evaluation.elapsedWorkingMinutes,
-          remainingMinutes: evaluation.remainingMinutes,
-          status: evaluation.status,
-          breachedByMinutes: evaluation.breachedByMinutes ?? null,
-          inputs: evaluation.inputs as unknown as Prisma.InputJsonValue,
-        });
+        evaluationsToCreate.push(evaluation);
       }
 
       if (evaluation.status !== row.status || (terminal && !row.closedAt)) {
@@ -345,8 +393,14 @@ export async function runEvaluationPipeline(
   }
 
   if (evaluationsToCreate.length > 0) {
+    const providerEventIdByRawEventId = await loadProviderEventIds(
+      prisma,
+      evaluationsToCreate,
+    );
     const created = await prisma.evaluation.createMany({
-      data: evaluationsToCreate,
+      data: evaluationsToCreate.map((evaluation) =>
+        toEvaluationCreateInput(evaluation, providerEventIdByRawEventId),
+      ),
       skipDuplicates: true,
     });
     result.evaluationsCreated = created.count;

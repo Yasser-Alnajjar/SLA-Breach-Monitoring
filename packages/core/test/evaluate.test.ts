@@ -203,7 +203,13 @@ describe("evaluateCommitment", () => {
       minutesAfterStart(100),
     );
     expect(evaluation.inputs).toEqual({
-      lastEventId: "evt-1",
+      lastEvent: {
+        sourceRawEventId: "raw-1",
+        system: "zendesk",
+        type: "case_created",
+        occurredAt: "2026-09-07T09:00:00.000Z",
+        toState: "open",
+      },
       policyVersionId: policy.id,
       calendarVersionId: alwaysOpen.id,
     });
@@ -263,7 +269,113 @@ describe("evaluateCommitment", () => {
     const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(250));
     expect(evaluation.status).toBe("breached");
   });
+
+  it("stops the clock at the solve, not at a later solved -> closed auto-close", () => {
+    // Solved at 200m (inside the 240m target); a Zendesk automation closes
+    // it four days later. The close doesn't reopen anything, so elapsed
+    // must stay at 200m rather than running until the auto-close.
+    const events = [
+      ...baseEvents,
+      zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(200)),
+      zendeskEvent("case_closed", "resolved", "closed", minutesAfterStart(4 * 24 * 60), "system"),
+    ];
+    const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(5 * 24 * 60));
+    expect(evaluation.status).toBe("met");
+    expect(evaluation.elapsedWorkingMinutes).toBe(200);
+    expect(evaluation.remainingMinutes).toBe(40);
+  });
+
+  it("stops the clock at the final solve of a solve -> reopen -> solve -> auto-close ticket", () => {
+    const events = [
+      ...baseEvents,
+      zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(50)),
+      zendeskEvent("state_changed", "resolved", "open", minutesAfterStart(60), "customer"),
+      zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(230)),
+      zendeskEvent("case_closed", "resolved", "closed", minutesAfterStart(4 * 24 * 60), "system"),
+    ];
+    const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(5 * 24 * 60));
+    expect(evaluation.status).toBe("met");
+    expect(evaluation.elapsedWorkingMinutes).toBe(230);
+  });
+
+  it("does not let a linked Jira transition end a Zendesk customer pause (ticket 20 regression)", () => {
+    // Zendesk: created 21:33:56, pending 21:37:12, solved 22:43:48, auto-closed
+    // four days later. Jira: in_progress at 22:42:16 while Zendesk is still
+    // pending. Previously Jira ended the pause and the clock ran to the
+    // auto-close (~5787m, breached); only the 3m16s before pending count.
+    const firstResponse: Commitment = {
+      ...commitment,
+      kind: "first_response",
+      startedAt: "2026-09-09T21:33:56.000Z",
+      targetMinutes: 60,
+      dueAt: "2026-09-09T22:33:56.000Z",
+    };
+    const pausingPolicy: SLAPolicyVersion = { ...policy, pauseOnStates: ["pending_customer"] };
+    const events: NormalizedEvent[] = [
+      zendeskEvent("case_created", null, "new", "2026-09-09T21:33:56.000Z", "customer"),
+      jiraEvent(null, "new", "2026-09-09T21:34:02.821Z"),
+      jiraEvent("new", "in_progress", "2026-09-09T21:34:14.984Z"),
+      zendeskEvent("state_changed", "new", "open", "2026-09-09T21:35:48.000Z"),
+      jiraEvent("in_progress", "resolved", "2026-09-09T21:36:32.180Z"),
+      zendeskEvent("state_changed", "open", "pending_customer", "2026-09-09T21:37:12.000Z"),
+      jiraEvent("resolved", "in_progress", "2026-09-09T22:42:16.591Z"),
+      zendeskEvent("case_closed", "pending_customer", "resolved", "2026-09-09T22:43:48.000Z"),
+      jiraEvent("in_progress", "resolved", "2026-09-13T09:12:30.113Z"),
+      zendeskEvent("case_closed", "resolved", "closed", "2026-09-13T23:05:50.000Z", "system"),
+    ];
+
+    const evaluation = evaluateCommitment(
+      firstResponse,
+      events,
+      pausingPolicy,
+      alwaysOpen,
+      "2026-09-17T09:00:00.000Z",
+    );
+    expect(evaluation.status).toBe("met");
+    expect(evaluation.elapsedWorkingMinutes).toBeCloseTo(196 / 60, 5);
+  });
 });
+
+let helperSeq = 0;
+function zendeskEvent(
+  type: NormalizedEvent["type"],
+  fromState: NormalizedEvent["fromState"],
+  toState: NormalizedEvent["toState"],
+  occurredAt: string,
+  actor: NormalizedEvent["actor"] = "agent",
+): NormalizedEvent {
+  helperSeq += 1;
+  return {
+    id: `evt-zd-${helperSeq}`,
+    caseId: "case-1",
+    type,
+    occurredAt,
+    actor,
+    system: "zendesk",
+    fromState,
+    toState,
+    sourceRawEventId: `raw-zd-${helperSeq}`,
+  };
+}
+
+function jiraEvent(
+  fromState: NormalizedEvent["fromState"],
+  toState: NormalizedEvent["toState"],
+  occurredAt: string,
+): NormalizedEvent {
+  helperSeq += 1;
+  return {
+    id: `evt-jira-${helperSeq}`,
+    caseId: "case-1",
+    type: "state_changed",
+    occurredAt,
+    actor: "agent",
+    system: "jira",
+    fromState,
+    toState,
+    sourceRawEventId: `raw-jira-${helperSeq}`,
+  };
+}
 
 describe("evaluateEngineeringLegTarget", () => {
   it("is on_track well below the target while the leg is still open", () => {
@@ -393,6 +505,31 @@ describe("findCaseCloseEvent", () => {
     };
     expect(findCaseCloseEvent([...baseEvents, solved, reopened], minutesAfterStart(100))).toBeNull();
   });
+
+  it("returns the solve, not the later solved -> closed auto-close", () => {
+    const solved = zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(50));
+    const autoClosed = zendeskEvent("case_closed", "resolved", "closed", minutesAfterStart(5000), "system");
+    expect(findCaseCloseEvent([...baseEvents, solved, autoClosed], minutesAfterStart(6000))).toEqual(solved);
+    // Before the auto-close has happened the answer is the same solve.
+    expect(findCaseCloseEvent([...baseEvents, solved, autoClosed], minutesAfterStart(100))).toEqual(solved);
+  });
+
+  it("returns the solve that followed the latest reopen, not the first solve", () => {
+    const firstSolve = zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(50));
+    const reopened = zendeskEvent("state_changed", "resolved", "open", minutesAfterStart(60), "customer");
+    const secondSolve = zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(90));
+    const autoClosed = zendeskEvent("case_closed", "resolved", "closed", minutesAfterStart(5000), "system");
+    expect(
+      findCaseCloseEvent([...baseEvents, firstSolve, reopened, secondSolve, autoClosed], minutesAfterStart(6000)),
+    ).toEqual(secondSolve);
+  });
+
+  it("is not reset by a Jira transition landing between the solve and the auto-close", () => {
+    const solved = zendeskEvent("case_closed", "open", "resolved", minutesAfterStart(50));
+    const jira = jiraEvent("resolved", "in_progress", minutesAfterStart(70));
+    const autoClosed = zendeskEvent("case_closed", "resolved", "closed", minutesAfterStart(5000), "system");
+    expect(findCaseCloseEvent([...baseEvents, solved, jira, autoClosed], minutesAfterStart(6000))).toEqual(solved);
+  });
 });
 
 describe("evaluateCommitment with out-of-order and empty event lists", () => {
@@ -425,7 +562,7 @@ describe("evaluateCommitment with out-of-order and empty event lists", () => {
   it("gives the same Evaluation, id included, for a shuffled event list", () => {
     const expected = evaluateCommitment(commitment, chronological, pausingPolicy, alwaysOpen, minutesAfterStart(300));
     expect(expected).toMatchObject({ status: "met", elapsedWorkingMinutes: 110 });
-    expect(expected.inputs.lastEventId).toBe("evt-solved");
+    expect(expected.inputs.lastEvent?.sourceRawEventId).toBe("raw-evt-solved");
 
     const shuffles = [
       [...chronological].reverse(),
@@ -446,11 +583,11 @@ describe("evaluateCommitment with out-of-order and empty event lists", () => {
     expect(reversed.map((e) => e.id)).toEqual(snapshot);
   });
 
-  it("uses the chronologically last event up to asOf as lastEventId, not the last array element", () => {
+  it("uses the chronologically last event up to asOf as lastEvent, not the last array element", () => {
     // asOf is before the close, so the case is still paused-then-open and live.
     const shuffled = [chronological[3]!, chronological[2]!, chronological[0]!, chronological[1]!];
     const evaluation = evaluateCommitment(commitment, shuffled, pausingPolicy, alwaysOpen, minutesAfterStart(120));
-    expect(evaluation.inputs.lastEventId).toBe("evt-reply");
+    expect(evaluation.inputs.lastEvent?.sourceRawEventId).toBe("raw-evt-reply");
     expect(evaluation.status).toBe("on_track");
     expect(evaluation.elapsedWorkingMinutes).toBe(80);
   });
@@ -465,10 +602,10 @@ describe("evaluateCommitment with out-of-order and empty event lists", () => {
       minutesAfterStart(120),
     );
     expect(evaluation.status).toBe("on_track");
-    expect(evaluation.inputs.lastEventId).toBe("evt-reply");
+    expect(evaluation.inputs.lastEvent?.sourceRawEventId).toBe("raw-evt-reply");
   });
 
-  it("is on_track with nothing elapsed and no lastEventId for an empty event list", () => {
+  it("is on_track with nothing elapsed and no lastEvent for an empty event list", () => {
     // The clock starts at the first event, not commitment.startedAt, so no
     // events means no elapsed time however late asOf is. Unreachable in
     // practice: every ticket source writes case_created at the case's open
@@ -480,7 +617,7 @@ describe("evaluateCommitment with out-of-order and empty event lists", () => {
       remainingMinutes: 240,
       warnThresholdCrossed: undefined,
       breachedByMinutes: undefined,
-      inputs: { lastEventId: null, policyVersionId: policy.id, calendarVersionId: alwaysOpen.id },
+      inputs: { lastEvent: null, policyVersionId: policy.id, calendarVersionId: alwaysOpen.id },
     });
     expect(evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000)).id).toBe(evaluation.id);
   });

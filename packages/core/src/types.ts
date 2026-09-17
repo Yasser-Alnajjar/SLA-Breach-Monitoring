@@ -98,9 +98,33 @@ export interface Commitment {
   calendarVersionId: string;
   startedAt: string; // ISO 8601
   targetMinutes: number;
+  // Nominal deadline, frozen at creation as startedAt + target working time.
+  // It ignores pauses, so it is not the SLA deadline once a pause can apply —
+  // `Evaluation.effectiveDueAt` is.
   dueAt: string; // ISO 8601
   status: CommitmentStatus;
   closedAt?: string;
+}
+
+/**
+ * The SLA clock at an evaluation's cutoff, from the same event fold that
+ * produced its elapsed time: `running`, `paused` on a `pauseOnStates` state,
+ * or `stopped` because the case is closed.
+ */
+export type ClockState = "running" | "paused" | "stopped";
+
+/**
+ * A stable reference to the normalized event an Evaluation was based on.
+ * NormalizedEvent ids are regenerated on every normalization run, so this
+ * names the event by what survives that: the immutable RawEvent it was
+ * derived from plus the event's own facts.
+ */
+export interface EvaluationEventRef {
+  sourceRawEventId: string;
+  system: SourceSystem;
+  type: NormalizedEventType;
+  occurredAt: string; // ISO 8601
+  toState: NormalizedState | null;
 }
 
 export interface Evaluation {
@@ -111,6 +135,22 @@ export interface Evaluation {
   remainingMinutes: number;
   status: CommitmentStatus;
   breachedByMinutes?: number;
+  // Whole-second forms of the minute fields above, for persistence and
+  // display: `elapsedSeconds` rounds down, and `remainingSeconds` is exactly
+  // `targetMinutes * 60 - elapsedSeconds`.
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  breachedBySeconds?: number;
+  clock: {
+    state: ClockState;
+    pausedSince: string | null; // ISO 8601, set only while paused
+    pauseCause: NormalizedState | null;
+  };
+  // When the target is (or was) reached per the event fold: the breach
+  // instant once breached, the projected deadline while running, and null
+  // when it can't be known yet (paused before the target) or never came
+  // (closed within target). Unlike `Commitment.dueAt`, it accounts for pauses.
+  effectiveDueAt: string | null;
   // The highest `warnAtPercent` threshold crossed this evaluation, or
   // `BREACH_NOTIFICATION_THRESHOLD` once breached. Undefined for on_track,
   // met, and cancelled — nothing to notify. This is what
@@ -121,7 +161,7 @@ export interface Evaluation {
   // through 50% -> 80% -> 95% without its coarse status ever changing.
   warnThresholdCrossed?: number;
   inputs: {
-    lastEventId: string | null;
+    lastEvent: EvaluationEventRef | null;
     policyVersionId: string;
     calendarVersionId: string;
   };
@@ -153,6 +193,12 @@ export interface PausedInterval {
   start: string; // ISO 8601
   end: string; // ISO 8601, exclusive
   cause: NormalizedState;
+}
+
+export interface ClockFold {
+  runningIntervals: { start: Date; end: Date }[];
+  pausedIntervals: PausedInterval[];
+  currentPause: { since: string; cause: NormalizedState } | null;
 }
 
 export interface ElapsedResult {

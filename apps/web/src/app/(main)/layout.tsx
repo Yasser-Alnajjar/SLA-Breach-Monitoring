@@ -26,8 +26,6 @@ export const metadata: Metadata = {
 
 export default async function AppLayout({ children }: AppLayoutProps) {
   const session = await getServerSession(authOptions);
-  const data = await Actions.WorkerSettings.getData();
-
   return (
     <SidebarProvider>
       <AppSidebar user={session?.user!} />
@@ -40,9 +38,6 @@ export default async function AppLayout({ children }: AppLayoutProps) {
             <Link href="/docs">Documentation</Link>
           </Button>
         </header>
-        <SlaAutoRefreshProvider
-          initInterval={data.activePollIntervalMs - 2000}
-        />
         <main className="mx-auto min-w-0 w-full max-w-7xl flex-1 px-4 py-4">
           {children}
         </main>

@@ -204,4 +204,95 @@ describe("computeElapsedWorkingMinutes", () => {
     expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [11-12)
     expect(result.pausedIntervals).toHaveLength(1);
   });
+
+  it("does not let a linked Jira transition end a Zendesk customer pause", () => {
+    const events = [
+      event({ type: "case_created", system: "zendesk", toState: "open", occurredAt: "2026-09-07T09:00:00.000Z" }),
+      event({
+        type: "state_changed",
+        system: "zendesk",
+        fromState: "open",
+        toState: "pending_customer",
+        occurredAt: "2026-09-07T10:00:00.000Z",
+      }),
+      // Engineering picks up the linked issue — the ticket is still waiting on the customer.
+      event({
+        type: "state_changed",
+        system: "jira",
+        fromState: "new",
+        toState: "in_progress",
+        occurredAt: "2026-09-07T11:00:00.000Z",
+      }),
+      event({
+        type: "state_changed",
+        system: "jira",
+        fromState: "in_progress",
+        toState: "resolved",
+        occurredAt: "2026-09-07T12:00:00.000Z",
+      }),
+      event({
+        type: "state_changed",
+        system: "zendesk",
+        fromState: "pending_customer",
+        toState: "open",
+        occurredAt: "2026-09-07T14:00:00.000Z",
+      }),
+    ];
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T15:00:00.000Z");
+    expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [14-15)
+    expect(result.pausedIntervals).toEqual([
+      { start: "2026-09-07T10:00:00.000Z", end: "2026-09-07T14:00:00.000Z", cause: "pending_customer" },
+    ]);
+  });
+
+  it("stays paused until every system reporting a customer wait has left it", () => {
+    const events = [
+      event({ type: "case_created", system: "zendesk", toState: "open", occurredAt: "2026-09-07T09:00:00.000Z" }),
+      event({
+        type: "state_changed",
+        system: "zendesk",
+        fromState: "open",
+        toState: "pending_customer",
+        occurredAt: "2026-09-07T10:00:00.000Z",
+      }),
+      event({
+        type: "state_changed",
+        system: "jira",
+        fromState: "in_progress",
+        toState: "pending_customer",
+        occurredAt: "2026-09-07T11:00:00.000Z",
+      }),
+      // Zendesk leaves its wait, but Jira still reports one — clock stays paused.
+      event({
+        type: "state_changed",
+        system: "zendesk",
+        fromState: "pending_customer",
+        toState: "open",
+        occurredAt: "2026-09-07T12:00:00.000Z",
+      }),
+      event({
+        type: "state_changed",
+        system: "jira",
+        fromState: "pending_customer",
+        toState: "in_progress",
+        occurredAt: "2026-09-07T13:00:00.000Z",
+      }),
+    ];
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T14:00:00.000Z");
+    expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [13-14)
+    expect(result.pausedIntervals).toEqual([
+      { start: "2026-09-07T10:00:00.000Z", end: "2026-09-07T13:00:00.000Z", cause: "pending_customer" },
+    ]);
+  });
+
+  it("keeps a Zendesk pause through a Jira issue created while it is in effect", () => {
+    const events = [
+      event({ type: "case_created", system: "zendesk", toState: "pending_customer", occurredAt: "2026-09-07T09:00:00.000Z" }),
+      // A linked issue's first normalized event carries its initial state.
+      event({ type: "state_changed", system: "jira", toState: "new", occurredAt: "2026-09-07T10:00:00.000Z" }),
+    ];
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T12:00:00.000Z");
+    expect(result.elapsedWorkingMinutes).toBe(0);
+    expect(result.pausedIntervals).toHaveLength(1);
+  });
 });

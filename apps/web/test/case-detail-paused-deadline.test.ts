@@ -1,0 +1,130 @@
+/**
+ * Ticket #45 regression (Case D): a commitment whose clock is paused must not
+ * show its nominal `Commitment.dueAt` (startedAt + target, blind to pauses)
+ * as the deadline on the case detail page.
+ */
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { PrismaClient } from "@sla/db";
+import { describe, expect, it } from "vitest";
+import { CommitmentCard } from "../modules/cases/case-detail/csr/CommitmentCard";
+import { getCaseDetailData } from "@/lib/case-detail-data";
+import { formatDateTime } from "@/lib/format";
+
+const OPENED = new Date("2026-09-17T09:19:30.000Z");
+const NOMINAL_DUE = new Date("2026-09-17T09:21:30.000Z");
+const PAUSED = new Date("2026-09-17T09:20:04.000Z");
+const AS_OF = new Date("2026-09-17T09:23:00.000Z");
+
+function fakePrisma(events: { type: string; occurredAt: Date; fromState: string | null; toState: string }[]) {
+  const commitment = {
+    id: "commitment-45",
+    caseId: "case-45",
+    kind: "first_response" as const,
+    policyVersionId: "pv-6",
+    calendarVersionId: "cal-24-7",
+    startedAt: OPENED,
+    targetMinutes: 2,
+    dueAt: NOMINAL_DUE,
+    status: "on_track" as const,
+    closedAt: null,
+    createdAt: OPENED,
+  };
+  return {
+    case: {
+      findFirst: async () => ({
+        id: "case-45",
+        organizationId: "org-1",
+        externalId: "45",
+        system: "zendesk",
+        subject: "ticket#45",
+        priority: "urgent",
+        tier: null,
+        channel: "web",
+        openedAt: OPENED,
+        closedAt: null,
+        customer: null,
+        caseLinks: [],
+        commitments: [commitment],
+      }),
+    },
+    normalizedEvent: {
+      findMany: async () =>
+        events.map((e, index) => ({
+          id: `evt-${index}`,
+          caseId: "case-45",
+          actor: "customer",
+          system: "zendesk",
+          sourceRawEventId: "raw-audit",
+          ...e,
+        })),
+    },
+    integration: { findUnique: async () => null },
+    organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
+    sLAPolicyVersion: {
+      findMany: async () => [
+        {
+          id: "pv-6",
+          policyId: "policy",
+          version: 6,
+          match: { priority: ["urgent"] },
+          targets: [{ kind: "first_response", minutes: 2 }],
+          pauseOnStates: ["pending_customer"],
+          calendarVersionId: "cal-24-7",
+          warnAtPercent: [50, 80, 95],
+          effectiveFrom: new Date("2026-09-17T09:14:41.625Z"),
+        },
+      ],
+    },
+    businessCalendarVersion: {
+      findMany: async () => [
+        { id: "cal-24-7", version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true },
+      ],
+    },
+  } as unknown as PrismaClient;
+}
+
+const created = { type: "case_created", occurredAt: OPENED, fromState: null, toState: "open" };
+const pending = { type: "state_changed", occurredAt: PAUSED, fromState: "open", toState: "pending_customer" };
+
+async function renderFirstResponse(events: (typeof created | typeof pending)[]) {
+  const data = await getCaseDetailData(fakePrisma(events), "org-1", "case-45", AS_OF);
+  const commitment = data!.commitments[0]!;
+  const html = renderToStaticMarkup(createElement(CommitmentCard, { commitment }));
+  return { commitment, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
+}
+
+describe("case detail commitment deadline (ticket #45)", () => {
+  it("Case D: a paused commitment shows Paused and its exact remaining time, never the nominal Due", async () => {
+    const { commitment, text } = await renderFirstResponse([created, pending]);
+
+    expect(commitment).toMatchObject({
+      status: "on_track",
+      clockState: "paused",
+      pausedSince: PAUSED.toISOString(),
+      effectiveDueAt: null,
+      elapsedSeconds: 34,
+      remainingSeconds: 86,
+    });
+    expect(commitment).not.toHaveProperty("dueAt");
+
+    expect(text).toContain("On track");
+    expect(text).toContain("Paused");
+    expect(text).toContain("1m 26s remaining");
+    expect(text).toContain(`Paused since ${formatDateTime(PAUSED.toISOString())}`);
+    expect(text).not.toContain("Due ");
+    expect(text).not.toContain(formatDateTime(NOMINAL_DUE.toISOString()));
+  });
+
+  it("a running commitment shows Running and its pause-aware due time", async () => {
+    const asOfBeforeDue = new Date("2026-09-17T09:20:00.000Z");
+    const data = await getCaseDetailData(fakePrisma([created]), "org-1", "case-45", asOfBeforeDue);
+    const commitment = data!.commitments[0]!;
+    const text = renderToStaticMarkup(createElement(CommitmentCard, { commitment })).replace(/<[^>]+>/g, " ");
+
+    expect(commitment).toMatchObject({ clockState: "running", effectiveDueAt: NOMINAL_DUE.toISOString() });
+    expect(text).toContain("Running");
+    expect(text).toContain("1m 30s remaining");
+    expect(text).toContain(`Due ${formatDateTime(NOMINAL_DUE.toISOString())}`);
+  });
+});

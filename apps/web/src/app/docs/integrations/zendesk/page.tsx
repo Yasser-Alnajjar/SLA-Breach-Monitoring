@@ -264,7 +264,15 @@ export default function ZendeskIntegrationPage() {
               placeholder: plain{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{`{{ticket.updated_at}}`}</code>{" "}
               renders only a date (e.g. &ldquo;May 18&rdquo;), so those requests
-              are rejected with <code className="rounded bg-muted px-1.5 py-0.5 text-xs">401</code>. This closes the last few minutes of latency between polls — it
+              are rejected with <code className="rounded bg-muted px-1.5 py-0.5 text-xs">401</code>.
+              Zendesk&rsquo;s <strong>Test webhook</strong> button sends a sample
+              body with no <code className="rounded bg-muted px-1.5 py-0.5 text-xs">timestamp</code>{" "}
+              and doesn&rsquo;t fill in placeholders, so it gets that{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">401</code> too.
+              To test from there, replace the body with a real ticket id and the
+              current UTC time, e.g.{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{`{"ticket_id": "123", "timestamp": "2026-09-17T08:40Z"}`}</code>
+              , sent within 5 minutes of that time. This closes the last few minutes of latency between polls — it
               is optional, and everything works without it.
             </p>
           </div>

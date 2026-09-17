@@ -195,7 +195,7 @@ Zendesk doesn't initiate correlation itself in this product — Jira and Linear 
 Nothing. No ticket, field, tag, or comment is ever created or changed in Zendesk.
 
 ### Sync behavior
-Polled every 5 minutes (active cases) and every 60 minutes (full reconciliation). A webhook is also available (Section 20) to close the last few minutes of latency on ticket status changes; it requires a one-time manual setup in Zendesk Admin Center (instructions are shown on the integration's detail page, with a copyable endpoint URL and bearer token). The trigger's request body must be `{"ticket_id": "{{ticket.id}}", "timestamp": "{{ticket.updated_at_with_timestamp}}"}`. The timestamp is required for replay protection, and plain `{{ticket.updated_at}}` won't work because Zendesk renders it as a date with no time (e.g. "May 18"), so those deliveries are rejected with `401`. SLA policies and business-hours schedules are re-imported every cycle, so a policy edit in Zendesk is picked up automatically without reconnecting.
+Polled every 5 minutes (active cases) and every 60 minutes (full reconciliation). A webhook is also available (Section 20) to close the last few minutes of latency on ticket status changes; it requires a one-time manual setup in Zendesk Admin Center (instructions are shown on the integration's detail page, with a copyable endpoint URL and bearer token). The trigger's request body must be `{"ticket_id": "{{ticket.id}}", "timestamp": "{{ticket.updated_at_with_timestamp}}"}`. The timestamp is required for replay protection, and plain `{{ticket.updated_at}}` won't work because Zendesk renders it as a date with no time (e.g. "May 18"), so those deliveries are rejected with `401`. Zendesk's **Test webhook** button sends a sample body with no `timestamp` and doesn't fill in placeholders, so it gets the same `401`. To test from there, replace the body with a real ticket id and the current UTC time, such as `{"ticket_id": "123", "timestamp": "2026-09-17T08:40Z"}`, and send it within 5 minutes of that time. SLA policies and business-hours schedules are re-imported every cycle, so a policy edit in Zendesk is picked up automatically without reconnecting.
 
 ### Known limitations
 - Only two Zendesk SLA metrics currently map to commitments: **First reply time** → first-response, and **resolution time** → resolution. Other Zendesk metrics (next-reply time, requester-wait time, agent-work time, periodic-update time) are not currently imported as separate commitments.
@@ -319,7 +319,7 @@ A warning banner listing customer/commitment-type combinations whose recent reso
 
 Three charts, all computed from the same 30-day period as the tiles above:
 
-- **Breaches Over Time** — a daily line chart of breach counts across the period.
+- **Breaches Over Time** — a daily line chart of breach counts across the period, by the UTC day each commitment actually ran out of time (business hours and customer pauses included), not the day it was first synced or evaluated. Imported history lands on its original dates.
 - **SLA Compliance** — a donut chart of all cases in the period by their worst commitment status: **Met**, **At Risk**, **Breached**.
 - **Breaches by Stage** — a horizontal bar chart of breached time attributed to each leg (support, engineering, waiting on customer, unknown) — this is the "where did the time go" view, not a ranking of teams.
 

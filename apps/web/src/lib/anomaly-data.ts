@@ -21,8 +21,8 @@ interface CycleTimeSample {
  * on cycle times, roadmap step 25: for each (customer, commitment kind)
  * with enough closed-commitment history, compares the last few cycle times
  * against everything before them via `detectCycleTimeAnomaly`'s median/MAD
- * check. "Cycle time" here is the terminal `Evaluation.elapsedWorkingMinutes`
- * for a commitment — the same working-minutes snapshot the pipeline
+ * check. "Cycle time" here is the terminal `Evaluation.elapsedSeconds`, in
+ * minutes, for a commitment — the same working-time snapshot the pipeline
  * persisted at `evaluatedAt === commitment.closedAt` when it finalized the
  * commitment (`evaluate-pipeline.ts`), not a value recomputed here.
  */
@@ -51,7 +51,7 @@ export async function getCycleTimeAnomalies(
     select: {
       commitmentId: true,
       evaluatedAt: true,
-      elapsedWorkingMinutes: true,
+      elapsedSeconds: true,
     },
     orderBy: { evaluatedAt: "asc" },
   });
@@ -82,7 +82,7 @@ export async function getCycleTimeAnomalies(
     const groupKey = `${customer.id}:${commitment.kind}`;
     const sample: CycleTimeSample = {
       closedAt,
-      cycleTimeMinutes: terminal.elapsedWorkingMinutes,
+      cycleTimeMinutes: terminal.elapsedSeconds / 60,
     };
     const group = samplesByGroup.get(groupKey);
     if (group) group.samples.push(sample);

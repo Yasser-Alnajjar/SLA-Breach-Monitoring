@@ -22,7 +22,6 @@ import { getProjectAnalytics } from "./analytics-data";
 import type {
   AgingEscalationRow,
   AtRiskRow,
-  BreachedCaseRow,
   DashboardData,
 } from "./types/dashboard";
 
@@ -51,9 +50,12 @@ function complianceOf(rows: { status: CommitmentStatus }[]): number | null {
  * `deriveLegSpans` — the same pure functions the worker uses — because
  * `remainingMinutes` is derived, never stored (schema.prisma's rule), and an
  * `Evaluation` row is only a transition snapshot, not a per-minute reading.
- * The breach count and compliance % read persisted, worker-maintained state
- * instead: they're scoped to a trailing period of things that already
- * happened, not "right now".
+ * Compliance % reads persisted, worker-maintained state instead: it's scoped
+ * to a trailing period of things that already happened, not "right now".
+ * The breach count and "breached this period" list come from
+ * `getProjectAnalytics`'s breaches, placed by when the SLA clock actually
+ * crossed the target (`computeBreachedAt`), not when the worker evaluated
+ * it — the same set the Breaches Over Time chart plots.
  */
 export async function getDashboardData(
   prisma: PrismaClient,
@@ -68,7 +70,6 @@ export async function getDashboardData(
 
   const [
     openCommitmentRows,
-    breachedEvaluationRows,
     currentPeriodClosedRows,
     previousPeriodClosedRows,
     organization,
@@ -77,15 +78,6 @@ export async function getDashboardData(
     prisma.commitment.findMany({
       where: { case: { organizationId, deletedAt: null }, closedAt: null },
       include: { case: { include: { customer: true } } },
-    }),
-    prisma.evaluation.findMany({
-      where: {
-        status: "breached",
-        evaluatedAt: { gte: periodStart },
-        commitment: { case: { organizationId, deletedAt: null } },
-      },
-      distinct: ["commitmentId"],
-      select: { commitmentId: true },
     }),
     prisma.commitment.findMany({
       where: {
@@ -121,12 +113,7 @@ export async function getDashboardData(
   ];
   const caseIds = [...new Set(openCommitmentRows.map((c) => c.caseId))];
 
-  const [
-    policyVersionRows,
-    calendarVersionRows,
-    eventRows,
-    breachedCommitmentRows,
-  ] = await Promise.all([
+  const [policyVersionRows, calendarVersionRows, eventRows] = await Promise.all([
     policyVersionIds.length > 0
       ? prisma.sLAPolicyVersion.findMany({
           where: { id: { in: policyVersionIds } },
@@ -139,14 +126,6 @@ export async function getDashboardData(
       : Promise.resolve([]),
     caseIds.length > 0
       ? prisma.normalizedEvent.findMany({ where: { caseId: { in: caseIds } } })
-      : Promise.resolve([]),
-    breachedEvaluationRows.length > 0
-      ? prisma.commitment.findMany({
-          where: {
-            id: { in: breachedEvaluationRows.map((e) => e.commitmentId) },
-          },
-          include: { case: { include: { customer: true } } },
-        })
       : Promise.resolve([]),
   ]);
 
@@ -284,7 +263,7 @@ export async function getDashboardData(
     (a, b) => b.minutesInCurrentLeg - a.minutesInCurrentLeg,
   );
 
-  const analytics = await getProjectAnalytics(
+  const { analytics, breachedThisPeriod } = await getProjectAnalytics(
     prisma,
     organizationId,
     periodStart,
@@ -294,16 +273,6 @@ export async function getDashboardData(
       status: row.status,
     })),
     currentPeriodClosedRows,
-  );
-
-  const breachedThisPeriod: BreachedCaseRow[] = breachedCommitmentRows.map(
-    (row) => ({
-      caseId: row.caseId,
-      externalId: row.case.externalId,
-      customerName: row.case.customer?.name ?? null,
-      kind: row.kind,
-      subject: row.case.subject,
-    }),
   );
 
   return {

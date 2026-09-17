@@ -1,7 +1,22 @@
 import type { PrismaClient } from "@sla/db";
-import { deriveLegSpans, legAtTime, type CommitmentStatus, type Leg } from "@sla/core";
-import { toNormalizedEventDomain } from "@sla/commitments";
+import {
+  computeBreachedAt,
+  deriveLegSpans,
+  legAtTime,
+  type BusinessCalendarVersion,
+  type Commitment,
+  type CommitmentKind,
+  type CommitmentStatus,
+  type Leg,
+  type NormalizedEvent,
+  type NormalizedState,
+  type SLAPolicyMatch,
+  type SLAPolicyVersion,
+  type WeeklyWindow,
+} from "@sla/core";
+import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import type {
+  BreachedCaseRow,
   BreachesByStageRow,
   BreachesOverTimePoint,
   ProjectAnalyticsData,
@@ -45,6 +60,89 @@ export function bucketBreachesByDay(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return points;
+}
+
+export interface BreachOccurrence {
+  commitmentId: string;
+  caseId: string;
+  kind: CommitmentKind;
+  caseOpenedAt: Date;
+  breachedAt: Date;
+}
+
+/**
+ * The commitments that actually breached inside [periodStart, asOfDate],
+ * each with the instant its SLA clock crossed the target
+ * (`computeBreachedAt`: calendar- and pause-aware, derived from events).
+ * Deliberately not `Evaluation.evaluatedAt`: that's when the worker looked,
+ * so a historical import or a reconciliation sweep would pile every old
+ * breach onto the day it ran. Commitments whose policy or calendar version
+ * isn't loaded are skipped, as on the rest of the dashboard.
+ */
+export function findBreachesInPeriod(
+  candidates: { commitment: Commitment; caseOpenedAt: Date }[],
+  eventsByCaseId: ReadonlyMap<string, NormalizedEvent[]>,
+  policyVersionsById: ReadonlyMap<string, SLAPolicyVersion>,
+  calendarsById: ReadonlyMap<string, BusinessCalendarVersion>,
+  periodStart: Date,
+  asOfDate: Date,
+): BreachOccurrence[] {
+  const asOf = asOfDate.toISOString();
+  const breaches: BreachOccurrence[] = [];
+  for (const { commitment, caseOpenedAt } of candidates) {
+    const policyVersion = policyVersionsById.get(commitment.policyVersionId);
+    const calendar = calendarsById.get(commitment.calendarVersionId);
+    if (!policyVersion || !calendar) continue;
+
+    const breachedAtIso = computeBreachedAt(
+      commitment,
+      eventsByCaseId.get(commitment.caseId) ?? [],
+      policyVersion,
+      calendar,
+      asOf,
+    );
+    if (breachedAtIso === null) continue;
+    const breachedAt = new Date(breachedAtIso);
+    if (breachedAt < periodStart || breachedAt > asOfDate) continue;
+
+    breaches.push({
+      commitmentId: commitment.id,
+      caseId: commitment.caseId,
+      kind: commitment.kind,
+      caseOpenedAt,
+      breachedAt,
+    });
+  }
+  return breaches.sort((a, b) => a.breachedAt.getTime() - b.breachedAt.getTime());
+}
+
+/**
+ * The dashboard's "breached this period" list (and so its breach KPI, which
+ * is the list's length): one row per breach from `findBreachesInPeriod`, the
+ * same set the Breaches Over Time chart buckets, so the two always agree.
+ * A breach whose case details are missing is dropped rather than rendered
+ * half-empty.
+ */
+export function toBreachedCaseRows(
+  breaches: BreachOccurrence[],
+  caseDetailsById: ReadonlyMap<
+    string,
+    { externalId: string; subject: string | null; customerName: string | null }
+  >,
+): BreachedCaseRow[] {
+  const rows: BreachedCaseRow[] = [];
+  for (const breach of breaches) {
+    const details = caseDetailsById.get(breach.caseId);
+    if (!details) continue;
+    rows.push({
+      caseId: breach.caseId,
+      externalId: details.externalId,
+      customerName: details.customerName,
+      kind: breach.kind,
+      subject: details.subject,
+    });
+  }
+  return rows;
 }
 
 type ComplianceBucket = "met" | "at_risk" | "breached";
@@ -97,7 +195,9 @@ export function summarizeCompliance(
  * `closedPeriodCommitmentStatuses` are passed in from `getDashboardData`,
  * which already fetches them for the KPI tiles — reusing them here avoids a
  * duplicate query. Breach timing/stage attribution needs its own queries:
- * neither is derivable from data the dashboard already loads.
+ * it covers closed commitments too, which the dashboard doesn't load. The
+ * breaches found are also returned as `breachedThisPeriod` rows, so the
+ * dashboard's breach KPI and list reuse them instead of querying again.
  */
 export async function getProjectAnalytics(
   prisma: PrismaClient,
@@ -106,60 +206,82 @@ export async function getProjectAnalytics(
   asOfDate: Date,
   openCommitmentStatuses: { caseId: string; status: CommitmentStatus }[],
   closedPeriodCommitmentStatuses: { caseId: string; status: CommitmentStatus }[],
-): Promise<ProjectAnalyticsData> {
+): Promise<{ analytics: ProjectAnalyticsData; breachedThisPeriod: BreachedCaseRow[] }> {
   const compliance = summarizeCompliance([
     ...openCommitmentStatuses,
     ...closedPeriodCommitmentStatuses,
   ]);
 
-  const breachEvaluations = await prisma.evaluation.findMany({
+  // Candidates: every open commitment (breach state is computed live, like
+  // the at-risk list) plus closed ones stored as breached that closed inside
+  // the period. A breach always precedes its commitment's close, so one
+  // that closed before periodStart can't have breached inside the period.
+  const commitmentRows = await prisma.commitment.findMany({
     where: {
-      status: "breached",
-      evaluatedAt: { gte: periodStart, lte: asOfDate },
-      commitment: { case: { organizationId, deletedAt: null } },
+      case: { organizationId, deletedAt: null },
+      startedAt: { lte: asOfDate },
+      OR: [
+        { closedAt: null },
+        { status: "breached", closedAt: { gte: periodStart } },
+      ],
     },
-    select: {
-      commitmentId: true,
-      evaluatedAt: true,
-      commitment: {
-        select: { caseId: true, case: { select: { openedAt: true } } },
+    include: {
+      case: {
+        select: {
+          openedAt: true,
+          externalId: true,
+          subject: true,
+          customer: { select: { name: true } },
+        },
       },
     },
-    orderBy: { evaluatedAt: "asc" },
   });
 
-  // A breached commitment keeps getting re-evaluated (still breached) on
-  // every later poll — only its earliest breached evaluation is the actual
-  // breach instant, so first-occurrence-wins per commitment.
-  const firstBreachByCommitmentId = new Map<
-    string,
-    { caseId: string; caseOpenedAt: Date; breachedAt: Date }
-  >();
-  for (const row of breachEvaluations) {
-    if (firstBreachByCommitmentId.has(row.commitmentId)) continue;
-    firstBreachByCommitmentId.set(row.commitmentId, {
-      caseId: row.commitment.caseId,
-      caseOpenedAt: row.commitment.case.openedAt,
-      breachedAt: row.evaluatedAt,
-    });
-  }
-  const firstBreaches = [...firstBreachByCommitmentId.values()];
+  const policyVersionIds = [...new Set(commitmentRows.map((c) => c.policyVersionId))];
+  const calendarVersionIds = [...new Set(commitmentRows.map((c) => c.calendarVersionId))];
+  const candidateCaseIds = [...new Set(commitmentRows.map((c) => c.caseId))];
 
-  const breachesOverTime = bucketBreachesByDay(
-    firstBreaches.map((b) => b.breachedAt),
-    periodStart,
-    asOfDate,
+  const [policyVersionRows, calendarVersionRows, eventRows] =
+    commitmentRows.length > 0
+      ? await Promise.all([
+          prisma.sLAPolicyVersion.findMany({ where: { id: { in: policyVersionIds } } }),
+          prisma.businessCalendarVersion.findMany({ where: { id: { in: calendarVersionIds } } }),
+          prisma.normalizedEvent.findMany({ where: { caseId: { in: candidateCaseIds } } }),
+        ])
+      : [[], [], []];
+
+  const policyVersionsById = new Map<string, SLAPolicyVersion>(
+    policyVersionRows.map((row) => [
+      row.id,
+      {
+        id: row.id,
+        policyId: row.policyId,
+        version: row.version,
+        match: row.match as SLAPolicyMatch,
+        targets: row.targets as { kind: CommitmentKind; minutes: number }[],
+        pauseOnStates: row.pauseOnStates as NormalizedState[],
+        calendarVersionId: row.calendarVersionId,
+        warnAtPercent: row.warnAtPercent,
+        effectiveFrom: row.effectiveFrom.toISOString(),
+      },
+    ]),
   );
 
-  const breachCaseIds = [...new Set(firstBreaches.map((b) => b.caseId))];
-  const eventRows =
-    breachCaseIds.length > 0
-      ? await prisma.normalizedEvent.findMany({
-          where: { caseId: { in: breachCaseIds } },
-        })
-      : [];
+  const calendarsById = new Map<string, BusinessCalendarVersion>(
+    calendarVersionRows.map((row) => [
+      row.id,
+      {
+        id: row.id,
+        version: row.version,
+        timezone: row.timezone,
+        weekly: row.weekly as unknown as WeeklyWindow[],
+        holidays: row.holidays,
+        alwaysOpen: row.alwaysOpen,
+      },
+    ]),
+  );
 
-  const eventsByCaseId = new Map<string, ReturnType<typeof toNormalizedEventDomain>[]>();
+  const eventsByCaseId = new Map<string, NormalizedEvent[]>();
   for (const row of eventRows) {
     const domainEvent = toNormalizedEventDomain(row);
     const existing = eventsByCaseId.get(row.caseId);
@@ -167,8 +289,26 @@ export async function getProjectAnalytics(
     else eventsByCaseId.set(row.caseId, [domainEvent]);
   }
 
+  const breaches = findBreachesInPeriod(
+    commitmentRows.map((row) => ({
+      commitment: toCommitmentDomain(row),
+      caseOpenedAt: row.case.openedAt,
+    })),
+    eventsByCaseId,
+    policyVersionsById,
+    calendarsById,
+    periodStart,
+    asOfDate,
+  );
+
+  const breachesOverTime = bucketBreachesByDay(
+    breaches.map((b) => b.breachedAt),
+    periodStart,
+    asOfDate,
+  );
+
   const legCounts = new Map<Leg, number>();
-  for (const breach of firstBreaches) {
+  for (const breach of breaches) {
     const { spans } = deriveLegSpans(eventsByCaseId.get(breach.caseId) ?? [], {
       caseOpenedAt: breach.caseOpenedAt.toISOString(),
     });
@@ -180,5 +320,22 @@ export async function getProjectAnalytics(
     .map(([leg, count]) => ({ leg, count }))
     .sort((a, b) => b.count - a.count);
 
-  return { compliance, breachesOverTime, breachesByStage };
+  const breachedThisPeriod = toBreachedCaseRows(
+    breaches,
+    new Map(
+      commitmentRows.map((row) => [
+        row.caseId,
+        {
+          externalId: row.case.externalId,
+          subject: row.case.subject,
+          customerName: row.case.customer?.name ?? null,
+        },
+      ]),
+    ),
+  );
+
+  return {
+    analytics: { compliance, breachesOverTime, breachesByStage },
+    breachedThisPeriod,
+  };
 }

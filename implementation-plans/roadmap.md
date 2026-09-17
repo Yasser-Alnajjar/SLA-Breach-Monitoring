@@ -1324,7 +1324,7 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       `NEXTAUTH_URL` as the public https origin) behind a real
       certificate.
 
-- [ ] **42 — Enforce the single-instance worker**
+- [x] **42 — Enforce the single-instance worker**
       The worker is only safe as one instance (`production.md`: in-process
       boolean guard, no cross-instance lock). A deploy that briefly overlaps
       two containers, or an accidental `--scale worker=2`, would race on
@@ -1332,6 +1332,23 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       (`pg_try_advisory_lock`) at startup. A second instance should log, report
       itself as `standby` on `/health`, and retry instead of running cycles.
       Non-goal: real horizontal scaling or per-org work partitioning.
+      **Done (2026-09-17).** `@sla/db`'s `connectAdvisoryLockConnection`
+      holds the lock on its own `pg.Client`, not through Prisma: Prisma's
+      adapter uses a pool, and a session lock taken on a pooled connection
+      could be released or unlocked on the wrong connection.
+      `apps/worker/src/leader-lock.ts` retries every
+      `WORKER_LOCK_RETRY_MS` in standby. Only the lock holder starts cycles
+      and the stalled-cycle watchdog. The holder pings its connection every
+      `WORKER_LOCK_PING_MS`; if the connection errors or ends, the worker
+      logs `worker_lock_lost` and exits 1 for the restart policy.
+      `/health` returns `200 standby` for a standby and `503 starting`
+      before the first lock attempt completes. Verified with
+      `apps/worker/test/leader-lock.test.ts` and against local Postgres:
+      a second full worker process stayed in standby with no cycles while
+      the dev worker held the lock; a standby took over within one retry
+      after the holder stopped; `pg_terminate_backend` on the holder's
+      session fired `worker_lock_lost`. **Not verified:** an actual
+      overlapping `docker compose` deploy on the VPS.
 
 - [ ] **43 — Get the Jira webhook secret out of the query string**
       Still open from the audit: step 30 added replay protection but left the

@@ -54,6 +54,7 @@ printing them. Then set `NEXTAUTH_URL` and any optional values by hand.
 | `WORKER_ACTIVE_POLL_MS`, `WORKER_RECONCILIATION_MS` | web, worker | Optional; bootstrap defaults are 300000 (5 min) and 3600000 (1 hour), used only to seed the database on a fresh install. Once an organization owner changes either interval from the Monitoring settings page, the saved database value is authoritative and these env vars are no longer read. |
 | `SENTRY_DSN` | web, worker | Optional. Enables error tracking in both apps when set; omit it and the SDK stays disabled with no other effect. See [Health checks and observability](#health-checks-and-observability). |
 | `WORKER_HEALTH_PORT` | worker | Optional, defaults to `8081`. The port `GET /health` listens on inside the worker container. |
+| `WORKER_LOCK_RETRY_MS`, `WORKER_LOCK_PING_MS` | worker | Optional, default `15000` and `30000`. How often a standby worker retries the single-instance lock, and how often the active one checks its lock connection is still alive. See [Single worker instance](#single-worker-instance). |
 | `OPS_ALERT_SLACK_WEBHOOK_URL`, `OPS_ALERT_EMAIL`, `OPS_ALERT_SMTP_*` | worker | Optional. Where a stalled-worker-cycle alert goes — see [Health checks and observability](#health-checks-and-observability). This is a deployment-owner channel, unrelated to any organization's own SLA breach notifications. |
 
 None of these secrets are baked into the images — the Dockerfiles only ever
@@ -297,6 +298,23 @@ their provider, then edit `.env.prod`: `OPS_ALERT_SMTP_PASSWORD` (for Gmail,
 delete the app password in your Google account and create a new one),
 `OPS_ALERT_SLACK_WEBHOOK_URL`, and `SENTRY_DSN`.
 
+## Single worker instance
+
+Run exactly one active worker per database. Two workers running cycles at
+once would race on each integration's sync cursor. The worker enforces
+this itself: at startup it takes a Postgres advisory lock
+(`pg_try_advisory_lock`) on a dedicated connection and holds it for its
+whole lifetime. A second worker, whether from a deploy that briefly
+overlaps two containers or from `docker compose up --scale worker=2`, logs
+`worker_standby`, runs no cycles, reports `standby` on `/health`, and
+retries every `WORKER_LOCK_RETRY_MS`. It takes over once the holder exits
+and Postgres releases the lock with its session.
+
+If the active worker's lock connection drops, it logs `worker_lock_lost`
+and exits with code 1 rather than keep running without the lock;
+`restart: unless-stopped` brings it back. This is not horizontal scaling.
+A standby only waits.
+
 ## Health checks and observability
 
 - **`GET /api/health`** (web) checks database connectivity only —
@@ -317,7 +335,9 @@ delete the app password in your Google account and create a new one),
   the host by `docker-compose.prod.yml` — only the container's own
   `HEALTHCHECK` (and Docker's resulting restart-on-unhealthy behavior with
   `restart: unless-stopped`) uses it; add your own `ports:` mapping if an
-  external monitor should poll it directly.
+  external monitor should poll it directly. A standby worker (see below)
+  answers `200 {"status":"standby"}` instead; `503 {"status":"starting"}`
+  means it hasn't reached the database to try the lock yet.
 - **Error tracking**: set `SENTRY_DSN` to enable
   [Sentry](https://sentry.io) (or any Sentry-protocol-compatible service)
   in both apps — unhandled exceptions in either app, every per-integration

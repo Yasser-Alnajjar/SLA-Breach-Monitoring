@@ -20,9 +20,6 @@ importers:
       '@sla/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@sla/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@sla/jira':
         specifier: workspace:*
         version: link:../../packages/jira
@@ -30,6 +27,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/zendesk
     devDependencies:
+      '@sla/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@types/node':
         specifier: ^26.4.1
         version: 26.4.1
@@ -289,6 +289,9 @@ importers:
       '@types/node':
         specifier: ^26.4.1
         version: 26.4.1
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       prisma:
         specifier: ^7.10.0
         version: 7.10.0(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@7.0.2)

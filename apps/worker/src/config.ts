@@ -26,6 +26,11 @@ import * as Sentry from "@sentry/node";
  * port" or "who gets paged when the worker stalls" to store in the
  * database, so these stay plain env reads here rather than moving to
  * `WorkerSettings`.
+ *
+ * `lockRetryMs`/`lockPingMs` (roadmap step 42) are the same kind of
+ * deployment-level knob: how often a standby retries the single-instance
+ * advisory lock, and how often the holder checks its lock connection is
+ * still alive.
  */
 import { loadOpsAlertConfig, type OpsAlertConfig } from "./ops-alert";
 
@@ -33,6 +38,8 @@ export interface WorkerConfig {
   appUrl: string | null;
   healthPort: number;
   opsAlert: OpsAlertConfig | null;
+  lockRetryMs: number;
+  lockPingMs: number;
 }
 
 export function loadWorkerConfig(): WorkerConfig {
@@ -40,6 +47,8 @@ export function loadWorkerConfig(): WorkerConfig {
     appUrl: process.env.NEXTAUTH_URL ?? null,
     healthPort: Number(process.env.WORKER_HEALTH_PORT ?? 8081),
     opsAlert: loadOpsAlertConfig(),
+    lockRetryMs: Number(process.env.WORKER_LOCK_RETRY_MS ?? 15_000),
+    lockPingMs: Number(process.env.WORKER_LOCK_PING_MS ?? 30_000),
   };
 }
 

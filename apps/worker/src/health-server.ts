@@ -1,5 +1,6 @@
 import http from "node:http";
 import { deriveWorkerStatus, getOrCreateWorkerSettings, type PrismaClient } from "@sla/db";
+import type { WorkerRole } from "./leader-lock";
 
 export interface WorkerHealthServer {
   close(): Promise<void>;
@@ -13,7 +14,7 @@ export interface WorkerHealthServer {
  * credentials), no routing library, just `node:http`, matching this
  * package's zero-framework style.
  */
-export function startHealthServer(prisma: PrismaClient, port: number): WorkerHealthServer {
+export function startHealthServer(prisma: PrismaClient, port: number, getRole: () => WorkerRole): WorkerHealthServer {
   const server = http.createServer((req, res) => {
     if (req.method !== "GET" || (req.url !== "/health" && req.url !== "/healthz")) {
       res.writeHead(404, { "Content-Type": "application/json" });
@@ -21,7 +22,7 @@ export function startHealthServer(prisma: PrismaClient, port: number): WorkerHea
       return;
     }
 
-    void handleHealthRequest(prisma, res);
+    void handleHealthRequest(prisma, res, getRole());
   });
 
   server.listen(port, () => {
@@ -40,7 +41,18 @@ export function startHealthServer(prisma: PrismaClient, port: number): WorkerHea
   };
 }
 
-async function handleHealthRequest(prisma: PrismaClient, res: http.ServerResponse): Promise<void> {
+async function handleHealthRequest(prisma: PrismaClient, res: http.ServerResponse, role: WorkerRole): Promise<void> {
+  // Roadmap step 42: a standby is healthy by design — 200 so the container
+  // isn't restarted in a loop — but its body must not echo the active
+  // instance's heartbeats as if they were its own. "acquiring" means no lock
+  // attempt has completed (usually the database is unreachable): 503, same
+  // as the active path's own database-error response below.
+  if (role !== "active") {
+    res.writeHead(role === "standby" ? 200 : 503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: role === "standby" ? "standby" : "starting" }));
+    return;
+  }
+
   try {
     const settings = await getOrCreateWorkerSettings(prisma);
     const status = deriveWorkerStatus(settings);

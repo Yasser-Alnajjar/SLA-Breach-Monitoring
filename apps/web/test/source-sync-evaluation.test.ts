@@ -367,7 +367,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk connect evaluates imported commitme
       await postZendeskBackfill();
       const afterConnect = await snapshot();
 
-      const config = { appUrl: "http://localhost:3000", healthPort: 0, opsAlert: null };
+      const config = { appUrl: "http://localhost:3000", healthPort: 0, opsAlert: null, lockRetryMs: 0, lockPingMs: 0 };
       const active = await runCycle(prisma, config, "active_set_poll");
       const sweep = await runCycle(prisma, config, "reconciliation_sweep");
 

@@ -1,7 +1,15 @@
-import { getOrCreateWorkerSettings, getPrismaClient, recordWorkerCycleOutcome, recordWorkerNextRun } from "@sla/db";
+import {
+  connectAdvisoryLockConnection,
+  getOrCreateWorkerSettings,
+  getPrismaClient,
+  recordWorkerCycleOutcome,
+  recordWorkerNextRun,
+  WORKER_ADVISORY_LOCK_KEY,
+} from "@sla/db";
 import { loadWorkerConfig } from "./config";
 import { runCycle, type CycleKind } from "./cycle";
 import { startHealthServer, type WorkerHealthServer } from "./health-server";
+import { startWorkerLeadership, type WorkerLeadership } from "./leader-lock";
 import { captureException, flushSentry, initSentry } from "./sentry";
 import { startStalledCycleWatchdog } from "./watchdog";
 
@@ -13,6 +21,7 @@ const prisma = getPrismaClient();
 const config = loadWorkerConfig();
 let healthServer: WorkerHealthServer | null = null;
 let watchdogTimer: NodeJS.Timeout | null = null;
+let leadership: WorkerLeadership | null = null;
 
 /**
  * Cycles are serialized: both kinds advance the same per-integration cursor,
@@ -102,7 +111,29 @@ async function main(): Promise<void> {
     }),
   );
 
-  healthServer = startHealthServer(prisma, config.healthPort);
+  // Leadership before the health server so the server can always ask for
+  // the current role; the health server itself still starts immediately, so
+  // a standby is probeable while it waits.
+  leadership = startWorkerLeadership({
+    connect: () => connectAdvisoryLockConnection(),
+    lockKey: WORKER_ADVISORY_LOCK_KEY,
+    retryMs: config.lockRetryMs,
+    pingMs: config.lockPingMs,
+    onAcquired: startCycles,
+    // Exit rather than try to recover in place: another instance may take
+    // the lock the moment this connection dropped, and every stage is
+    // idempotent, so a cycle cut off mid-way is safe. The restart policy
+    // brings this process back, into standby if the other one won.
+    onLost: () => void shutdown("advisory_lock_lost", 1),
+  });
+  const currentLeadership = leadership;
+  healthServer = startHealthServer(prisma, config.healthPort, () => currentLeadership.role());
+}
+
+function startCycles(): void {
+  if (shuttingDown) return;
+  // Only the lock holder watches for stalls: a standby alerting too would
+  // just duplicate every page.
   watchdogTimer = startStalledCycleWatchdog(prisma, config.opsAlert);
 
   // Active-set poll runs immediately on boot; reconciliation only after its
@@ -122,6 +153,7 @@ async function shutdown(signal: string, exitCode = 0): Promise<void> {
   }
   if (watchdogTimer) clearInterval(watchdogTimer);
   if (healthServer) await healthServer.close();
+  if (leadership) await leadership.stop();
   await flushSentry();
   await prisma.$disconnect();
   process.exit(exitCode);

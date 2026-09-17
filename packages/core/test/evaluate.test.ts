@@ -394,3 +394,100 @@ describe("findCaseCloseEvent", () => {
     expect(findCaseCloseEvent([...baseEvents, solved, reopened], minutesAfterStart(100))).toBeNull();
   });
 });
+
+describe("evaluateCommitment with out-of-order and empty event lists", () => {
+  function caseEvent(
+    id: string,
+    minutes: number,
+    partial: Pick<NormalizedEvent, "type" | "fromState" | "toState"> & Partial<NormalizedEvent>,
+  ): NormalizedEvent {
+    return {
+      id,
+      caseId: "case-1",
+      occurredAt: minutesAfterStart(minutes),
+      actor: "agent",
+      system: "zendesk",
+      sourceRawEventId: `raw-${id}`,
+      ...partial,
+    };
+  }
+
+  const pausingPolicy: SLAPolicyVersion = { ...policy, pauseOnStates: ["pending_customer"] };
+
+  // open 0–60, paused 60–100, open 100–150, closed at 150 → 110 working minutes.
+  const chronological: NormalizedEvent[] = [
+    caseEvent("evt-created", 0, { type: "case_created", fromState: null, toState: "open", actor: "customer" }),
+    caseEvent("evt-pending", 60, { type: "state_changed", fromState: "open", toState: "pending_customer" }),
+    caseEvent("evt-reply", 100, { type: "state_changed", fromState: "pending_customer", toState: "open", actor: "customer" }),
+    caseEvent("evt-solved", 150, { type: "case_closed", fromState: "open", toState: "resolved" }),
+  ];
+
+  it("gives the same Evaluation, id included, for a shuffled event list", () => {
+    const expected = evaluateCommitment(commitment, chronological, pausingPolicy, alwaysOpen, minutesAfterStart(300));
+    expect(expected).toMatchObject({ status: "met", elapsedWorkingMinutes: 110 });
+    expect(expected.inputs.lastEventId).toBe("evt-solved");
+
+    const shuffles = [
+      [...chronological].reverse(),
+      [chronological[2]!, chronological[0]!, chronological[3]!, chronological[1]!],
+      [chronological[3]!, chronological[1]!, chronological[0]!, chronological[2]!],
+    ];
+    for (const shuffled of shuffles) {
+      expect(evaluateCommitment(commitment, shuffled, pausingPolicy, alwaysOpen, minutesAfterStart(300))).toEqual(
+        expected,
+      );
+    }
+  });
+
+  it("does not mutate the caller's event array while sorting", () => {
+    const reversed = [...chronological].reverse();
+    const snapshot = reversed.map((e) => e.id);
+    evaluateCommitment(commitment, reversed, pausingPolicy, alwaysOpen, minutesAfterStart(300));
+    expect(reversed.map((e) => e.id)).toEqual(snapshot);
+  });
+
+  it("uses the chronologically last event up to asOf as lastEventId, not the last array element", () => {
+    // asOf is before the close, so the case is still paused-then-open and live.
+    const shuffled = [chronological[3]!, chronological[2]!, chronological[0]!, chronological[1]!];
+    const evaluation = evaluateCommitment(commitment, shuffled, pausingPolicy, alwaysOpen, minutesAfterStart(120));
+    expect(evaluation.inputs.lastEventId).toBe("evt-reply");
+    expect(evaluation.status).toBe("on_track");
+    expect(evaluation.elapsedWorkingMinutes).toBe(80);
+  });
+
+  it("ignores other cases' events mixed into the list", () => {
+    const otherCase = { ...chronological[3]!, id: "evt-other-close", caseId: "case-2", occurredAt: minutesAfterStart(10) };
+    const evaluation = evaluateCommitment(
+      commitment,
+      [otherCase, ...chronological.slice(0, 3)],
+      pausingPolicy,
+      alwaysOpen,
+      minutesAfterStart(120),
+    );
+    expect(evaluation.status).toBe("on_track");
+    expect(evaluation.inputs.lastEventId).toBe("evt-reply");
+  });
+
+  it("is on_track with nothing elapsed and no lastEventId for an empty event list", () => {
+    // The clock starts at the first event, not commitment.startedAt, so no
+    // events means no elapsed time however late asOf is. Unreachable in
+    // practice: every ticket source writes case_created at the case's open
+    // time, which is what startedAt is set from.
+    const evaluation = evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000));
+    expect(evaluation).toMatchObject({
+      status: "on_track",
+      elapsedWorkingMinutes: 0,
+      remainingMinutes: 240,
+      warnThresholdCrossed: undefined,
+      breachedByMinutes: undefined,
+      inputs: { lastEventId: null, policyVersionId: policy.id, calendarVersionId: alwaysOpen.id },
+    });
+    expect(evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000)).id).toBe(evaluation.id);
+  });
+
+  it("treats a list with only another case's events like an empty one", () => {
+    const otherCaseOnly = chronological.map((e) => ({ ...e, caseId: "case-2" }));
+    const evaluation = evaluateCommitment(commitment, otherCaseOnly, policy, alwaysOpen, minutesAfterStart(1000));
+    expect(evaluation).toEqual(evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000)));
+  });
+});

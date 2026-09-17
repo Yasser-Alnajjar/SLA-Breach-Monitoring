@@ -441,3 +441,87 @@ describe("legAtTime", () => {
     expect(legAtTime([], "2026-09-07T10:00:00.000Z")).toBe("unknown");
   });
 });
+
+describe("deriveLegSpans with out-of-order and empty event lists", () => {
+  it("returns no spans and no warnings for an empty event list", () => {
+    expect(deriveLegSpans([])).toEqual({ spans: [], warnings: [] });
+    expect(deriveLegSpans([], { caseOpenedAt: "2026-09-07T08:00:00.000Z" })).toEqual({ spans: [], warnings: [] });
+  });
+
+  const chronological = [
+    event({ type: "case_created", system: "zendesk", toState: "open", occurredAt: "2026-09-07T09:00:00.000Z" }),
+    event({ type: "issue_linked", system: "jira", occurredAt: "2026-09-07T10:00:00.000Z" }),
+    event({ type: "state_changed", system: "jira", toState: "resolved", occurredAt: "2026-09-07T11:00:00.000Z" }),
+    event({
+      type: "state_changed",
+      system: "zendesk",
+      fromState: "open",
+      toState: "pending_customer",
+      occurredAt: "2026-09-07T12:00:00.000Z",
+    }),
+    event({
+      type: "state_changed",
+      system: "zendesk",
+      fromState: "pending_customer",
+      toState: "open",
+      occurredAt: "2026-09-07T13:00:00.000Z",
+    }),
+  ];
+
+  it("derives the same timeline from a shuffled event list", () => {
+    const expected = deriveLegSpans(chronological);
+    expect(expected.warnings).toHaveLength(0);
+    expect(expected.spans.map((s) => [s.leg, s.startedAt, s.endedAt])).toEqual([
+      ["support", "2026-09-07T09:00:00.000Z", "2026-09-07T10:00:00.000Z"],
+      ["engineering", "2026-09-07T10:00:00.000Z", "2026-09-07T11:00:00.000Z"],
+      ["support", "2026-09-07T11:00:00.000Z", "2026-09-07T12:00:00.000Z"],
+      ["waiting_customer", "2026-09-07T12:00:00.000Z", "2026-09-07T13:00:00.000Z"],
+      ["support", "2026-09-07T13:00:00.000Z", null],
+    ]);
+
+    const shuffles = [
+      [...chronological].reverse(),
+      [chronological[3]!, chronological[0]!, chronological[4]!, chronological[2]!, chronological[1]!],
+      [chronological[1]!, chronological[4]!, chronological[2]!, chronological[0]!, chronological[3]!],
+    ];
+    for (const shuffled of shuffles) {
+      expect(deriveLegSpans(shuffled)).toEqual(expected);
+    }
+  });
+
+  it("does not mutate the caller's event array while sorting", () => {
+    const reversed = [...chronological].reverse();
+    const snapshot = reversed.map((e) => e.id);
+    deriveLegSpans(reversed);
+    expect(reversed.map((e) => e.id)).toEqual(snapshot);
+  });
+
+  it("starts the timeline at the earliest event even when it arrives last, and applies the backfill bound to it", () => {
+    const shuffled = [...chronological.slice(1), chronological[0]!];
+    const { spans } = deriveLegSpans(shuffled, { caseOpenedAt: "2026-09-07T08:30:00.000Z" });
+    expect(spans[0]).toMatchObject({
+      leg: "support",
+      confidence: "inferred",
+      startedAt: "2026-09-07T08:30:00.000Z",
+      endedAt: "2026-09-07T10:00:00.000Z",
+    });
+    expect(spans.slice(1).every((s) => s.confidence === "certain")).toBe(true);
+  });
+
+  it("still flags a contemporaneous link/unlink as ambiguous regardless of their order in the list", () => {
+    const at = "2026-09-07T10:00:00.000Z";
+    const created = event({ type: "case_created", system: "zendesk", toState: "open", occurredAt: "2026-09-07T09:00:00.000Z" });
+    const unlink = event({ type: "issue_unlinked", system: "jira", occurredAt: at });
+    const link = event({ type: "issue_linked", system: "jira", occurredAt: at });
+
+    for (const events of [
+      [created, link, unlink],
+      [unlink, created, link],
+      [link, unlink, created],
+    ]) {
+      const { spans, warnings } = deriveLegSpans(events);
+      expect(warnings.map((w) => w.kind)).toEqual(["ambiguous_handoff"]);
+      expect(spans.map((s) => s.leg)).toEqual(["support", "unknown"]);
+    }
+  });
+});

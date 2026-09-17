@@ -1382,12 +1382,34 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       `?secret=` → 200; wrong or missing secret → 401. **Not verified:** a
       real signed delivery from a Jira Cloud site.
 
-- [ ] **44 — Close the remaining core test gaps from the audit**
+- [x] **44 — Close the remaining core test gaps from the audit**
       `packages/commitments/test` still has no tests for `override.ts`
       (step 19) or `customer-calendar.ts` (step 24). `packages/core` has no
       explicit out-of-order-events or empty-event-list cases for
       `evaluateCommitment`/`deriveLegSpans`. Tests only; no behavior changes
       unless a test turns up a bug.
+      **Done (2026-09-17). No bugs found, no source changes.**
+      `override.test.ts` and `customer-calendar.test.ts` use an in-memory
+      Prisma stand-in that honors the `where` clauses, so dropping the
+      `organizationId` scope from a lookup would fail a test. They cover:
+      a new version carrying `match`/`pauseOnStates`/`calendarVersionId`/
+      `warnAtPercent` over from the latest version (not an older one); no
+      write for identical or reordered targets; a dropped target kind
+      counting as a change; cross-tenant policy, customer and calendar ids
+      being refused with nothing written; a policy with no versions; and
+      clearing a customer calendar with `null`. In `packages/core`, shuffled
+      event lists give an identical `Evaluation` (id included) and identical
+      leg spans, including a pause interval, the `caseOpenedAt` backfill
+      bound, and a contemporaneous link/unlink. Inputs aren't mutated, and
+      other cases' events are ignored. A mutation check (removing either
+      function's sort) fails 5 of the new tests. Empty lists: `deriveLegSpans`
+      returns no spans and no warnings. `evaluateCommitment` returns
+      `on_track` with 0 elapsed and `lastEventId: null` however late `asOf`
+      is, because the clock starts at the first event, not
+      `commitment.startedAt`. That's pinned as current behavior, not changed:
+      it can't happen in practice, since both ticket normalizers always
+      write `case_created` at the ticket's creation time. It would matter if
+      a future source ever created a Case without that event.
 
 **After 44: stop and read the kill criteria** (`plans/05`, Phase 21) against
 the real validation numbers before scheduling a step 45. Candidate features

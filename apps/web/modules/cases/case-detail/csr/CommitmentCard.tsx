@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -98,50 +103,53 @@ export const CommitmentCard = ({
           {formatCommitmentDeadline(commitment)}
         </p>
 
-        <details className="group mt-3">
-          <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
-            How this was calculated
-            <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
-          </summary>
+        <Accordion type="single" collapsible className="mt-3">
+          <AccordionItem value="calculation" className="border-b-0">
+            <AccordionTrigger className="items-center justify-start gap-1 py-0 text-xs text-muted-foreground transition-colors hover:text-foreground hover:no-underline [&>svg]:size-3.5 [&>svg]:translate-y-0 [&>svg]:text-current [&>svg]:duration-150">
+              How this was calculated
+            </AccordionTrigger>
 
-          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
-            <dt className="text-muted-foreground">Policy version</dt>
-            <dd>
-              v{commitment.policyVersion.version} (effective{" "}
-              {formatDateTime(commitment.policyVersion.effectiveFrom)})
-            </dd>
+            <AccordionContent className="pb-0">
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
+                <dt className="text-muted-foreground">Policy version</dt>
+                <dd>
+                  v{commitment.policyVersion.version} (effective{" "}
+                  {formatDateTime(commitment.policyVersion.effectiveFrom)})
+                </dd>
 
-            <dt className="text-muted-foreground">Match</dt>
-            <dd>{formatPolicyMatch(commitment.policyVersion.match)}</dd>
+                <dt className="text-muted-foreground">Match</dt>
+                <dd>{formatPolicyMatch(commitment.policyVersion.match)}</dd>
 
-            <dt className="text-muted-foreground">Pauses on</dt>
-            <dd>
-              {commitment.policyVersion.pauseOnStates.length > 0
-                ? commitment.policyVersion.pauseOnStates.join(", ")
-                : "Never pauses"}
-            </dd>
+                <dt className="text-muted-foreground">Pauses on</dt>
+                <dd>
+                  {commitment.policyVersion.pauseOnStates.length > 0
+                    ? commitment.policyVersion.pauseOnStates.join(", ")
+                    : "Never pauses"}
+                </dd>
 
-            <dt className="text-muted-foreground">Warn thresholds</dt>
-            <dd>{commitment.policyVersion.warnAtPercent.join("%, ")}%</dd>
+                <dt className="text-muted-foreground">Warn thresholds</dt>
+                <dd>{commitment.policyVersion.warnAtPercent.join("%, ")}%</dd>
 
-            <dt className="text-muted-foreground">Calendar</dt>
-            <dd>
-              {commitment.calendar.alwaysOpen ? (
-                "Always open (24/7)"
-              ) : (
-                <>
-                  {commitment.calendar.timezone}
-                  {", "}
-                  {commitment.calendar.weekly
-                    .map(formatWeeklyWindow)
-                    .join(", ")}
-                  {commitment.calendar.holidays.length > 0 &&
-                    ` · Holidays: ${commitment.calendar.holidays.join(", ")}`}
-                </>
-              )}
-            </dd>
-          </dl>
-        </details>
+                <dt className="text-muted-foreground">Calendar</dt>
+                <dd>
+                  {commitment.calendar.alwaysOpen ? (
+                    "Always open (24/7)"
+                  ) : (
+                    <>
+                      {commitment.calendar.timezone}
+                      {", "}
+                      {commitment.calendar.weekly
+                        .map(formatWeeklyWindow)
+                        .join(", ")}
+                      {commitment.calendar.holidays.length > 0 &&
+                        ` · Holidays: ${commitment.calendar.holidays.join(", ")}`}
+                    </>
+                  )}
+                </dd>
+              </dl>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </CardContent>
     </Card>
   );

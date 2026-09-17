@@ -204,11 +204,17 @@ describe("computeBreachedAt", () => {
 
     const breachedAt = computeBreachedAt(commitment, events, policy, newYorkBusinessHours, "2026-03-20T00:00:00.000Z");
     expect(breachedAt).not.toBeNull();
-    const elapsed = computeElapsedWorkingMinutes(events, policy.pauseOnStates, newYorkBusinessHours, breachedAt!);
+    const elapsed = computeElapsedWorkingMinutes(events, policy.pauseOnStates, newYorkBusinessHours, {
+      start: commitment.startedAt,
+      end: breachedAt!,
+    });
     expect(elapsed.elapsedWorkingMinutes).toBe(150);
     const aMinuteEarlier = new Date(new Date(breachedAt!).getTime() - 60_000);
     expect(
-      computeElapsedWorkingMinutes(events, policy.pauseOnStates, newYorkBusinessHours, aMinuteEarlier)
+      computeElapsedWorkingMinutes(events, policy.pauseOnStates, newYorkBusinessHours, {
+        start: commitment.startedAt,
+        end: aMinuteEarlier.toISOString(),
+      })
         .elapsedWorkingMinutes,
     ).toBe(149);
   });
@@ -261,7 +267,8 @@ describe("computeBreachedAt", () => {
     const breachedAt = computeBreachedAt(commitment, events, policy, alwaysOpen, asOf);
     expect(breachedAt).toBe("2026-09-10T12:30:00.000Z");
     expect(
-      computeElapsedWorkingMinutes(events, policy.pauseOnStates, alwaysOpen, breachedAt!).elapsedWorkingMinutes,
+      computeElapsedWorkingMinutes(events, policy.pauseOnStates, alwaysOpen, { start: commitment.startedAt, end: breachedAt! })
+        .elapsedWorkingMinutes,
     ).toBe(60);
   });
 

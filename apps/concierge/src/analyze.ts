@@ -132,7 +132,8 @@ function toDomainEvents(caseId: string, system: NormalizedEvent["system"], deriv
  * The instant the working-time clock crossed `targetMinutes`, found by
  * bisecting `computeElapsedWorkingMinutes` (monotonic in time) to the
  * minute. Not `dueAt`: that ignores pauses, so a case that waited on the
- * customer breached later than its original due date.
+ * customer breached later than its original due date. The clock is measured
+ * from `startedAt`, as `evaluateCommitment` measures it.
  */
 function breachInstant(
   kind: CommitmentKind,
@@ -151,7 +152,7 @@ function breachInstant(
       events,
       pauseStatesFor(kind, policyVersion),
       calendar,
-      new Date(mid),
+      { start: startedAt, end: new Date(mid).toISOString() },
     );
     if (elapsedWorkingMinutes > targetMinutes) hi = mid;
     else lo = mid;
@@ -262,7 +263,7 @@ export function analyzeExport(parsed: ParsedExport, options: AnalysisOptions): F
       targetMinutes = commitment.targetMinutes;
       if (status === "breached") {
         breachedByMinutes = evaluation.breachedByMinutes ?? 0;
-        const at = breachInstant(commitment.kind, events, policyVersion, calendar, ticket.created_at, endBound, commitment.targetMinutes);
+        const at = breachInstant(commitment.kind, events, policyVersion, calendar, commitment.startedAt, endBound, commitment.targetMinutes);
         legAtBreach = legAtTime(legResult.spans, at);
       }
     }

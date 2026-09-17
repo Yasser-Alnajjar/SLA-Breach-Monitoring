@@ -111,7 +111,7 @@ function engineSnapshot(events: NormalizedEvent[]) {
     firstResponseBreachedAt: computeBreachedAt(commitment("first_response"), events, policy, alwaysOpen, AS_OF),
     firstResponseEvent: findFirstResponseEvent(events, AS_OF)?.id ?? null,
     caseCloseEvent: findCaseCloseEvent(events, AS_OF)?.id ?? null,
-    fold: foldClockIntervals(events, policy.pauseOnStates, AS_OF),
+    fold: foldClockIntervals(events, policy.pauseOnStates, { start: at("08:00"), end: AS_OF }),
     legs: deriveLegSpans(events),
   };
 }
@@ -233,7 +233,7 @@ describe("engine determinism under same-timestamp events", () => {
       event("open", "09:00", "state_changed", { fromState: "pending_customer", toState: "open", sourceSequence: 2 }),
     ];
     for (const order of permutations(events)) {
-      const fold = foldClockIntervals(order, policy.pauseOnStates, AS_OF);
+      const fold = foldClockIntervals(order, policy.pauseOnStates, { start: at("08:00"), end: AS_OF });
       expect(fold.currentPause).toBeNull();
     }
   });

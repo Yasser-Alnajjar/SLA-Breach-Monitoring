@@ -209,6 +209,11 @@ export function resolveClockCutoff(
  * completion event is observed (`findCompletionEvent` — the first agent
  * reply for first response, the case close for resolution), by whether it
  * happened inside or past the target.
+ *
+ * The clock is measured over the commitment's own window: from
+ * `commitment.startedAt` to the cutoff (`resolveClockCutoff`). Earlier case
+ * events never add elapsed time, but still decide whether the clock opens
+ * paused (`foldClockIntervals`).
  */
 export function evaluateCommitment(
   commitment: Commitment,
@@ -238,7 +243,7 @@ export function evaluateCommitment(
   const fold = foldClockIntervals(
     caseEvents,
     pauseStatesFor(commitment.kind, policyVersion),
-    effectiveAsOf,
+    { start: commitment.startedAt, end: effectiveAsOf },
   );
   const elapsedWorkingMinutes = sumRunningWorkingMinutes(
     fold.runningIntervals,
@@ -384,8 +389,8 @@ function targetCrossingInstant(
 
 /**
  * The instant a commitment actually breached: the moment its running SLA
- * clock (working minutes per `calendar`, excluding the commitment's own
- * pauses, `pauseStatesFor`)
+ * clock (working minutes per `calendar` since `commitment.startedAt`,
+ * excluding the commitment's own pauses, `pauseStatesFor`)
  * first reached `targetMinutes`. `null` unless `evaluateCommitment` reports
  * the commitment `breached` as of `asOf` — a met, on-track or at-risk
  * commitment has no breach instant.

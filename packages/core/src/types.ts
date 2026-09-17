@@ -214,6 +214,17 @@ export interface PausedInterval {
   cause: NormalizedState;
 }
 
+/**
+ * The span an SLA clock is measured over (`foldClockIntervals`): elapsed time
+ * only accrues inside `[start, end)`. Events before `start` still set the
+ * state the clock opens in. For a commitment, `start` is its `startedAt` and
+ * `end` its clock cutoff (`resolveClockCutoff`).
+ */
+export interface ClockWindow {
+  start: string; // ISO 8601
+  end: string; // ISO 8601
+}
+
 export interface ClockFold {
   runningIntervals: { start: Date; end: Date }[];
   pausedIntervals: PausedInterval[];

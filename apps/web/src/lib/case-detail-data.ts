@@ -269,16 +269,20 @@ export async function getCaseDetailData(
   const pauseCalendar = shadingCommitment
     ? calendarsById.get(shadingCommitment.calendar.id)!
     : FALLBACK_CALENDAR;
+  // Both the pauses and their complement cover the same window — the
+  // timeline's own span, from the case's open to its end bound — so a linked
+  // issue's events from before the case can't shade time before it opened.
+  const shadingWindow = { start: caseRow.openedAt.toISOString(), end: endBound };
   const { pausedIntervals } = computeElapsedWorkingMinutes(
     domainEvents,
     pauseOnStates,
     pauseCalendar,
-    endBound,
+    shadingWindow,
   );
   const runningIntervals = complementIntervals(
     pausedIntervals,
-    caseRow.openedAt.toISOString(),
-    endBound,
+    shadingWindow.start,
+    shadingWindow.end,
   );
 
   const zendeskCredentials =

@@ -606,18 +606,20 @@ describe("evaluateCommitment with out-of-order and empty event lists", () => {
     expect(evaluation.inputs.lastEvent?.sourceRawEventId).toBe("raw-evt-reply");
   });
 
-  it("is on_track with nothing elapsed and no lastEvent for an empty event list", () => {
-    // The clock starts at the first event, not commitment.startedAt, so no
-    // events means no elapsed time however late asOf is. Unreachable in
-    // practice: every ticket source writes case_created at the case's open
-    // time, which is what startedAt is set from.
+  it("runs the clock from commitment.startedAt with no lastEvent for an empty event list", () => {
+    // The clock is measured over the commitment's own window, not between
+    // its first and last events, so with nothing to pause it the whole
+    // window runs. Unreachable in practice: every ticket source writes
+    // case_created at the case's open time, which is what startedAt is set from.
     const evaluation = evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000));
     expect(evaluation).toMatchObject({
-      status: "on_track",
-      elapsedWorkingMinutes: 0,
-      remainingMinutes: 240,
-      warnThresholdCrossed: undefined,
-      breachedByMinutes: undefined,
+      status: "breached",
+      elapsedWorkingMinutes: 1000,
+      remainingMinutes: -760,
+      warnThresholdCrossed: BREACH_NOTIFICATION_THRESHOLD,
+      breachedByMinutes: 760,
+      clock: { state: "running", pausedSince: null, pauseCause: null },
+      effectiveDueAt: minutesAfterStart(240),
       inputs: { lastEvent: null, policyVersionId: policy.id, calendarVersionId: alwaysOpen.id },
     });
     expect(evaluateCommitment(commitment, [], policy, alwaysOpen, minutesAfterStart(1000)).id).toBe(evaluation.id);

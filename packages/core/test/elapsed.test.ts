@@ -15,6 +15,9 @@ const businessHours: BusinessCalendarVersion = {
   alwaysOpen: false,
 };
 
+// Every case below opens at 09:00, which is where its clock window starts.
+const fromOpen = (end: string) => ({ start: "2026-09-07T09:00:00.000Z", end });
+
 let seq = 0;
 function event(
   partial: Partial<NormalizedEvent> &
@@ -45,7 +48,7 @@ describe("computeElapsedWorkingMinutes", () => {
       events,
       ["pending_customer"],
       businessHours,
-      "2026-09-07T12:00:00.000Z",
+      fromOpen("2026-09-07T12:00:00.000Z"),
     );
     expect(result.elapsedWorkingMinutes).toBe(180);
     expect(result.pausedIntervals).toHaveLength(0);
@@ -78,7 +81,7 @@ describe("computeElapsedWorkingMinutes", () => {
       events,
       ["pending_customer"],
       businessHours,
-      "2026-09-07T15:00:00.000Z",
+      fromOpen("2026-09-07T15:00:00.000Z"),
     );
     expect(result.elapsedWorkingMinutes).toBe(240); // [09-11) + [13-15)
     expect(result.pausedIntervals).toEqual([
@@ -131,7 +134,7 @@ describe("computeElapsedWorkingMinutes", () => {
       events,
       ["pending_customer"],
       businessHours,
-      "2026-09-07T17:00:00.000Z",
+      fromOpen("2026-09-07T17:00:00.000Z"),
     );
     expect(result.elapsedWorkingMinutes).toBe(300); // [09-11) + [13-15) + [16-17)
     expect(result.pausedIntervals).toHaveLength(2);
@@ -165,7 +168,7 @@ describe("computeElapsedWorkingMinutes", () => {
       events,
       ["pending_customer"],
       businessHours,
-      "2026-09-07T13:00:00.000Z",
+      fromOpen("2026-09-07T13:00:00.000Z"),
     );
     expect(result.elapsedWorkingMinutes).toBe(240); // continuous 09:00 -> 13:00, no pause
     expect(result.pausedIntervals).toHaveLength(0);
@@ -199,7 +202,7 @@ describe("computeElapsedWorkingMinutes", () => {
       events,
       ["pending_customer"],
       businessHours,
-      "2026-09-07T12:00:00.000Z",
+      fromOpen("2026-09-07T12:00:00.000Z"),
     );
     expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [11-12)
     expect(result.pausedIntervals).toHaveLength(1);
@@ -238,7 +241,7 @@ describe("computeElapsedWorkingMinutes", () => {
         occurredAt: "2026-09-07T14:00:00.000Z",
       }),
     ];
-    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T15:00:00.000Z");
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, fromOpen("2026-09-07T15:00:00.000Z"));
     expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [14-15)
     expect(result.pausedIntervals).toEqual([
       { start: "2026-09-07T10:00:00.000Z", end: "2026-09-07T14:00:00.000Z", cause: "pending_customer" },
@@ -278,7 +281,7 @@ describe("computeElapsedWorkingMinutes", () => {
         occurredAt: "2026-09-07T13:00:00.000Z",
       }),
     ];
-    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T14:00:00.000Z");
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, fromOpen("2026-09-07T14:00:00.000Z"));
     expect(result.elapsedWorkingMinutes).toBe(120); // [09-10) + [13-14)
     expect(result.pausedIntervals).toEqual([
       { start: "2026-09-07T10:00:00.000Z", end: "2026-09-07T13:00:00.000Z", cause: "pending_customer" },
@@ -291,7 +294,7 @@ describe("computeElapsedWorkingMinutes", () => {
       // A linked issue's first normalized event carries its initial state.
       event({ type: "state_changed", system: "jira", toState: "new", occurredAt: "2026-09-07T10:00:00.000Z" }),
     ];
-    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, "2026-09-07T12:00:00.000Z");
+    const result = computeElapsedWorkingMinutes(events, ["pending_customer"], businessHours, fromOpen("2026-09-07T12:00:00.000Z"));
     expect(result.elapsedWorkingMinutes).toBe(0);
     expect(result.pausedIntervals).toHaveLength(1);
   });

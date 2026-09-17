@@ -125,8 +125,11 @@ function statusAudit(id: number, ticketId: number, createdAt: string, from: stri
 }
 
 /**
- * 60-minute first-reply target on normal priority, calendar time.
- * - #101 (met): open → pending after 5m (clock pauses) → solved at 9m.
+ * 60-minute first-reply target on normal priority, calendar time — so each
+ * ticket gets only a first-response commitment. No ticket has an agent reply,
+ * so each first response completes at the solve.
+ * - #101 (met): open → pending after 5m → solved at 9m. First response never
+ *   pauses (clock-rules.ts), so the pending interval still counts: 9m.
  * - #102 (breached): open → solved after 90m.
  * - #103: open → pending after 10m → solved at 120m; linked to ENG-1, whose
  *   history is part of the event set its commitment is evaluated against.
@@ -339,10 +342,12 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk connect evaluates imported commitme
       expect(body.evaluation.commitmentsFinalized).toBeGreaterThan(0);
 
       const met = await commitmentFor("101");
+      expect(met.kind).toBe("first_response");
       expect(met.status).toBe("met");
       expect(met.closedAt).not.toBeNull();
       expect(met.evaluations).toHaveLength(1);
-      expect(met.evaluations[0]).toMatchObject({ status: "met", elapsedSeconds: 5 * 60 });
+      // The 4m spent pending counts: a customer wait doesn't pause first response.
+      expect(met.evaluations[0]).toMatchObject({ status: "met", elapsedSeconds: 9 * 60 });
     });
 
     it("finalizes a historically breached ticket as breached, with closedAt and an Evaluation", async () => {

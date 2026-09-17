@@ -3,6 +3,7 @@ import { sortNormalizedEvents } from "./ordering";
 import type {
   BusinessCalendarVersion,
   ClockFold,
+  ClockWindow,
   ElapsedResult,
   NormalizedEvent,
   NormalizedState,
@@ -11,10 +12,16 @@ import type {
 
 /**
  * Folds the ordered normalized-event stream into alternating running/paused
- * wall-clock intervals up to `asOf`, based on `pauseOnStates` (semantic
+ * wall-clock intervals inside `window`, based on `pauseOnStates` (semantic
  * states, never provider strings). Shared by `computeElapsedWorkingMinutes`
- * and `computeBreachedAt` (evaluate.ts) so the SLA clock and the breach
- * instant can never disagree about when the clock was running.
+ * and `evaluateCommitment`/`computeBreachedAt` (evaluate.ts) so the SLA clock
+ * and the breach instant can never disagree about when the clock was running.
+ *
+ * The window is always explicit: the clock never starts at the case's first
+ * event nor stops at its last one. Events before `window.start` are replayed
+ * for state only — they decide whether the clock is paused when the window
+ * opens, but no interval ever starts before `window.start`. Events after
+ * `window.end` are ignored. An empty or inverted window yields no intervals.
  *
  * Each reporting system's latest state is tracked separately, and the clock
  * is paused while *any* system's latest state is a pause state (Phase 13.4:
@@ -24,30 +31,28 @@ import type {
  * waiting on the customer, so it can't end a Zendesk `pending_customer`
  * pause.
  *
- * `currentPause` is the clock's state at the cutoff: the pause still open
- * when the fold ends (when it began and why), or null while running.
+ * `currentPause` is the clock's state at `window.end`: the pause still open
+ * when the fold ends, or null while running. Its `since` is when that pause
+ * actually began, even if that was before `window.start` — only the
+ * intervals are clipped to the window.
  */
 export function foldClockIntervals(
   events: NormalizedEvent[],
   pauseOnStates: NormalizedState[],
-  asOf?: Date | string,
+  window: ClockWindow,
 ): ClockFold {
   const runningIntervals: { start: Date; end: Date }[] = [];
   const pausedIntervals: PausedInterval[] = [];
-  if (events.length === 0) return { runningIntervals, pausedIntervals, currentPause: null };
 
   const pauseSet = new Set(pauseOnStates);
-  const sorted = sortNormalizedEvents(events);
-  const cutoff = asOf
-    ? typeof asOf === "string"
-      ? new Date(asOf)
-      : asOf
-    : new Date(sorted[sorted.length - 1]!.occurredAt);
+  const windowStart = new Date(window.start);
+  const windowEnd = new Date(window.end);
 
   // Latest pause state per system; a system is absent while not pausing.
   const pausingStateBySystem = new Map<NormalizedEvent["system"], NormalizedState>();
   let pauseCause: NormalizedState | null = null;
-  let segmentStart = new Date(sorted[0]!.occurredAt);
+  let pausedSince: Date | null = null;
+  let segmentStart = windowStart;
 
   const closeSegment = (end: Date) => {
     if (end <= segmentStart) return;
@@ -62,9 +67,9 @@ export function foldClockIntervals(
     }
   };
 
-  for (const event of sorted) {
+  for (const event of sortNormalizedEvents(events)) {
     const occurredAt = new Date(event.occurredAt);
-    if (occurredAt > cutoff) break;
+    if (occurredAt > windowEnd) break;
     if (event.type !== "state_changed" && event.type !== "case_created")
       continue;
     if (!event.toState) continue;
@@ -80,19 +85,23 @@ export function foldClockIntervals(
     const shouldBePaused = pausingStateBySystem.size > 0;
     if (shouldBePaused === (pauseCause !== null)) continue;
 
-    closeSegment(occurredAt);
-    segmentStart = occurredAt;
+    // A flip before the window only changes the state the window opens in.
+    const boundary = occurredAt < windowStart ? windowStart : occurredAt;
+    closeSegment(boundary);
+    segmentStart = boundary;
     pauseCause = shouldBePaused ? event.toState : null;
+    pausedSince = shouldBePaused ? occurredAt : null;
   }
 
-  closeSegment(cutoff);
+  closeSegment(windowEnd);
 
   return {
     runningIntervals,
     pausedIntervals,
-    currentPause: pauseCause
-      ? { since: segmentStart.toISOString(), cause: pauseCause }
-      : null,
+    currentPause:
+      pauseCause && pausedSince
+        ? { since: pausedSince.toISOString(), cause: pauseCause }
+        : null,
   };
 }
 
@@ -114,8 +123,8 @@ export function sumRunningWorkingMinutes(
 
 /**
  * Folds the ordered normalized-event stream into alternating running/paused
- * intervals, based on `pauseOnStates` (semantic states, never provider
- * strings), then intersects the running intervals with working hours and
+ * intervals inside `window` (`foldClockIntervals`), based on `pauseOnStates`
+ * (semantic states, never provider strings), then intersects the running intervals with working hours and
  * sums.
  *
  * The pause predicate looks at every event regardless of which system
@@ -125,19 +134,19 @@ export function sumRunningWorkingMinutes(
  * *attribution*; this function's pause set is the SLA clock's own rule and
  * is deliberately broader.
  *
- * Pure and deterministic: the same `(events, pauseOnStates, calendar, asOf)`
+ * Pure and deterministic: the same `(events, pauseOnStates, calendar, window)`
  * always returns the same result.
  */
 export function computeElapsedWorkingMinutes(
   events: NormalizedEvent[],
   pauseOnStates: NormalizedState[],
   calendar: BusinessCalendarVersion,
-  asOf?: Date | string,
+  window: ClockWindow,
 ): ElapsedResult {
   const { runningIntervals, pausedIntervals } = foldClockIntervals(
     events,
     pauseOnStates,
-    asOf,
+    window,
   );
 
   const elapsedWorkingMinutes = sumRunningWorkingMinutes(runningIntervals, calendar);

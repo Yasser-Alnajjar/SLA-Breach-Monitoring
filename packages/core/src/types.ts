@@ -235,3 +235,31 @@ export interface ElapsedResult {
   elapsedWorkingMinutes: number;
   pausedIntervals: PausedInterval[];
 }
+
+/** What answered a Next Reply cycle. Only a public agent reply does. */
+export type NextReplyCompletionType = "agent_replied";
+
+/**
+ * One Next Reply cycle derived from a case's event stream
+ * (`deriveNextReplyCycles`): the wait from the oldest unanswered customer
+ * reply to the next public agent reply. Derived, never stored as the source
+ * of truth.
+ */
+export interface NextReplyCycle {
+  /**
+   * Stable identity, from the anchor customer reply's source facts (see
+   * `nextReplyCycleKey`). Survives renormalization, and unlike `index` it
+   * doesn't shift when an earlier cycle appears.
+   */
+  key: string;
+  /** 0-based position among the case's cycles as of the derivation's `asOf`. */
+  index: number;
+  startedAt: string; // ISO 8601, the anchor's instant
+  /** The oldest unanswered customer reply — the one the cycle starts at. */
+  anchor: EvaluationEventRef;
+  /** Every customer reply the cycle answers, in event order, anchor first. */
+  customerReplies: EvaluationEventRef[];
+  completedAt: string | null; // ISO 8601, null while unanswered
+  completion: EvaluationEventRef | null;
+  completionType: NextReplyCompletionType | null;
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deriveNextReplyCycles, findFirstResponseEvent, type NormalizedEvent } from "@sla/core";
 import {
   deriveCaseClosedAt,
   deriveIntercomSubject,
@@ -465,6 +466,49 @@ describe("deriveNormalizedEventsForConversation customer replies", () => {
       "raw_p1:case_closed",
       "raw_p2:state_changed",
       "raw_p2:customer_replied",
+    ]);
+  });
+});
+
+describe("Next Reply cycles from derived conversation events", () => {
+  const openConversation: IntercomConversationWithParts = { ...conversation, state: "open" };
+  const customer = { type: "user", id: "u1" };
+  const AS_OF = new Date((conversation.created_at + 10_000) * 1000).toISOString();
+  const iso = (offset: number) => new Date((conversation.created_at + offset) * 1000).toISOString();
+
+  const toCoreEvents = (derived: DerivedNormalizedEvent[]): NormalizedEvent[] =>
+    derived.map((event, i) => ({ ...event, id: `evt-${i}`, caseId: "case-42", system: "intercom" }));
+
+  const cycles = (events: NormalizedEvent[]) =>
+    deriveNextReplyCycles(events, { asOf: AS_OF, firstResponseCompletion: findFirstResponseEvent(events, AS_OF) }).map(
+      (c) => [c.startedAt, c.completedAt, c.completion?.sourceRawEventId ?? null, c.customerReplies.map((r) => r.sourceRawEventId)],
+    );
+
+  it("derives cycles past notes, bots, repeated admin replies, reply-and-close, and a customer reopen", () => {
+    const events = toCoreEvents(
+      deriveNormalizedEventsForConversation(
+        openConversation,
+        [
+          // Covered by first response.
+          part({ id: "p01", created_at: conversation.created_at + 100, author: customer, body: "<p>help</p>" }),
+          part({ id: "p02", created_at: conversation.created_at + 150, part_type: "note", body: "<p>internal</p>" }),
+          part({ id: "p03", created_at: conversation.created_at + 200, body: "<p>looking</p>" }),
+          // Cycle 1: two customer replies around a bot message, answered by a reply-and-close.
+          part({ id: "p04", created_at: conversation.created_at + 300, author: customer, body: "<p>any news?</p>" }),
+          part({ id: "p05", created_at: conversation.created_at + 310, author: { type: "bot", id: "fin" }, body: "<p>Fin here</p>" }),
+          part({ id: "p06", created_at: conversation.created_at + 320, author: customer, body: "<p>hello?</p>" }),
+          part({ id: "p07", created_at: conversation.created_at + 400, part_type: "close", body: "<p>fixed</p>" }),
+          part({ id: "p08", created_at: conversation.created_at + 410, body: "<p>also...</p>" }),
+          // Cycle 2: the customer reopens by replying; nobody has answered yet.
+          part({ id: "p09", created_at: conversation.created_at + 500, part_type: "open", author: customer, body: "<p>still broken</p>" }),
+        ],
+        "raw_conversation",
+      ),
+    );
+
+    expect(cycles(events)).toEqual([
+      [iso(300), iso(400), "raw_p07", ["raw_p04", "raw_p06"]],
+      [iso(500), null, null, ["raw_p09"]],
     ]);
   });
 });

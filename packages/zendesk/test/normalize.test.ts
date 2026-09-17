@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deriveNextReplyCycles, findFirstResponseEvent, type NormalizedEvent } from "@sla/core";
 import {
   deriveCaseClosedAt,
   deriveNormalizedEventsForTicket,
@@ -900,5 +901,87 @@ describe("deriveNormalizedEventsForTicket customer replies", () => {
       ["state_changed", 1],
       ["customer_replied", 2],
     ]);
+  });
+});
+
+describe("Next Reply cycles from derived ticket events", () => {
+  const openTicket: ZendeskTicket = { ...ticket, status: "open" };
+  const CUSTOMER = 501; // the ticket's requester
+  const AGENT = 900;
+  const AS_OF = "2026-01-02T00:00:00.000Z";
+
+  const publicComment = (authorId: number, overrides: Record<string, unknown> = {}) => ({
+    id: 9,
+    type: "Comment",
+    public: true,
+    body: "hello",
+    author_id: authorId,
+    ...overrides,
+  });
+
+  const toCoreEvents = (derived: DerivedNormalizedEvent[]): NormalizedEvent[] =>
+    derived.map((event, i) => ({ ...event, id: `evt-${i}`, caseId: "case-42", system: "zendesk" }));
+
+  const cycles = (events: NormalizedEvent[]) =>
+    deriveNextReplyCycles(events, { asOf: AS_OF, firstResponseCompletion: findFirstResponseEvent(events, AS_OF) }).map(
+      (c) => [c.startedAt, c.completedAt, c.customerReplies.map((r) => r.sourceRawEventId)],
+    );
+
+  it("derives cycles past notes, triggers, pending, repeated agent replies, and a solve/reopen", () => {
+    const events = toCoreEvents(
+      deriveNormalizedEventsForTicket(
+        openTicket,
+        [
+          // Covered by first response.
+          audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: CUSTOMER, events: [publicComment(CUSTOMER)] }),
+          audit({ id: 3, created_at: "2026-01-01T09:20:00Z", author_id: AGENT, events: [publicComment(AGENT, { public: false })] }),
+          audit({
+            id: 4,
+            created_at: "2026-01-01T09:30:00Z",
+            author_id: AGENT,
+            events: [publicComment(AGENT), statusChange("pending", "open")],
+          }),
+          // Cycle 1: two customer replies around a trigger comment, answered once.
+          audit({
+            id: 5,
+            created_at: "2026-01-01T09:40:00Z",
+            author_id: CUSTOMER,
+            events: [publicComment(CUSTOMER), statusChange("open", "pending")],
+          }),
+          audit({ id: 6, created_at: "2026-01-01T09:45:00Z", author_id: AGENT, via: { channel: "trigger" }, events: [publicComment(AGENT)] }),
+          audit({ id: 7, created_at: "2026-01-01T09:50:00Z", author_id: CUSTOMER, events: [publicComment(CUSTOMER)] }),
+          audit({ id: 8, created_at: "2026-01-01T10:00:00Z", author_id: AGENT, events: [publicComment(AGENT)] }),
+          audit({ id: 9, created_at: "2026-01-01T10:05:00Z", author_id: AGENT, events: [publicComment(AGENT)] }),
+          audit({ id: 10, created_at: "2026-01-01T10:10:00Z", author_id: AGENT, events: [statusChange("solved", "open")] }),
+          // Cycle 2: the customer reopens by replying; nobody has answered yet.
+          audit({
+            id: 11,
+            created_at: "2026-01-01T10:20:00Z",
+            author_id: CUSTOMER,
+            events: [publicComment(CUSTOMER), statusChange("open", "solved")],
+          }),
+        ],
+        "raw_ticket",
+      ),
+    );
+
+    expect(cycles(events)).toEqual([
+      ["2026-01-01T09:40:00.000Z", "2026-01-01T10:00:00.000Z", ["raw_5", "raw_7"]],
+      ["2026-01-01T10:20:00.000Z", null, ["raw_11"]],
+    ]);
+  });
+
+  it("orders same-second customer and agent audits by audit id", () => {
+    const firstReply = audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: AGENT, events: [publicComment(AGENT)] });
+    const customerAudit = (id: number) =>
+      audit({ id, created_at: "2026-01-01T09:30:00Z", author_id: CUSTOMER, events: [publicComment(CUSTOMER)] });
+    const agentAudit = (id: number) =>
+      audit({ id, created_at: "2026-01-01T09:30:00Z", author_id: AGENT, events: [publicComment(AGENT)] });
+
+    const answered = toCoreEvents(deriveNormalizedEventsForTicket(openTicket, [firstReply, customerAudit(3), agentAudit(4)], "raw_ticket"));
+    expect(cycles(answered)).toEqual([["2026-01-01T09:30:00.000Z", "2026-01-01T09:30:00.000Z", ["raw_3"]]]);
+
+    const unanswered = toCoreEvents(deriveNormalizedEventsForTicket(openTicket, [firstReply, agentAudit(3), customerAudit(4)], "raw_ticket"));
+    expect(cycles(unanswered)).toEqual([["2026-01-01T09:30:00.000Z", null, ["raw_4"]]]);
   });
 });

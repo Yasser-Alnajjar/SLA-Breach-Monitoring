@@ -7,6 +7,8 @@ export { computeElapsedWorkingMinutes } from "./elapsed";
 export { commitmentPausesOn, pauseStatesFor } from "./clock-rules";
 export { deriveLegSpans, validateLegSpans, sumLegMinutes, legAtTime } from "./legs";
 export type { DeriveLegSpansOptions } from "./legs";
+export { deriveNextReplyCycles, nextReplyCycleKey } from "./reply-cycles";
+export type { DeriveNextReplyCyclesOptions } from "./reply-cycles";
 export { matchPolicyVersion, createCommitment } from "./commitments";
 export {
   computeBreachedAt,

@@ -1,5 +1,6 @@
 import { computeDeadline, workingMinutesBetween } from "./calendar";
 import { foldClockIntervals, sumRunningWorkingMinutes } from "./elapsed";
+import { compareNormalizedEvents } from "./ordering";
 import type {
   BusinessCalendarVersion,
   ClockState,
@@ -124,7 +125,7 @@ export function findCaseCloseEvent(
         TICKET_LIFECYCLE_EVENT_TYPES.has(e.type) &&
         e.occurredAt <= asOf,
     )
-    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    .sort(compareNormalizedEvents);
 
   let closure: NormalizedEvent | null = null;
   for (const event of lifecycleEvents) {
@@ -154,7 +155,7 @@ export function findFirstResponseEvent(
     if (!TICKET_SOURCE_SYSTEMS.has(event.system)) continue;
     if (event.type !== "agent_replied" && event.type !== "case_closed") continue;
     if (event.occurredAt > asOf) continue;
-    if (!first || event.occurredAt < first.occurredAt) first = event;
+    if (!first || compareNormalizedEvents(event, first) < 0) first = event;
   }
   return first;
 }
@@ -217,7 +218,7 @@ export function evaluateCommitment(
 ): Evaluation {
   const caseEvents = events
     .filter((e) => e.caseId === commitment.caseId)
-    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    .sort(compareNormalizedEvents);
 
   const { completionEvent, cutoff: effectiveAsOf } = resolveClockCutoff(
     commitment.kind,

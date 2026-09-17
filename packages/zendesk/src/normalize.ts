@@ -94,6 +94,13 @@ export interface DerivedNormalizedEvent {
   fromState: NormalizedState | null;
   toState: NormalizedState | null;
   sourceRawEventId: string;
+  /**
+   * Position in the ticket's own source order: 0 for the synthesized
+   * `case_created`, then one slot per audit event in audit order
+   * (`sortAuditsChronologically`) and each event's index within its audit.
+   * Assigned from the source, never from the normalized output's order.
+   */
+  sourceSequence: number;
 }
 
 export function sortAuditsChronologically(audits: AuditRecord[]): AuditRecord[] {
@@ -115,11 +122,19 @@ export function sortAuditsChronologically(audits: AuditRecord[]): AuditRecord[] 
  * replaying transitions ourselves.
  *
  * Public agent comments become `agent_replied` events — what completes a
- * first-response commitment. Comments on the ticket's creation audit (the
- * ticket's own description, even when an agent opened it) never count, and
- * neither do replies whose author has no known role on a ticket whose
- * requester is also unknown, since `resolveActor` could not tell the
- * customer's comments from an agent's.
+ * first-response commitment — and public customer comments become
+ * `customer_replied`. Private notes and trigger/automation comments become
+ * neither. Comments on the ticket's creation audit (the ticket's own
+ * description, even when an agent opened it) never count, and neither do
+ * comments whose author has no known role on a ticket whose requester is
+ * also unknown, since `resolveActor` could not tell the customer's comments
+ * from an agent's.
+ *
+ * Events keep the ticket's true source order: audits chronologically (audit
+ * id breaking same-second ties) and, inside an audit, the order Zendesk
+ * lists its events in — a comment listed before a status change in the same
+ * audit stays before it. `sourceSequence` records that order so it survives
+ * persistence (see `compareNormalizedEvents` in @sla/core).
  */
 export function deriveNormalizedEventsForTicket(
   ticket: ZendeskTicket,
@@ -146,48 +161,58 @@ export function deriveNormalizedEventsForTicket(
       fromState: null,
       toState: normalizeZendeskStatus(initialStatus),
       sourceRawEventId: firstChange?.rawEventId ?? ticketRawEventId,
+      sourceSequence: 0,
     },
   ];
 
-  for (const { rawEventId, audit, event } of statusChanges) {
-    const toState = normalizeZendeskStatus(event.value);
-    events.push({
-      // "solved" and "closed" both end the case's customer-facing lifecycle
-      // (Zendesk is the source of truth for that — Jira reaching its own
-      // "done" category must never produce this type, see jira/normalize.ts).
-      // "solved" can still be reopened by a later transition back to a
-      // non-terminal state, which is emitted as a plain state_changed below.
-      type: toState === "closed" || toState === "resolved" ? "case_closed" : "state_changed",
-      occurredAt: audit.created_at,
-      actor: resolveActor(audit.via?.channel, audit.author_id, ticket, userRoles),
-      fromState: normalizeZendeskStatus(event.previous_value),
-      toState,
-      sourceRawEventId: rawEventId,
-    });
-  }
-
   const createdAtMs = Date.parse(ticket.created_at);
+  let sourceSequence = 0;
   for (const { rawEventId, audit } of sorted) {
-    if (Date.parse(audit.created_at) <= createdAtMs) continue;
-    for (const event of audit.events.filter(isPublicCommentEvent)) {
+    for (const event of audit.events) {
+      sourceSequence += 1;
+
+      if (isStatusChangeEvent(event)) {
+        const toState = normalizeZendeskStatus(event.value);
+        events.push({
+          // "solved" and "closed" both end the case's customer-facing lifecycle
+          // (Zendesk is the source of truth for that — Jira reaching its own
+          // "done" category must never produce this type, see jira/normalize.ts).
+          // "solved" can still be reopened by a later transition back to a
+          // non-terminal state, which is emitted as a plain state_changed.
+          type: toState === "closed" || toState === "resolved" ? "case_closed" : "state_changed",
+          occurredAt: audit.created_at,
+          actor: resolveActor(audit.via?.channel, audit.author_id, ticket, userRoles),
+          fromState: normalizeZendeskStatus(event.previous_value),
+          toState,
+          sourceRawEventId: rawEventId,
+          sourceSequence,
+        });
+        continue;
+      }
+
+      if (!isPublicCommentEvent(event)) continue;
+      if (Date.parse(audit.created_at) <= createdAtMs) continue;
       const authorId = event.author_id ?? audit.author_id;
       if (ticket.requester_id == null && !actorForKnownRole(authorId, userRoles)) continue;
       const actor = resolveActor(audit.via?.channel, authorId, ticket, userRoles);
-      if (actor !== "agent") continue;
+      if (actor === "system") continue;
       events.push({
-        type: "agent_replied",
+        type: actor === "agent" ? "agent_replied" : "customer_replied",
         occurredAt: audit.created_at,
         actor,
         fromState: null,
         toState: null,
         sourceRawEventId: rawEventId,
+        sourceSequence,
       });
     }
   }
 
-  // Stable, so a status change and a reply at the same instant keep the
-  // status change first.
-  return events.sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
+  // Emitted in source order already; the sort only guards the synthesized
+  // case_created against an audit timestamped before the ticket itself.
+  return events.sort(
+    (a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.sourceSequence - b.sourceSequence,
+  );
 }
 
 /**
@@ -387,6 +412,7 @@ export async function runZendeskNormalization(
             system: "zendesk" as const,
             fromState: event.fromState,
             toState: event.toState,
+            sourceSequence: event.sourceSequence,
           })) satisfies Prisma.NormalizedEventCreateManyInput[],
         }),
       ]);

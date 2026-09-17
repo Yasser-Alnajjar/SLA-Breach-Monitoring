@@ -11,6 +11,7 @@ import {
   Layers,
   Link2,
   ListTree,
+  MessageSquare,
   MessageSquareReply,
   Unlink,
 } from "lucide-react";
@@ -55,6 +56,7 @@ const EVENT_TYPE_ICON: Record<string, ReactNode> = {
   issue_unlinked: <Unlink className="size-3" />,
   case_closed: <CheckCircle2 className="size-3" />,
   agent_replied: <MessageSquareReply className="size-3" />,
+  customer_replied: <MessageSquare className="size-3" />,
 };
 
 const PROVIDER_LABELS = INTEGRATION_PROVIDER_LABELS as Record<string, string>;
@@ -92,6 +94,7 @@ function TimelineEventBody({ event }: { event: TimelineEventDetail }) {
     issue_unlinked: "Issue unlinked",
     case_closed: "Case closed",
     agent_replied: "Agent replied",
+    customer_replied: "Customer replied",
   };
 
   return (

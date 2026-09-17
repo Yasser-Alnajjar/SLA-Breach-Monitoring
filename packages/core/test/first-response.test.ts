@@ -203,3 +203,33 @@ describe("findFirstResponseEvent", () => {
     expect(findFirstResponseEvent(events, at("12:00"))).toBeNull();
   });
 });
+
+describe("customer replies", () => {
+  const withCustomerReplies: NormalizedEvent[] = [
+    event("10:00", "case_created", "new", { actor: "customer" }),
+    event("10:30", "customer_replied", null, { actor: "customer" }),
+    event("11:00", "customer_replied", null, { actor: "customer" }),
+  ];
+
+  it("do not complete a first-response or resolution commitment", () => {
+    expect(findFirstResponseEvent(withCustomerReplies, at("12:00"))).toBeNull();
+    expect(findCompletionEvent("first_response", withCustomerReplies, at("12:00"))).toBeNull();
+    expect(findCompletionEvent("resolution", withCustomerReplies, at("12:00"))).toBeNull();
+  });
+
+  it("do not change elapsed time or clock state", () => {
+    const withoutReplies = withCustomerReplies.filter((e) => e.type !== "customer_replied");
+    for (const kind of ["first_response", "resolution"] as const) {
+      const a = evaluate(kind, withCustomerReplies, "12:00");
+      const b = evaluate(kind, withoutReplies, "12:00");
+      expect(a.elapsedSeconds).toBe(b.elapsedSeconds);
+      expect(a.status).toBe(b.status);
+      expect(a.clock).toEqual(b.clock);
+    }
+  });
+
+  it("leave first response completed by the later agent reply", () => {
+    const reply = event("12:00", "agent_replied", null);
+    expect(findFirstResponseEvent([...withCustomerReplies, reply], at("13:00"))).toBe(reply);
+  });
+});

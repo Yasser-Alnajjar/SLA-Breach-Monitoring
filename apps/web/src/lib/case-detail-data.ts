@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@sla/db";
 import {
+  sortNormalizedEvents,
   computeElapsedWorkingMinutes,
   deriveLegSpans,
   evaluateCommitment,
@@ -87,7 +88,7 @@ export async function getCaseDetailData(
     await Promise.all([
       prisma.normalizedEvent.findMany({
         where: { caseId },
-        orderBy: { occurredAt: "asc" },
+        orderBy: [{ occurredAt: "asc" }, { sourceSequence: "asc" }],
       }),
       prisma.integration.findUnique({
         where: {
@@ -161,8 +162,10 @@ export async function getCaseDetailData(
     ]),
   );
 
-  const domainEvents: NormalizedEvent[] = eventRows.map(
-    toNormalizedEventDomain,
+  // The engine's own total order, so the timeline lists same-instant events
+  // exactly as the evaluations below consumed them.
+  const domainEvents: NormalizedEvent[] = sortNormalizedEvents(
+    eventRows.map(toNormalizedEventDomain),
   );
 
   const commitments: CommitmentDetail[] = caseRow.commitments

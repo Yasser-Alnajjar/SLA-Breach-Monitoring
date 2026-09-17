@@ -1,3 +1,4 @@
+import { sortNormalizedEvents } from "./ordering";
 import type {
   Confidence,
   Leg,
@@ -44,9 +45,7 @@ export function deriveLegSpans(
   const spans: LegSpan[] = [];
   if (events.length === 0) return { spans, warnings };
 
-  const sorted = [...events].sort((a, b) =>
-    a.occurredAt.localeCompare(b.occurredAt),
-  );
+  const sorted = sortNormalizedEvents(events);
 
   // Either ticket-source provider (Zendesk or Intercom, roadmap step 22)
   // drives the same decision — a case only ever comes from one of them, so

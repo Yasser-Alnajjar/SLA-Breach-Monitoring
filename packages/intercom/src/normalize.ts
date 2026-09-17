@@ -62,8 +62,21 @@ const CUSTOMER_VISIBLE_REPLY_PART_TYPES = new Set(["comment", "close", "open", "
  * unrecognized author type is not guessed at.
  */
 export function isAgentReplyPart(part: IntercomConversationPart): boolean {
+  return part.author?.type === "admin" && isVisibleMessagePart(part);
+}
+
+/**
+ * Whether a part is a customer's message on the conversation — a contact
+ * (`resolveIntercomActor`'s "customer") writing into it after it opened. The
+ * conversation's opening message is `conversation.source`, not a part, so it
+ * never counts.
+ */
+export function isCustomerReplyPart(part: IntercomConversationPart): boolean {
+  return resolveIntercomActor(part.author) === "customer" && isVisibleMessagePart(part);
+}
+
+function isVisibleMessagePart(part: IntercomConversationPart): boolean {
   return (
-    part.author?.type === "admin" &&
     CUSTOMER_VISIBLE_REPLY_PART_TYPES.has(part.part_type) &&
     typeof part.body === "string" &&
     part.body.trim() !== ""
@@ -99,6 +112,12 @@ export interface DerivedNormalizedEvent {
   fromState: NormalizedState | null;
   toState: NormalizedState | null;
   sourceRawEventId: string;
+  /**
+   * Position in the conversation's own source order: 0 for the synthesized
+   * `case_created`, then per part in part order (`sortPartsChronologically`),
+   * with a part's transition before the reply the same part carries.
+   */
+  sourceSequence: number;
 }
 
 export function sortPartsChronologically(parts: ConversationPartRecord[]): ConversationPartRecord[] {
@@ -122,7 +141,11 @@ export function sortPartsChronologically(parts: ConversationPartRecord[]): Conve
  * (a redundant re-close, say) is skipped rather than emitted as a no-op.
  *
  * Admin replies (`isAgentReplyPart`) additionally become `agent_replied`
- * events, independently of any transition the same part carries.
+ * events, and customer messages (`isCustomerReplyPart`) `customer_replied`,
+ * independently of any transition the same part carries. Events
+ * keep the parts' source order; a part carrying both a transition and a
+ * reply emits the transition first. `sourceSequence` records that order so
+ * it survives persistence (see `compareNormalizedEvents` in @sla/core).
  */
 export function deriveNormalizedEventsForConversation(
   conversation: IntercomConversationWithParts,
@@ -130,11 +153,6 @@ export function deriveNormalizedEventsForConversation(
   conversationRawEventId: string,
 ): DerivedNormalizedEvent[] {
   const sorted = sortPartsChronologically(partsForConversation);
-  const transitions = sorted
-    .map((record) => ({ ...record, targetState: TRANSITION_PART_TYPE_TO_STATE[record.part.part_type] }))
-    .filter((record): record is ConversationPartRecord & { targetState: IntercomConversationState } =>
-      record.targetState !== undefined,
-    );
 
   const events: DerivedNormalizedEvent[] = [
     {
@@ -144,43 +162,54 @@ export function deriveNormalizedEventsForConversation(
       fromState: null,
       toState: normalizeIntercomState("open"),
       sourceRawEventId: conversationRawEventId,
+      sourceSequence: 0,
     },
   ];
 
   let currentState: IntercomConversationState = "open";
-  for (const { rawEventId, part, targetState } of transitions) {
-    if (targetState === currentState) continue;
-
-    const toState = normalizeIntercomState(targetState);
-    events.push({
-      // Intercom's only terminal state is "closed" — a conversation reopened
-      // after that (targetState "open") is a plain state_changed, same as
-      // Zendesk's solved-then-reopened case.
-      type: toState === "resolved" ? "case_closed" : "state_changed",
-      occurredAt: new Date(part.created_at * 1000).toISOString(),
-      actor: resolveIntercomActor(part.author),
-      fromState: normalizeIntercomState(currentState),
-      toState,
-      sourceRawEventId: rawEventId,
-    });
-    currentState = targetState;
-  }
-
+  let sourceSequence = 0;
   for (const { rawEventId, part } of sorted) {
-    if (!isAgentReplyPart(part)) continue;
-    events.push({
-      type: "agent_replied",
-      occurredAt: new Date(part.created_at * 1000).toISOString(),
-      actor: "agent",
-      fromState: null,
-      toState: null,
-      sourceRawEventId: rawEventId,
-    });
+    const occurredAt = new Date(part.created_at * 1000).toISOString();
+
+    sourceSequence += 1;
+    const targetState = TRANSITION_PART_TYPE_TO_STATE[part.part_type];
+    if (targetState !== undefined && targetState !== currentState) {
+      const toState = normalizeIntercomState(targetState);
+      events.push({
+        // Intercom's only terminal state is "closed" — a conversation reopened
+        // after that (targetState "open") is a plain state_changed, same as
+        // Zendesk's solved-then-reopened case.
+        type: toState === "resolved" ? "case_closed" : "state_changed",
+        occurredAt,
+        actor: resolveIntercomActor(part.author),
+        fromState: normalizeIntercomState(currentState),
+        toState,
+        sourceRawEventId: rawEventId,
+        sourceSequence,
+      });
+      currentState = targetState;
+    }
+
+    sourceSequence += 1;
+    const replyType = isAgentReplyPart(part) ? "agent_replied" : isCustomerReplyPart(part) ? "customer_replied" : null;
+    if (replyType) {
+      events.push({
+        type: replyType,
+        occurredAt,
+        actor: replyType === "agent_replied" ? "agent" : "customer",
+        fromState: null,
+        toState: null,
+        sourceRawEventId: rawEventId,
+        sourceSequence,
+      });
+    }
   }
 
-  // Stable, so a transition and a reply carried by the same part keep the
-  // transition first.
-  return events.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  // Emitted in source order already; the sort only guards the synthesized
+  // case_created against a part timestamped before the conversation itself.
+  return events.sort(
+    (a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.sourceSequence - b.sourceSequence,
+  );
 }
 
 /**
@@ -444,6 +473,7 @@ export async function runIntercomNormalization(
             system: "intercom" as const,
             fromState: event.fromState,
             toState: event.toState,
+            sourceSequence: event.sourceSequence,
           })) satisfies Prisma.NormalizedEventCreateManyInput[],
         }),
       ]);

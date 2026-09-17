@@ -1,4 +1,5 @@
 import {
+  compareNormalizedEvents,
   computeElapsedWorkingMinutes,
   createCommitment,
   deriveLegSpans,
@@ -108,7 +109,7 @@ export interface Findings {
   cases: CaseResult[];
 }
 
-type DerivedEvent = Pick<NormalizedEvent, "type" | "occurredAt" | "actor" | "fromState" | "toState" | "sourceRawEventId">;
+type DerivedEvent = Pick<NormalizedEvent, "type" | "occurredAt" | "actor" | "fromState" | "toState" | "sourceRawEventId" | "sourceSequence">;
 
 function toDomainEvents(caseId: string, system: NormalizedEvent["system"], derived: DerivedEvent[]): NormalizedEvent[] {
   return derived.map((event, index) => ({
@@ -121,6 +122,7 @@ function toDomainEvents(caseId: string, system: NormalizedEvent["system"], deriv
     fromState: event.fromState,
     toState: event.toState,
     sourceRawEventId: event.sourceRawEventId,
+    sourceSequence: event.sourceSequence,
   }));
 }
 
@@ -230,7 +232,7 @@ export function analyzeExport(parsed: ParsedExport, options: AnalysisOptions): F
         ...toDomainEvents(caseId, "jira", issue.events.map((e) => ({ ...e, type: "state_changed" as const }))),
       );
     }
-    events.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    events.sort(compareNormalizedEvents);
 
     const closeEvent = findCaseCloseEvent(events, asOf);
     const endBound = closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;

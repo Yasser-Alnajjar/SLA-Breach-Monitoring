@@ -131,6 +131,7 @@ describe("deriveNormalizedEventsForTicket", () => {
         fromState: null,
         toState: "new",
         sourceRawEventId: "raw_ticket_42",
+        sourceSequence: 0,
       },
     ]);
   });
@@ -404,6 +405,7 @@ describe("deriveNormalizedEventsForTicket agent replies", () => {
         fromState: null,
         toState: null,
         sourceRawEventId: "raw_2",
+        sourceSequence: 1,
       },
     ]);
   });
@@ -529,7 +531,7 @@ describe("deriveNormalizedEventsForTicket agent replies", () => {
     });
   });
 
-  it("keeps events in chronological order, status change before a reply in the same audit", () => {
+  it("keeps events in chronological order, and in the audit's own event order within an audit", () => {
     const events = deriveNormalizedEventsForTicket(
       openTicket,
       [
@@ -545,8 +547,8 @@ describe("deriveNormalizedEventsForTicket agent replies", () => {
     );
     expect(events.map((e) => [e.type, e.occurredAt])).toEqual([
       ["case_created", "2026-01-01T09:00:00Z"],
-      ["state_changed", "2026-01-01T09:40:00Z"],
       ["agent_replied", "2026-01-01T09:40:00Z"],
+      ["state_changed", "2026-01-01T09:40:00Z"],
       ["state_changed", "2026-01-01T10:00:00Z"],
     ]);
   });
@@ -651,5 +653,252 @@ describe("deriveNormalizedEventsForTicket ticket 51 regression", () => {
     const closures = (events: DerivedNormalizedEvent[]) =>
       events.filter((e) => e.type === "case_closed").map(({ actor: _actor, ...rest }) => rest);
     expect(closures(withRoles)).toEqual(closures(withoutRoles));
+  });
+});
+
+describe("deriveNormalizedEventsForTicket source ordering", () => {
+  const openTicket: ZendeskTicket = { ...ticket, status: "open" };
+  const AGENT = 900;
+  const SAME_SECOND = "2026-01-01T10:00:00Z";
+
+  function agentComment() {
+    return { id: 9, type: "Comment", public: true, body: "hello", author_id: AGENT };
+  }
+
+  const summarize = (events: DerivedNormalizedEvent[]) =>
+    events.map((e) => `${e.sourceRawEventId}:${e.type}${e.toState ? `→${e.toState}` : ""}`);
+
+  it("keeps a comment listed before a status change in the same audit before it", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({
+          id: 101,
+          created_at: SAME_SECOND,
+          author_id: AGENT,
+          events: [agentComment(), statusChange("solved", "open")],
+        }),
+      ],
+      "raw_ticket",
+    );
+
+    expect(summarize(events)).toEqual(["raw_101:case_created→open", "raw_101:agent_replied", "raw_101:case_closed→resolved"]);
+    const [, reply, solve] = events;
+    expect(reply!.occurredAt).toBe(solve!.occurredAt);
+    expect(reply!.sourceSequence).toBeLessThan(solve!.sourceSequence);
+  });
+
+  it("preserves audit order and in-audit event order across same-second audits, instead of grouping status changes before comments", () => {
+    const audits = [
+      audit({
+        id: 101,
+        created_at: SAME_SECOND,
+        author_id: AGENT,
+        events: [agentComment(), statusChange("pending", "open")],
+      }),
+      audit({
+        id: 102,
+        created_at: SAME_SECOND,
+        author_id: AGENT,
+        events: [statusChange("open", "pending"), agentComment()],
+      }),
+    ];
+    const events = deriveNormalizedEventsForTicket(openTicket, audits, "raw_ticket");
+
+    expect(summarize(events)).toEqual([
+      "raw_101:case_created→open",
+      "raw_101:agent_replied",
+      "raw_101:state_changed→pending_customer",
+      "raw_102:state_changed→open",
+      "raw_102:agent_replied",
+    ]);
+    const sequences = events.map((e) => e.sourceSequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(new Set(sequences).size).toBe(sequences.length);
+  });
+
+  it("orders same-second audits by audit id regardless of the order they were loaded in", () => {
+    const audits = [
+      audit({ id: 102, created_at: SAME_SECOND, author_id: AGENT, events: [statusChange("open", "pending")] }),
+      audit({ id: 101, created_at: SAME_SECOND, author_id: AGENT, events: [agentComment(), statusChange("pending", "open")] }),
+    ];
+    const events = deriveNormalizedEventsForTicket(openTicket, audits, "raw_ticket");
+    expect(summarize(events)).toEqual([
+      "raw_101:case_created→open",
+      "raw_101:agent_replied",
+      "raw_101:state_changed→pending_customer",
+      "raw_102:state_changed→open",
+    ]);
+  });
+
+  it("counts every audit event toward the sequence, including ones that emit nothing", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({
+          id: 101,
+          created_at: SAME_SECOND,
+          author_id: AGENT,
+          events: [
+            { id: 1, type: "Notification" },
+            { id: 2, type: "Comment", public: false, author_id: AGENT },
+            agentComment(),
+          ],
+        }),
+      ],
+      "raw_ticket",
+    );
+    expect(events.find((e) => e.type === "agent_replied")?.sourceSequence).toBe(3);
+  });
+
+  it("is idempotent: repeated normalization of the same audits, in any load order, yields identical events and sequences", () => {
+    const audits = [
+      audit({ id: 100, created_at: "2026-01-01T09:05:00Z", author_id: AGENT, events: [statusChange("open", "new")] }),
+      audit({ id: 101, created_at: SAME_SECOND, author_id: AGENT, events: [agentComment(), statusChange("pending", "open")] }),
+      audit({ id: 102, created_at: SAME_SECOND, author_id: 501, events: [statusChange("open", "pending")] }),
+      audit({ id: 103, created_at: "2026-01-01T11:00:00Z", author_id: AGENT, events: [agentComment(), statusChange("solved", "open")] }),
+    ];
+    const first = deriveNormalizedEventsForTicket(openTicket, audits, "raw_ticket");
+    const again = deriveNormalizedEventsForTicket(openTicket, audits, "raw_ticket");
+    const reversed = deriveNormalizedEventsForTicket(openTicket, [...audits].reverse(), "raw_ticket");
+    const rotated = deriveNormalizedEventsForTicket(openTicket, [...audits.slice(2), ...audits.slice(0, 2)], "raw_ticket");
+
+    expect(again).toEqual(first);
+    expect(reversed).toEqual(first);
+    expect(rotated).toEqual(first);
+  });
+});
+
+describe("deriveNormalizedEventsForTicket customer replies", () => {
+  const openTicket: ZendeskTicket = { ...ticket, status: "open" };
+  const CUSTOMER = 501; // the ticket's requester
+  const AGENT = 900;
+
+  function comment(overrides: Record<string, unknown> = {}) {
+    return { id: 9, type: "Comment", public: true, body: "hello", ...overrides };
+  }
+
+  const replyEvents = (events: DerivedNormalizedEvent[]) =>
+    events
+      .filter((e) => e.type === "customer_replied" || e.type === "agent_replied")
+      .map((e) => [e.type, e.occurredAt, e.actor, e.sourceRawEventId]);
+
+  it("keeps both a customer comment and the agent's public reply", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: CUSTOMER, events: [comment({ author_id: CUSTOMER })] }),
+        audit({ id: 3, created_at: "2026-01-01T09:40:00Z", author_id: AGENT, events: [comment({ author_id: AGENT })] }),
+      ],
+      "raw_ticket",
+    );
+    expect(events.find((e) => e.type === "customer_replied")).toEqual({
+      type: "customer_replied",
+      occurredAt: "2026-01-01T09:10:00Z",
+      actor: "customer",
+      fromState: null,
+      toState: null,
+      sourceRawEventId: "raw_2",
+      sourceSequence: 1,
+    });
+    expect(replyEvents(events)).toEqual([
+      ["customer_replied", "2026-01-01T09:10:00Z", "customer", "raw_2"],
+      ["agent_replied", "2026-01-01T09:40:00Z", "agent", "raw_3"],
+    ]);
+  });
+
+  it("does not turn an internal note between them into a customer reply", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: CUSTOMER, events: [comment({ author_id: CUSTOMER })] }),
+        audit({ id: 3, created_at: "2026-01-01T09:20:00Z", author_id: AGENT, events: [comment({ author_id: AGENT, public: false })] }),
+        audit({ id: 4, created_at: "2026-01-01T09:40:00Z", author_id: AGENT, events: [comment({ author_id: AGENT })] }),
+      ],
+      "raw_ticket",
+    );
+    expect(events.map((e) => e.type)).toEqual(["case_created", "customer_replied", "agent_replied"]);
+    expect(replyEvents(events)).toEqual([
+      ["customer_replied", "2026-01-01T09:10:00Z", "customer", "raw_2"],
+      ["agent_replied", "2026-01-01T09:40:00Z", "agent", "raw_4"],
+    ]);
+  });
+
+  it("ignores a private comment even when the customer authored it", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: CUSTOMER, events: [comment({ author_id: CUSTOMER, public: false })] })],
+      "raw_ticket",
+    );
+    expect(replyEvents(events)).toEqual([]);
+  });
+
+  it("ignores the customer's own ticket description on the creation audit", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [audit({ id: 1, created_at: openTicket.created_at, author_id: CUSTOMER, events: [comment({ author_id: CUSTOMER })] })],
+      "raw_ticket",
+    );
+    expect(replyEvents(events)).toEqual([]);
+  });
+
+  it("ignores trigger/automation comments posted as the requester", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({
+          id: 2,
+          created_at: "2026-01-01T09:10:00Z",
+          author_id: CUSTOMER,
+          via: { channel: "trigger" },
+          events: [comment({ author_id: CUSTOMER })],
+        }),
+      ],
+      "raw_ticket",
+    );
+    expect(replyEvents(events)).toEqual([]);
+  });
+
+  it("emits no customer reply when neither the author's role nor the requester is known", () => {
+    const events = deriveNormalizedEventsForTicket(
+      { ...openTicket, requester_id: null },
+      [audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: CUSTOMER, events: [comment({ author_id: CUSTOMER })] })],
+      "raw_ticket",
+    );
+    expect(replyEvents(events)).toEqual([]);
+  });
+
+  it("classifies by Zendesk role: an end user who is not the requester (a CC) is a customer reply", () => {
+    const roles = new Map([
+      [502, "agent"],
+      [777, "end-user"],
+    ] as const);
+    const events = deriveNormalizedEventsForTicket(
+      { ...openTicket, requester_id: 502 },
+      [audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: 777, events: [comment({ author_id: 777 })] })],
+      "raw_ticket",
+      roles,
+    );
+    expect(replyEvents(events)).toEqual([["customer_replied", "2026-01-01T09:10:00Z", "customer", "raw_2"]]);
+  });
+
+  it("keeps a customer comment and a status change in the same audit in audit order", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({
+          id: 2,
+          created_at: "2026-01-01T09:10:00Z",
+          author_id: CUSTOMER,
+          events: [statusChange("open", "pending"), comment({ author_id: CUSTOMER })],
+        }),
+      ],
+      "raw_ticket",
+    );
+    expect(events.map((e) => [e.type, e.sourceSequence])).toEqual([
+      ["case_created", 0],
+      ["state_changed", 1],
+      ["customer_replied", 2],
+    ]);
   });
 });

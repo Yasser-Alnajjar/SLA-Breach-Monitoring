@@ -37,6 +37,7 @@ export interface NormalizedEventRecord {
   fromState: string | null;
   toState: string | null;
   sourceRawEventId: string;
+  sourceSequence: number;
 }
 
 /** Maps a persisted Commitment row to packages/core's pure `Commitment`. */
@@ -69,6 +70,7 @@ export function toNormalizedEventDomain(
     fromState: row.fromState as NormalizedState | null,
     toState: row.toState as NormalizedState | null,
     sourceRawEventId: row.sourceRawEventId,
+    sourceSequence: row.sourceSequence,
   };
 }
 
@@ -254,7 +256,10 @@ export async function runEvaluationPipeline(
     prisma.businessCalendarVersion.findMany({
       where: { id: { in: calendarVersionIds } },
     }),
-    prisma.normalizedEvent.findMany({ where: { caseId: { in: caseIds } } }),
+    prisma.normalizedEvent.findMany({
+      where: { caseId: { in: caseIds } },
+      orderBy: [{ caseId: "asc" }, { occurredAt: "asc" }, { sourceSequence: "asc" }],
+    }),
     prisma.evaluation.findMany({
       where: { commitmentId: { in: commitmentRows.map((c) => c.id) } },
       distinct: ["commitmentId"],

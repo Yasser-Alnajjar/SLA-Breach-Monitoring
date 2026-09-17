@@ -9,6 +9,7 @@ const realDatabaseSuites = [
   "apps/web/test/source-sync-evaluation.test.ts",
   "apps/web/test/evaluation-persistence.test.ts",
   "apps/web/test/multi-commitment-pipeline.test.ts",
+  "apps/web/test/event-ordering-persistence.test.ts",
 ];
 
 export default defineConfig({

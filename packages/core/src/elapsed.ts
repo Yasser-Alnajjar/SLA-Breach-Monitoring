@@ -1,4 +1,5 @@
 import { workingMinutesBetween } from "./calendar";
+import { sortNormalizedEvents } from "./ordering";
 import type {
   BusinessCalendarVersion,
   ClockFold,
@@ -36,9 +37,7 @@ export function foldClockIntervals(
   if (events.length === 0) return { runningIntervals, pausedIntervals, currentPause: null };
 
   const pauseSet = new Set(pauseOnStates);
-  const sorted = [...events].sort((a, b) =>
-    a.occurredAt.localeCompare(b.occurredAt),
-  );
+  const sorted = sortNormalizedEvents(events);
   const cutoff = asOf
     ? typeof asOf === "string"
       ? new Date(asOf)

@@ -31,7 +31,11 @@ export type NormalizedEventType =
   | "case_closed"
   // A public reply from an agent on the ticket source — what completes a
   // first-response commitment. Carries no state (`fromState`/`toState` null).
-  | "agent_replied";
+  | "agent_replied"
+  // A public reply from the customer on the ticket source, after the case was
+  // opened (the opening message is `case_created`). Internal notes never
+  // produce it. Carries no state and completes no commitment on its own.
+  | "customer_replied";
 
 export interface NormalizedEvent {
   id: string;
@@ -43,6 +47,14 @@ export interface NormalizedEvent {
   fromState: NormalizedState | null;
   toState: NormalizedState | null;
   sourceRawEventId: string;
+  /**
+   * The event's position in its provider's own ordering (e.g. Zendesk audit
+   * order, then the event's index inside the audit). Only comparable between
+   * events of the same system on the same case; breaks ties between events
+   * sharing an `occurredAt` (see `compareNormalizedEvents`). Absent on rows
+   * written before the field existed, which sort as 0.
+   */
+  sourceSequence?: number;
 }
 
 export type CommitmentKind = "first_response" | "resolution";

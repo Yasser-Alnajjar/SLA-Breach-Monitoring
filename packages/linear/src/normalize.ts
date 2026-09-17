@@ -237,7 +237,8 @@ export async function runLinearNormalization(
           where: { caseId, sourceRawEventId: { in: ownRawEvents.map((row) => row.id) } },
         }),
         prisma.normalizedEvent.createMany({
-          data: derived.map((event) => ({
+          // `derived` is emitted in source order, so its index is the source sequence.
+          data: derived.map((event, sourceSequence) => ({
             caseId,
             sourceRawEventId: event.sourceRawEventId,
             type: "state_changed" as const,
@@ -246,6 +247,7 @@ export async function runLinearNormalization(
             system: "linear" as const,
             fromState: event.fromState,
             toState: event.toState,
+            sourceSequence,
           })) satisfies Prisma.NormalizedEventCreateManyInput[],
         }),
       ]);

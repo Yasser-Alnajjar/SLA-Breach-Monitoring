@@ -1,4 +1,5 @@
 export * from "./types";
+export { compareNormalizedEvents, sortNormalizedEvents } from "./ordering";
 export { policyVersionContentEquals } from "./policy-versions";
 export type { PolicyVersionContent } from "./policy-versions";
 export { computeDeadline, workingMinutesBetween } from "./calendar";

@@ -88,6 +88,7 @@ describe("deriveNormalizedEventsForConversation", () => {
         fromState: null,
         toState: "open",
         sourceRawEventId: "raw_conversation_42",
+        sourceSequence: 0,
       },
     ]);
   });
@@ -308,6 +309,7 @@ describe("deriveNormalizedEventsForConversation agent replies", () => {
         fromState: null,
         toState: null,
         sourceRawEventId: "raw_p1",
+        sourceSequence: 2,
       },
     ]);
   });
@@ -334,5 +336,135 @@ describe("deriveNormalizedEventsForConversation agent replies", () => {
       "raw_conversation",
     );
     expect(replies(events)).toEqual([]);
+  });
+});
+
+describe("deriveNormalizedEventsForConversation source ordering", () => {
+  const openConversation: IntercomConversationWithParts = { ...conversation, state: "open" };
+  const sameSecond = conversation.created_at + 100;
+
+  it("assigns increasing sequences in part order, a part's transition before its reply", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p2", created_at: sameSecond, part_type: "open", body: "<p>back on it</p>" }),
+        part({ id: "p1", created_at: sameSecond, part_type: "close", body: "<p>closing</p>" }),
+      ],
+      "raw_conversation",
+    );
+
+    expect(events.map((e) => `${e.sourceRawEventId}:${e.type}`)).toEqual([
+      "raw_conversation:case_created",
+      "raw_p1:case_closed",
+      "raw_p1:agent_replied",
+      "raw_p2:state_changed",
+      "raw_p2:agent_replied",
+    ]);
+    const sequences = events.map((e) => e.sourceSequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(new Set(sequences).size).toBe(sequences.length);
+  });
+
+  it("is idempotent across repeated normalization and part load order", () => {
+    const parts = [
+      part({ id: "p1", created_at: sameSecond, part_type: "close", body: "<p>closing</p>" }),
+      part({ id: "p2", created_at: sameSecond, part_type: "open" }),
+      part({ id: "p3", created_at: sameSecond + 60, body: "<p>update</p>" }),
+    ];
+    const first = deriveNormalizedEventsForConversation(openConversation, parts, "raw_conversation");
+    expect(deriveNormalizedEventsForConversation(openConversation, parts, "raw_conversation")).toEqual(first);
+    expect(deriveNormalizedEventsForConversation(openConversation, [...parts].reverse(), "raw_conversation")).toEqual(first);
+  });
+});
+
+describe("deriveNormalizedEventsForConversation customer replies", () => {
+  const openConversation: IntercomConversationWithParts = { ...conversation, state: "open" };
+  const customer = { type: "user", id: "u1" };
+  const replyEvents = (events: DerivedNormalizedEvent[]) =>
+    events
+      .filter((e) => e.type === "customer_replied" || e.type === "agent_replied")
+      .map((e) => [e.type, e.actor, e.sourceRawEventId]);
+
+  it("keeps both a customer comment and the agent's reply", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", created_at: conversation.created_at + 100, author: customer, body: "<p>any update?</p>" }),
+        part({ id: "p2", created_at: conversation.created_at + 200, body: "<p>On it</p>" }),
+      ],
+      "raw_conversation",
+    );
+    expect(events.find((e) => e.type === "customer_replied")).toEqual({
+      type: "customer_replied",
+      occurredAt: new Date((conversation.created_at + 100) * 1000).toISOString(),
+      actor: "customer",
+      fromState: null,
+      toState: null,
+      sourceRawEventId: "raw_p1",
+      sourceSequence: 2,
+    });
+    expect(replyEvents(events)).toEqual([
+      ["customer_replied", "customer", "raw_p1"],
+      ["agent_replied", "agent", "raw_p2"],
+    ]);
+  });
+
+  it("does not turn an internal note between them into a customer reply", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", created_at: conversation.created_at + 100, author: customer, body: "<p>any update?</p>" }),
+        part({ id: "p2", created_at: conversation.created_at + 150, part_type: "note", body: "<p>internal</p>" }),
+        part({ id: "p3", created_at: conversation.created_at + 200, body: "<p>On it</p>" }),
+      ],
+      "raw_conversation",
+    );
+    expect(events.map((e) => e.type)).toEqual(["case_created", "customer_replied", "agent_replied"]);
+  });
+
+  it("recognizes lead and contact authors as customers", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", created_at: conversation.created_at + 100, author: { type: "lead", id: "l1" }, body: "<p>hi</p>" }),
+        part({ id: "p2", created_at: conversation.created_at + 200, author: { type: "contact", id: "c1" }, body: "<p>hi</p>" }),
+      ],
+      "raw_conversation",
+    );
+    expect(replyEvents(events)).toEqual([
+      ["customer_replied", "customer", "raw_p1"],
+      ["customer_replied", "customer", "raw_p2"],
+    ]);
+  });
+
+  it("ignores bot messages, body-less customer parts, and parts with no author", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", body: "<p>Fin here</p>", author: { type: "bot", id: "fin" } }),
+        part({ id: "p2", body: "  ", author: customer }),
+        part({ id: "p3", body: null, author: customer }),
+        part({ id: "p4", body: "<p>orphan</p>", author: undefined }),
+      ],
+      "raw_conversation",
+    );
+    expect(replyEvents(events)).toEqual([]);
+  });
+
+  it("emits a customer reply that reopens a closed conversation after its transition", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", created_at: conversation.created_at + 100, part_type: "close", body: null }),
+        part({ id: "p2", created_at: conversation.created_at + 200, part_type: "open", author: customer, body: "<p>still broken</p>" }),
+      ],
+      "raw_conversation",
+    );
+    expect(events.map((e) => `${e.sourceRawEventId}:${e.type}`)).toEqual([
+      "raw_conversation:case_created",
+      "raw_p1:case_closed",
+      "raw_p2:state_changed",
+      "raw_p2:customer_replied",
+    ]);
   });
 });

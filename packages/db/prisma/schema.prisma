@@ -126,6 +126,11 @@ model NormalizedEvent {
   system           IntegrationProvider
   fromState        String?
   toState          String?
+  /// Position in the provider's own source order (Zendesk audit order, then
+  /// the event's index inside the audit), breaking ties between events that
+  /// share an occurredAt. Only comparable within one system on one case.
+  /// Rows written before this column existed hold 0 until renormalized.
+  sourceSequence   Int                 @default(0)
   createdAt        DateTime            @default(now())
   case             Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
   sourceRawEvent   RawEvent            @relation(fields: [sourceRawEventId], references: [id])

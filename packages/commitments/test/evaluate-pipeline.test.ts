@@ -116,6 +116,7 @@ describe("toNormalizedEventDomain", () => {
         fromState: "new",
         toState: "open",
         sourceRawEventId: "raw_1",
+        sourceSequence: 3,
       }),
     ).toEqual({
       id: "evt_1",
@@ -127,6 +128,7 @@ describe("toNormalizedEventDomain", () => {
       fromState: "new",
       toState: "open",
       sourceRawEventId: "raw_1",
+      sourceSequence: 3,
     });
   });
 });

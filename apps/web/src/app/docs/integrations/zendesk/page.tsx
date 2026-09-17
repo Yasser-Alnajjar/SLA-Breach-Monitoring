@@ -257,9 +257,14 @@ export default function ZendeskIntegrationPage() {
               field instead). Then add a trigger that calls the webhook on
               ticket status changes, with request body{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                {`{"ticket_id": "{{ticket.id}}"}`}
+                {`{"ticket_id": "{{ticket.id}}", "timestamp": "{{ticket.updated_at_with_timestamp}}"}`}
               </code>
-              . This closes the last few minutes of latency between polls — it
+              . The <code className="rounded bg-muted px-1.5 py-0.5 text-xs">timestamp</code>{" "}
+              field is required for replay protection and must use that exact
+              placeholder: plain{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{`{{ticket.updated_at}}`}</code>{" "}
+              renders only a date (e.g. &ldquo;May 18&rdquo;), so those requests
+              are rejected with <code className="rounded bg-muted px-1.5 py-0.5 text-xs">401</code>. This closes the last few minutes of latency between polls — it
               is optional, and everything works without it.
             </p>
           </div>

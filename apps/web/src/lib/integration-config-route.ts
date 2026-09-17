@@ -53,6 +53,23 @@ export function createIntegrationConfigHandlers(
       );
     }
 
+    // Sessions are JWTs, never checked against the database, so one can
+    // outlive its organization (e.g. a dev database reset). Without this the
+    // create below fails on the foreign key with a raw Prisma error.
+    const organization = await getPrismaClient().organization.findUnique({
+      where: { id: session.user.organizationId },
+      select: { id: true },
+    });
+    if (!organization) {
+      return NextResponse.json(
+        {
+          error:
+            "Your session refers to an organization that no longer exists. Sign out and sign in again.",
+        },
+        { status: 401 },
+      );
+    }
+
     try {
       await saveIntegrationConfig(
         getPrismaClient(),

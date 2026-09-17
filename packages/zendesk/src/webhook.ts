@@ -65,11 +65,16 @@ export function extractZendeskWebhookTicketId(payload: unknown): number | null {
  * trigger body (see the settings page) now includes a `timestamp` field
  * populated from the `{{ticket.updated_at}}` placeholder; a native "Ticket
  * Events" envelope's `detail`/`ticket` shapes are also checked leniently,
- * mirroring `extractZendeskWebhookTicketId`'s own fallbacks. Accepts either
- * an ISO-8601 string (Zendesk's REST API date format) or a raw epoch number,
- * since the exact rendering of `{{ticket.updated_at}}` inside a webhook body
- * isn't independently confirmed against live Zendesk behavior — deliberately
- * permissive about the format, not about the value.
+ * mirroring `extractZendeskWebhookTicketId`'s own fallbacks.
+ *
+ * The trigger body must use `{{ticket.updated_at_with_timestamp}}`, which
+ * Zendesk's placeholder reference documents as ISO-8601 in UTC at minute
+ * precision (`2013-12-12T05:35Z`). Plain `{{ticket.updated_at}}` renders only a
+ * date ("May 18", with no year in the current year), which `Date.parse` reads
+ * as a date in 2001. So strings are accepted only when they start with an
+ * ISO `YYYY-MM-DD` date, never parsed loosely. Raw epoch numbers are still
+ * accepted. The minute truncation makes a fresh delivery look up to 60s old,
+ * well inside the 5-minute window.
  */
 export function extractZendeskWebhookTimestamp(payload: unknown): number | null {
   if (payload === null || typeof payload !== "object") return null;
@@ -83,7 +88,8 @@ export function extractZendeskWebhookTimestamp(payload: unknown): number | null 
     return candidate < 1e12 ? candidate * 1000 : candidate;
   }
   if (typeof candidate === "string") {
-    const parsed = Date.parse(candidate);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(candidate.trim())) return null;
+    const parsed = Date.parse(candidate.trim());
     return Number.isNaN(parsed) ? null : parsed;
   }
   return null;

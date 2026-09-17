@@ -75,19 +75,48 @@ export function _resetRateLimitState(): void {
 }
 
 /**
- * Best-effort client IP from the reverse proxy this deployment expects in
- * front of `web` (see docs/deployment.md's security notes). Falls back to a
- * single shared bucket when neither header is present — e.g. local dev with
- * no proxy in front — which just means those callers share one limit
- * instead of being unthrottled.
+ * Client IP as seen by the reverse proxy this deployment expects in front of
+ * `web` (see docs/deployment.md's security notes).
+ *
+ * Reads `X-Forwarded-For` from the right, never the left. nginx
+ * (`$proxy_add_x_forwarded_for`), Traefik and Caddy all append the address
+ * that connected to them, but pass along whatever the client already put in
+ * the header. So the leftmost entry is client-controlled, and keying on it let
+ * a caller rotate a fake IP per request and never hit a limit (found in
+ * roadmap step 41's live check). With `TRUSTED_PROXY_COUNT` proxies in front
+ * (default 1; set 2 for e.g. a CDN in front of Caddy), the entry that many
+ * places from the right is the last address a trusted proxy saw.
+ *
+ * `X-Real-IP` is only used when there's no `X-Forwarded-For`. Falls back to
+ * one shared bucket when neither is present (local dev with no proxy), so
+ * those callers share one limit instead of going unthrottled. None of this
+ * helps if clients can reach `web` directly, which is why
+ * `docker-compose.prod.yml` binds its port to 127.0.0.1 by default.
  */
-export function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
+export function clientIpFromHeaders(
+  forwardedFor: string | null | undefined,
+  realIp: string | null | undefined,
+  trustedProxyCount: number = readTrustedProxyCount(),
+): string {
   if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first) return first;
+    const entries = forwardedFor
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    // Fewer entries than trusted proxies means the chain is shorter than
+    // configured; the leftmost is then the closest thing to the client.
+    const ip = entries[Math.max(0, entries.length - trustedProxyCount)];
+    if (ip) return ip;
   }
-  const realIp = request.headers.get("x-real-ip");
   if (realIp) return realIp;
   return "unknown";
+}
+
+function readTrustedProxyCount(): number {
+  const parsed = Number(process.env.TRUSTED_PROXY_COUNT);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
+}
+
+export function getClientIp(request: Request): string {
+  return clientIpFromHeaders(request.headers.get("x-forwarded-for"), request.headers.get("x-real-ip"));
 }

@@ -18,6 +18,19 @@ beforeEach(() => {
 });
 
 describe("proxy rate limiting — /api/auth/callback/credentials", () => {
+  it("can't be bypassed by rotating a client-supplied X-Forwarded-For entry", async () => {
+    // Behind a proxy that appends the real peer, the client's own value sits to its left.
+    const spoofed = (n: number) =>
+      new NextRequest("https://app.example.com/api/auth/callback/credentials", {
+        method: "POST",
+        headers: { "x-forwarded-for": `198.51.100.${n}, 203.0.113.50` },
+      });
+    const statuses: number[] = [];
+    for (let n = 1; n <= 11; n += 1) statuses.push((await proxy(spoofed(n))).status);
+    expect(statuses.slice(0, 10).every((status) => status !== 429)).toBe(true);
+    expect(statuses[10]).toBe(429);
+  });
+
   it("allows the first 10 requests from one IP within the window and 429s the 11th", async () => {
     for (let i = 0; i < 10; i += 1) {
       const response = await proxy(credentialsRequest("203.0.113.1"));

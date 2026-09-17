@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getPrismaClient } from "@sla/db";
 import { encodeAuthThrottleError } from "@/lib/auth-rate-limit";
+import { clientIpFromHeaders } from "@/lib/rate-limit";
 import {
   checkAuthThrottle,
   clearAuthThrottle,
@@ -23,22 +24,16 @@ import {
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("no-such-user-placeholder", 12);
 
 /**
- * Best-effort client IP from the request headers `authorize()` receives —
- * same trusted-reverse-proxy assumption as `getClientIp` in
- * `@/lib/rate-limit`, just adapted for the plain headers object NextAuth
- * hands providers here instead of a Fetch `Request`.
+ * Client IP from the plain headers object NextAuth hands `authorize()`, with
+ * the same right-to-left `X-Forwarded-For` rule as `getClientIp` in
+ * `@/lib/rate-limit`.
  */
 function getAuthorizeClientIp(headers: Record<string, unknown> | undefined): string {
-  const forwardedFor = headers?.["x-forwarded-for"];
-  const forwardedValue = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-  if (typeof forwardedValue === "string") {
-    const first = forwardedValue.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  const realIp = headers?.["x-real-ip"];
-  const realIpValue = Array.isArray(realIp) ? realIp[0] : realIp;
-  if (typeof realIpValue === "string" && realIpValue) return realIpValue;
-  return "unknown";
+  const headerValue = (value: unknown) => {
+    const joined = Array.isArray(value) ? value.join(",") : value;
+    return typeof joined === "string" ? joined : null;
+  };
+  return clientIpFromHeaders(headerValue(headers?.["x-forwarded-for"]), headerValue(headers?.["x-real-ip"]));
 }
 
 /**

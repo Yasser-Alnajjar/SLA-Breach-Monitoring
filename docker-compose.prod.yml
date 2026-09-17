@@ -24,13 +24,19 @@ services:
     depends_on:
       - postgres
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      # Loopback only by default: the reverse proxy on this host is the one
+      # public entry point. Reaching `web` directly would skip TLS and let a
+      # caller forge X-Forwarded-For for the rate limiter. Set WEB_BIND=0.0.0.0
+      # only if the proxy runs on another host, and firewall the port.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
       INTEGRATION_CONFIG_ENCRYPTION_KEY: ${INTEGRATION_CONFIG_ENCRYPTION_KEY:?INTEGRATION_CONFIG_ENCRYPTION_KEY is required}
       SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY:?SMTP_ENCRYPTION_KEY is required}
+      # Reverse proxies between the internet and `web` (see apps/web/src/lib/rate-limit.ts).
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       # All optional (roadmap step 29) — an empty SENTRY_DSN just disables
       # the SDK, see apps/web/sentry.server.config.ts.
       SENTRY_DSN: ${SENTRY_DSN:-}

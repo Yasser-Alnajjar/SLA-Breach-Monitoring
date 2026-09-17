@@ -1292,6 +1292,78 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
         and `NEXTAUTH_URL` matching the CSRF origin check.
       This is the pre-pilot gate: do it before the first paid pilot goes live,
       not before outreach.
+      Progress (2026-09-17). Everything checkable without a real Zendesk
+      account, GitHub App or VPS is done, and it turned up two real bugs:
+      - Step 30, **fixed**. Zendesk's placeholder reference documents
+        `{{ticket.updated_at}}` as a date only ("May18", no year in the
+        current year). `Date.parse("May 18")` gives 2001, so every
+        delivery set up as instructed would have failed with `401`. The
+        in-app docs page was worse: its trigger body had no `timestamp`
+        at all. The documented ISO placeholder is
+        `{{ticket.updated_at_with_timestamp}}` (`2013-12-12T05:35Z`, UTC,
+        minute precision, so up to 60s old inside the 5-minute window).
+        `WebhookInfo.tsx`, `/docs/integrations/zendesk` and customer
+        guide §6 now use it. `extractZendeskWebhookTimestamp` only accepts
+        strings starting with `YYYY-MM-DD`, so a loose date is rejected
+        instead of parsed. The route's `401` names the placeholder to use.
+        New tests cover the documented renderings. Still unconfirmed live:
+        a real trigger firing against the endpoint.
+      - Step 28/30, **fixed**. `getClientIp` (and `authorize()`'s copy)
+        keyed on the *leftmost* `X-Forwarded-For` entry, which the client
+        controls. nginx and Traefik append to whatever the client sent.
+        Live check against `next dev`: 13 sign-in POSTs with a rotating
+        header never hit the 10-per-window limit; a fixed header got `429`
+        from the 11th. Both now use `clientIpFromHeaders`, which reads from
+        the right and skips `TRUSTED_PROXY_COUNT - 1` entries (default 1).
+        `docker-compose.prod.yml` now binds `web` to
+        `${WEB_BIND:-127.0.0.1}`; before, it was published on every
+        interface, so anyone could skip the proxy and forge the header.
+        `docs/deployment.md` and `.env.prod.example` explain both settings
+        and the nginx header lines. Re-tested behind real `nginx:alpine`
+        and `caddy:2-alpine` (`tls internal`) containers in front of the
+        dev server: a rotating spoofed header is now limited after 10.
+      - Step 28, CSRF origin through a TLS proxy: through Caddy on
+        `https://localhost:8443`, `POST`/`PUT`/`PATCH` from that origin get
+        past the check (validation `400` / `405`), `https://evil.example`
+        gets `403`, and the session cookie works through the proxy.
+      - Step 35, checked with curl as a throwaway org (deleted afterwards):
+        the dashboard renders "Export full report" as
+        `<a href="/api/reports/commitments" download>`; the export returns
+        `200 text/csv` with `Content-Disposition: attachment`; cases and
+        every settings page return `200`. `/cases/<unknown id>` renders the
+        in-app not-found with `noindex`, but with HTTP `200`, not `404`:
+        `cases/[caseId]/loading.tsx` starts streaming before `notFound()`
+        runs, which is Next's documented behavior and harmless here.
+      - Step 35 visually, **fixed a bug**. Checked in the browser pane
+        with temporary 8-second pages under `dashboard`, `cases`,
+        `cases/[caseId]` and `settings`, plus a throwing page (all
+        removed afterwards). All four skeletons and the in-app error
+        boundary (digest reference, "Try again", "Back to dashboard")
+        render inside the sidebar shell. But the slow pages never got
+        past their skeleton. `SlaAutoRefreshProvider` called
+        `router.refresh()` every `activePollIntervalMs - 2000` (3s by
+        default), and each refresh supersedes the one in flight. Any
+        signed-in page whose server render takes longer than the
+        interval (slow DB, large org) would hang on its skeleton for as
+        long as it stayed open. The provider now skips ticks until the
+        last refresh's RSC response has completed (a `PerformanceObserver`
+        on `_rsc` resource entries, capped at 60s) and while the tab is
+        hidden. `useTransition` was tried first and doesn't work: it
+        settles once the layout commits, while the slow segment is still
+        behind its fallback. Re-checked: the 8s page loads (refreshes at
+        3.2s→11.2s, then 12.2s), and the fast dashboard keeps its 3s
+        cadence. It also no longer logs to the console on every tick.
+      Still open, needs the owner:
+      - Step 30 live: one real Zendesk trigger delivery.
+      - Step 38: a real GitHub App connect, an 8-hour token refresh, and
+        dropping `Contents: read`. GitHub's permission tables put
+        repository lookups under the mandatory Metadata permission and
+        timelines under Issues/Pull requests; no query here reads file
+        contents, so dropping it is likely safe, but only a live App run
+        can confirm.
+      - Step 28 on a real VPS: the production image (secure cookies, HSTS,
+        `NEXTAUTH_URL` as the public https origin) behind a real
+        certificate.
 
 - [ ] **42 — Enforce the single-instance worker**
       The worker is only safe as one instance (`production.md`: in-process

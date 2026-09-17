@@ -59,7 +59,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
   }
 
   if (!isZendeskWebhookTimestampFresh(payload)) {
-    return NextResponse.json({ error: "Webhook timestamp missing or expired" }, { status: 401 });
+    return NextResponse.json({
+        error:
+          'Webhook timestamp missing, not ISO-8601, or expired: the trigger body needs "timestamp": "{{ticket.updated_at_with_timestamp}}"',
+      }, { status: 401 });
   }
 
   const ticketId = extractZendeskWebhookTicketId(payload);

@@ -128,6 +128,19 @@ describe("extractZendeskWebhookTimestamp", () => {
     );
   });
 
+  it("reads {{ticket.updated_at_with_timestamp}}'s minute-precision rendering", () => {
+    // Format from Zendesk's placeholder reference for business rules.
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42", timestamp: "2013-12-12T05:35Z" })).toBe(
+      Date.parse("2013-12-12T05:35:00Z"),
+    );
+  });
+
+  it("rejects {{ticket.updated_at}}'s date-only rendering instead of parsing it as 2001", () => {
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42", timestamp: "May 18" })).toBeNull();
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42", timestamp: "May 18, 2014" })).toBeNull();
+    expect(extractZendeskWebhookTimestamp({ ticket_id: "42", timestamp: "February 10, 14:29" })).toBeNull();
+  });
+
   it("reads a nested ticket.updated_at or detail.updated_at shape", () => {
     expect(extractZendeskWebhookTimestamp({ ticket: { updated_at: "2026-01-01T00:00:00Z" } })).toBe(
       Date.parse("2026-01-01T00:00:00Z"),
@@ -154,6 +167,14 @@ describe("extractZendeskWebhookTimestamp", () => {
 
 describe("isZendeskWebhookTimestampFresh", () => {
   const now = Date.parse("2026-01-01T00:10:00Z");
+
+  it("accepts a delivery rendered from {{ticket.updated_at_with_timestamp}}, truncated to the minute", () => {
+    expect(isZendeskWebhookTimestampFresh({ timestamp: "2026-01-01T00:09Z" }, now + 59_000)).toBe(true);
+  });
+
+  it("rejects a date-only {{ticket.updated_at}} rendering even on the current day", () => {
+    expect(isZendeskWebhookTimestampFresh({ timestamp: "January 1" }, now)).toBe(false);
+  });
 
   it("accepts a timestamp within the freshness window", () => {
     expect(isZendeskWebhookTimestampFresh({ timestamp: "2026-01-01T00:08:00Z" }, now)).toBe(true);

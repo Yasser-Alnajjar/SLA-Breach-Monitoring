@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { _resetRateLimitState, checkRateLimit, getClientIp } from "../src/lib/rate-limit";
+import { _resetRateLimitState, checkRateLimit, clientIpFromHeaders, getClientIp } from "../src/lib/rate-limit";
 
 beforeEach(() => {
   _resetRateLimitState();
@@ -39,9 +39,17 @@ describe("checkRateLimit", () => {
 });
 
 describe("getClientIp", () => {
-  it("reads the first address from X-Forwarded-For", () => {
+  it("reads the address the reverse proxy appended, not one the client sent", () => {
+    // The client sent "X-Forwarded-For: 198.51.100.99"; the proxy appended the real peer.
     const request = new Request("https://app.example.com/api/sign-up", {
-      headers: { "x-forwarded-for": "203.0.113.5, 10.0.0.1" },
+      headers: { "x-forwarded-for": "198.51.100.99, 203.0.113.5" },
+    });
+    expect(getClientIp(request)).toBe("203.0.113.5");
+  });
+
+  it("reads a single-entry X-Forwarded-For", () => {
+    const request = new Request("https://app.example.com/api/sign-up", {
+      headers: { "x-forwarded-for": "203.0.113.5" },
     });
     expect(getClientIp(request)).toBe("203.0.113.5");
   });
@@ -56,5 +64,33 @@ describe("getClientIp", () => {
   it("falls back to a shared bucket when neither header is present", () => {
     const request = new Request("https://app.example.com/api/sign-up");
     expect(getClientIp(request)).toBe("unknown");
+  });
+});
+
+describe("clientIpFromHeaders", () => {
+  it("skips one entry per trusted proxy, counting from the right", () => {
+    // Client → CDN → Caddy → web: Caddy appended the CDN's address.
+    expect(clientIpFromHeaders("198.51.100.99, 203.0.113.5, 192.0.2.10", null, 2)).toBe("203.0.113.5");
+  });
+
+  it("uses the leftmost entry when the chain is shorter than the trusted count", () => {
+    expect(clientIpFromHeaders("203.0.113.5", null, 2)).toBe("203.0.113.5");
+  });
+
+  it("ignores empty entries", () => {
+    expect(clientIpFromHeaders("203.0.113.5, ", null, 1)).toBe("203.0.113.5");
+  });
+
+  it("reads TRUSTED_PROXY_COUNT from the environment, defaulting to 1", () => {
+    const previous = process.env.TRUSTED_PROXY_COUNT;
+    try {
+      process.env.TRUSTED_PROXY_COUNT = "2";
+      expect(clientIpFromHeaders("198.51.100.99, 203.0.113.5, 192.0.2.10", null)).toBe("203.0.113.5");
+      process.env.TRUSTED_PROXY_COUNT = "not a number";
+      expect(clientIpFromHeaders("198.51.100.99, 203.0.113.5, 192.0.2.10", null)).toBe("192.0.2.10");
+    } finally {
+      if (previous === undefined) delete process.env.TRUSTED_PROXY_COUNT;
+      else process.env.TRUSTED_PROXY_COUNT = previous;
+    }
   });
 });

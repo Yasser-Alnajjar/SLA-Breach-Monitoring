@@ -228,6 +228,19 @@ so run the check at a quiet time.
 - Put a reverse proxy (Caddy, nginx, Traefik) in front of `web` for TLS.
   Zendesk and Jira webhooks, and the OAuth redirect flows, all require
   HTTPS in practice.
+- `web` is published on `127.0.0.1:3000` only (`WEB_BIND`), so the proxy is
+  the only way in. If you set `WEB_BIND=0.0.0.0` because the proxy runs on
+  another host, firewall the port to that host. A client that reaches `web`
+  directly can forge `X-Forwarded-For`.
+- The proxy must append the connecting address to `X-Forwarded-For`. Caddy
+  and Traefik do this by default; in nginx use
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` along with
+  `proxy_set_header Host $host;` and `proxy_set_header X-Forwarded-Proto $scheme;`.
+  The app reads the client IP from the right end of that header, skipping
+  `TRUSTED_PROXY_COUNT - 1` entries (default `1`). Set it to `2` if a CDN or
+  load balancer sits in front of your proxy. Too low and every visitor
+  shares the CDN's rate-limit bucket; too high and clients can spoof their
+  IP again.
 - `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`, and
   `SMTP_ENCRYPTION_KEY` are three independent secrets by design — see the
   table above and the comments on each in `.env.example`. Back them up

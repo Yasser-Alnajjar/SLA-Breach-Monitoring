@@ -13,7 +13,6 @@ import {
   type SLAPolicyVersion,
   type WeeklyWindow,
 } from "@sla/core";
-import { COMMITMENT_KINDS } from "./pipeline";
 
 export interface CommitmentRecord {
   id: string;
@@ -234,12 +233,11 @@ export interface EvaluationPipelineResult {
  * (see `shouldPersistEvaluation`), and an Evaluation's id is a deterministic
  * hash of its inputs, so a re-run at the same `asOf` writes nothing twice.
  *
- * Scoped to `COMMITMENT_KINDS` (first_response, resolution) only:
- * `evaluateCommitment` has no support for `next_reply` yet (it throws — see
- * `findCompletionEvent` in packages/core), so a live Next Reply commitment
- * created by `runNextReplyCyclePipeline` (cycle-pipeline.ts) is left alone
- * here rather than landing in `commitmentsFailed` every single sweep. Remove
- * this filter once Next Reply evaluation is implemented.
+ * Covers every `CommitmentKind`, including `next_reply`: `evaluateCommitment`
+ * matches a persisted Next Reply commitment to its derived cycle by
+ * `commitment.cycleKey` (`findCompletionEvent` in packages/core), so a live
+ * cycle created by `runNextReplyCyclePipeline` (cycle-pipeline.ts) is
+ * evaluated the same way as first_response/resolution.
  */
 export async function runEvaluationPipeline(
   prisma: PrismaClient,
@@ -261,7 +259,6 @@ export async function runEvaluationPipeline(
     where: {
       case: { organizationId, deletedAt: null },
       status: { not: "cancelled" },
-      kind: { in: COMMITMENT_KINDS },
       ...(scope === "active" ? { closedAt: null } : {}),
     },
   });

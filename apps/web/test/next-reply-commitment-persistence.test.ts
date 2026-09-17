@@ -191,14 +191,6 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
       [cycle3!.id, "on_track", null],
     ]);
 
-    // next_reply is entirely out of the evaluation pipeline's scope (Step 7:
-    // evaluating it isn't wired up yet) — cancelled or live, none of these
-    // three commitments are considered, and none show up as failed.
-    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
-    const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf: cancelledAt, scope: "all" });
-    expect(swept.commitmentsConsidered).toBe(0);
-    expect(swept.commitmentsFailed).toEqual([]);
-
     // It comes back: the cancelled row is restored, not duplicated.
     const back = at("15:30").toISOString();
     expect(await persist(await deriveFromPersisted(conversation, back), back)).toEqual({
@@ -282,7 +274,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
     await expect(prisma.commitment.create({ data })).rejects.toThrow();
   });
 
-  it("evaluates First Response/Resolution normally while live Next Reply commitments stay out of the evaluation pipeline's scope (Step 7)", async () => {
+  it("evaluates Next Reply commitments alongside First Response/Resolution in the same sweep, each against its own cycle", async () => {
     const asOf = at("14:30").toISOString();
     await persist(await deriveFromPersisted(conversation, asOf), asOf);
     const cycles = await nextReplyRows();
@@ -304,24 +296,95 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
     const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
     const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" });
 
-    // Only the First Response commitment is considered; the three live Next
-    // Reply commitments are silently out of scope — no commitmentsFailed
-    // entry is generated merely because they exist.
-    expect(swept.commitmentsConsidered).toBe(1);
+    // The First Response commitment plus all three Next Reply cycles are
+    // considered and evaluated in the same sweep — no commitmentsFailed entry
+    // for any of them.
+    expect(swept.commitmentsConsidered).toBe(4);
     expect(swept.commitmentsFailed).toEqual([]);
-    expect(swept.evaluationsCreated).toBe(1);
+    expect(swept.evaluationsCreated).toBe(4);
+    // First response, cycle 1 and cycle 2 each finalize (met); cycle 3 is
+    // still open.
+    expect(swept.commitmentsFinalized).toBe(3);
 
     const evaluatedFirstResponse = await prisma.commitment.findUniqueOrThrow({ where: { id: firstResponse.id } });
     expect(evaluatedFirstResponse.status).toBe("met"); // first agent reply at 09:30, well inside the 120-minute target
-    expect(await prisma.evaluation.count({ where: { commitmentId: firstResponse.id } })).toBe(1);
 
-    // The Next Reply commitments are entirely untouched: same status, no evaluations.
-    const untouchedCycles = await nextReplyRows();
-    expect(untouchedCycles.map((r) => [r.id, r.status, r.closedAt])).toEqual(
-      cycles.map((r) => [r.id, "on_track", null]),
-    );
+    const [cycle1, cycle2, cycle3] = await nextReplyRows();
+    // Cycle 1: 10:00 anchor -> 10:40 agent reply, 40 of its 60-minute target.
+    expect(cycle1).toMatchObject({ status: "met", closedAt: at("14:30") });
+    // Cycle 2: 12:00 anchor -> 12:30 agent reply, 30 of its 60-minute target.
+    expect(cycle2).toMatchObject({ status: "met", closedAt: at("14:30") });
+    // Cycle 3: still open at 14:30 with 30 of its 60 minutes elapsed — right
+    // at the 50% warn threshold, not yet breached.
+    expect(cycle3).toMatchObject({ status: "at_risk", closedAt: null });
+
     expect(
-      await prisma.evaluation.count({ where: { commitmentId: { in: cycles.map((r) => r.id) } } }),
-    ).toBe(0);
+      await prisma.evaluation.count({
+        where: { commitmentId: { in: [firstResponse.id, ...cycles.map((r) => r.id)] } },
+      }),
+    ).toBe(4);
+  });
+
+  it("re-running the evaluation pipeline at the same asOf does not create duplicate evaluations", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
+
+    const first = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" });
+    expect(first.evaluationsCreated).toBe(3);
+
+    const second = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" });
+    expect(second.commitmentsConsidered).toBe(3);
+    expect(second.evaluationsCreated).toBe(0);
+    expect(second.commitmentsFailed).toEqual([]);
+
+    const rows = await nextReplyRows();
+    expect(await prisma.evaluation.count({ where: { commitmentId: { in: rows.map((r) => r.id) } } })).toBe(3);
+  });
+
+  it("reconciliation can revisit a finalized Next Reply commitment without corrupting its outcome", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
+
+    await commitments.runEvaluationPipeline(prisma, organizationId, { asOf, scope: "all" });
+    const [cycle1Before] = await nextReplyRows();
+    expect(cycle1Before).toMatchObject({ status: "met", closedAt: at("14:30") });
+    const evaluationsBefore = await prisma.evaluation.count({ where: { commitmentId: cycle1Before!.id } });
+
+    // A later reconciliation sweep re-evaluates every commitment, including
+    // already-finalized ones — cycle 1's outcome must not change or duplicate.
+    const laterAsOf = at("16:00").toISOString();
+    const reconciled = await commitments.runEvaluationPipeline(prisma, organizationId, {
+      asOf: laterAsOf,
+      scope: "all",
+    });
+    expect(reconciled.commitmentsFailed).toEqual([]);
+
+    const [cycle1After] = await nextReplyRows();
+    expect(cycle1After).toMatchObject({ id: cycle1Before!.id, status: "met", closedAt: at("14:30") });
+    expect(await prisma.evaluation.count({ where: { commitmentId: cycle1Before!.id } })).toBe(evaluationsBefore);
+  });
+
+  it("raises a breached Next Reply cycle as a notification candidate through the existing generic path", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
+
+    // Cycle 3 (anchored at 14:00, 60-minute target) is still unanswered by 15:05.
+    const laterAsOf = at("15:05").toISOString();
+    const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf: laterAsOf, scope: "all" });
+
+    const [, , cycle3] = await nextReplyRows();
+    const candidate = swept.notificationCandidates.find((c) => c.commitmentId === cycle3!.id);
+    expect(candidate).toMatchObject({
+      kind: "next_reply",
+      status: "breached",
+      threshold: core.BREACH_NOTIFICATION_THRESHOLD,
+    });
+
+    // Breached but still open — no agent reply yet, so it isn't terminal.
+    const updated = await prisma.commitment.findUniqueOrThrow({ where: { id: cycle3!.id } });
+    expect(updated).toMatchObject({ status: "breached", closedAt: null });
   });
 });

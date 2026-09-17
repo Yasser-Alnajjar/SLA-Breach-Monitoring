@@ -3,8 +3,9 @@
  * chain — imported as a `next_reply` policy target, persisted onto an
  * `SLAPolicyVersion`, and frozen onto a `next_reply` Commitment when
  * `runNextReplyCyclePipeline` derives a cycle for it. Deliberately stops at
- * commitment creation: evaluating that commitment is Step 9, not this suite's
- * concern (`runEvaluationPipeline` still excludes `next_reply` — untouched).
+ * commitment creation: evaluating that commitment (`runEvaluationPipeline`,
+ * Step 9) is next-reply-commitment-persistence.test.ts's concern, not this
+ * suite's.
  *
  * Real Postgres, like next-reply-cycle-pipeline.test.ts. Needs a migrated
  * database at TEST_DATABASE_URL whose name contains "test"; skipped when

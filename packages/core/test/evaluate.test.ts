@@ -67,13 +67,6 @@ function minutesAfterStart(minutes: number): string {
 }
 
 describe("evaluateCommitment", () => {
-  it("refuses a next reply commitment instead of evaluating it with another kind's completion rule", () => {
-    const nextReply: Commitment = { ...commitment, kind: "next_reply", cycleKey: "next_reply:zendesk:raw-1:customer_replied:x" };
-    expect(() => evaluateCommitment(nextReply, baseEvents, policy, alwaysOpen, minutesAfterStart(10))).toThrow(
-      /next_reply commitments can't be evaluated yet/,
-    );
-  });
-
   it("is on_track below the first warning threshold", () => {
     const evaluation = evaluateCommitment(
       commitment,

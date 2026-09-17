@@ -2,6 +2,7 @@ import { computeDeadline, workingMinutesBetween } from "./calendar";
 import { pauseStatesFor } from "./clock-rules";
 import { foldClockIntervals, sumRunningWorkingMinutes } from "./elapsed";
 import { compareNormalizedEvents } from "./ordering";
+import { deriveNextReplyCycles } from "./reply-cycles";
 import type {
   BusinessCalendarVersion,
   ClockState,
@@ -162,16 +163,57 @@ export function findFirstResponseEvent(
 }
 
 /**
+ * The event that completed a Next Reply commitment as of `asOf`: the agent
+ * reply that answers the derived cycle matching `cycleKey`
+ * (`deriveNextReplyCycles` — the single source of truth for Next Reply
+ * cycles, never re-derived here), or null while that cycle is still open.
+ *
+ * Also null, rather than throwing, when `cycleKey` isn't among the cycles
+ * currently derived from `events`: a stale commitment whose anchor reply was
+ * removed on renormalization is reconciled/cancelled separately by the cycle
+ * pipeline (`persistNextReplyCommitments`), not by the evaluator.
+ *
+ * `deriveNextReplyCycles` returns `EvaluationEventRef`s, so the matching
+ * `NormalizedEvent` is looked back up in `events` by its stable identity
+ * (system, source RawEvent, type, instant) — the same identity
+ * `nextReplyCycleKey` uses.
+ */
+function findNextReplyCompletionEvent(
+  events: NormalizedEvent[],
+  asOf: string,
+  cycleKey: string,
+): NormalizedEvent | null {
+  const firstResponseCompletion = findFirstResponseEvent(events, asOf);
+  const cycles = deriveNextReplyCycles(events, { asOf, firstResponseCompletion });
+  const cycle = cycles.find((c) => c.key === cycleKey);
+  if (!cycle || !cycle.completion) return null;
+
+  const { completion } = cycle;
+  return (
+    events.find(
+      (e) =>
+        e.sourceRawEventId === completion.sourceRawEventId &&
+        e.system === completion.system &&
+        e.type === completion.type &&
+        e.occurredAt === completion.occurredAt,
+    ) ?? null
+  );
+}
+
+/**
  * The event that completed a commitment of `kind` as of `asOf`, or null
  * while it is still open: the first agent reply for `first_response`
  * (`findFirstResponseEvent`), the case's current close for `resolution`
- * (`findCaseCloseEvent`). Kinds also differ in what pauses their clock
- * (`pauseStatesFor`); both share the same elapsed-time fold.
+ * (`findCaseCloseEvent`), the answering agent reply on its own cycle for
+ * `next_reply` (`findNextReplyCompletionEvent` — requires `cycleKey`). Kinds
+ * also differ in what pauses their clock (`pauseStatesFor`); all three share
+ * the same elapsed-time fold.
  */
 export function findCompletionEvent(
   kind: CommitmentKind,
   events: NormalizedEvent[],
   asOf: string,
+  cycleKey?: string,
 ): NormalizedEvent | null {
   switch (kind) {
     case "first_response":
@@ -179,9 +221,10 @@ export function findCompletionEvent(
     case "resolution":
       return findCaseCloseEvent(events, asOf);
     case "next_reply":
-      // A Next Reply commitment completes on its own cycle's agent reply, not
-      // on a case-wide event; evaluating one needs its cycle window.
-      throw new Error("next_reply commitments can't be evaluated yet");
+      if (cycleKey === undefined) {
+        throw new Error("next_reply commitments require a cycleKey to find their completion event");
+      }
+      return findNextReplyCompletionEvent(events, asOf, cycleKey);
   }
 }
 
@@ -196,8 +239,9 @@ export function resolveClockCutoff(
   kind: CommitmentKind,
   events: NormalizedEvent[],
   asOf: string,
+  cycleKey?: string,
 ): { completionEvent: NormalizedEvent | null; cutoff: string } {
-  const completionEvent = findCompletionEvent(kind, events, asOf);
+  const completionEvent = findCompletionEvent(kind, events, asOf, cycleKey);
   const cutoff =
     completionEvent && completionEvent.occurredAt < asOf ? completionEvent.occurredAt : asOf;
   return { completionEvent, cutoff };
@@ -214,13 +258,16 @@ export function resolveClockCutoff(
  * Status transitions: `on_track → at_risk → met | breached`, driven by
  * `policyVersion.warnAtPercent` thresholds and, once the commitment's
  * completion event is observed (`findCompletionEvent` — the first agent
- * reply for first response, the case close for resolution), by whether it
- * happened inside or past the target.
+ * reply for first response, the case close for resolution, the answering
+ * agent reply on `commitment.cycleKey`'s own cycle for next_reply), by
+ * whether it happened inside or past the target.
  *
  * The clock is measured over the commitment's own window: from
  * `commitment.startedAt` to the cutoff (`resolveClockCutoff`). Earlier case
  * events never add elapsed time, but still decide whether the clock opens
- * paused (`foldClockIntervals`).
+ * paused (`foldClockIntervals`). For next_reply this window is clipped to
+ * the cycle's own completion, exactly like the other kinds — there's no
+ * separate elapsed-time rule for it.
  */
 export function evaluateCommitment(
   commitment: Commitment,
@@ -237,6 +284,7 @@ export function evaluateCommitment(
     commitment.kind,
     caseEvents,
     asOf,
+    commitment.cycleKey,
   );
 
   const eventsUpToCutoff = caseEvents.filter(

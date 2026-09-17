@@ -11,7 +11,9 @@ import Link from "next/link";
 export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
   {
     accessorKey: "customerName",
-    header: "Customer",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Customer" />
+    ),
     cell: ({ row }) => row.original.customerName ?? "—",
   },
   {

@@ -21,7 +21,8 @@ export function formatMinutes(totalMinutes: number): string {
  */
 export function formatSeconds(totalSeconds: number): string {
   const abs = Math.abs(Math.trunc(totalSeconds));
-  if (abs >= 3600) return (totalSeconds < 0 ? "-" : "") + formatMinutes(Math.floor(abs / 60));
+  if (abs >= 3600)
+    return (totalSeconds < 0 ? "-" : "") + formatMinutes(Math.floor(abs / 60));
 
   const minutes = Math.floor(abs / 60);
   const seconds = abs % 60;
@@ -86,11 +87,9 @@ export function latestCommitmentOfKind<
 >(commitments: T[], kind: CommitmentKind): T | undefined {
   return commitments
     .filter((c) => c.kind === kind)
-    .reduce<T | undefined>(
-      (latest, c) =>
-        !latest || c.startedAt > latest.startedAt ? c : latest,
-      undefined,
-    );
+    .reduce<
+      T | undefined
+    >((latest, c) => (!latest || c.startedAt > latest.startedAt ? c : latest), undefined);
 }
 
 /** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */
@@ -149,7 +148,7 @@ export const NORMALIZED_STATE_DESCRIPTIONS: Record<string, string> = {
   open: "Actively open and owned by support or engineering.",
   in_progress: "Being actively worked, per the linked engineering tracker.",
   pending_customer:
-    "Waiting on the customer to respond. Whichever provider drives this, it puts the case on the \"waiting on customer\" leg.",
+    'Waiting on the customer to respond. Whichever provider drives this, it puts the case on the "waiting on customer" leg.',
   pending_internal: "Waiting on something internal — not the customer.",
   escalated: "Flagged as escalated or high urgency.",
   resolved: "Marked resolved by the team, ahead of a final close.",
@@ -194,7 +193,7 @@ export function formatExactTimestamp(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hour12: true,
   });
 }
 
@@ -202,6 +201,7 @@ export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
+    hour12: true,
   });
 }
 

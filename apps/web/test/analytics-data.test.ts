@@ -78,7 +78,10 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
     policyId: "p",
     version: 1,
     match: {},
-    targets: [{ kind: "first_response", minutes: 60 }],
+    targets: [
+      { kind: "first_response", minutes: 60 },
+      { kind: "resolution", minutes: 60 },
+    ],
     pauseOnStates: ["pending_customer"],
     calendarVersionId: "cal",
     warnAtPercent: [50, 80, 95],
@@ -211,12 +214,11 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
     ]);
   });
 
-  it("places a paused commitment's breach after the pause", () => {
-    const paused = historicalCase("paused", "2026-09-13T22:00:00.000Z");
-    paused.events.push(
+  function withPendingPause(c: ReturnType<typeof historicalCase>) {
+    c.events.push(
       {
         id: "paused-pending",
-        caseId: paused.commitment.caseId,
+        caseId: c.commitment.caseId,
         type: "state_changed",
         occurredAt: "2026-09-13T22:30:00.000Z",
         actor: "agent",
@@ -227,7 +229,7 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
       },
       {
         id: "paused-reply",
-        caseId: paused.commitment.caseId,
+        caseId: c.commitment.caseId,
         type: "state_changed",
         occurredAt: "2026-09-14T02:00:00.000Z",
         actor: "customer",
@@ -237,10 +239,23 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
         sourceRawEventId: "paused-raw-3",
       },
     );
+    return c;
+  }
+
+  it("places a paused resolution commitment's breach after the pause", () => {
+    const paused = withPendingPause(historicalCase("paused", "2026-09-13T22:00:00.000Z"));
+    paused.commitment.kind = "resolution";
     const { breaches, nonZero } = chartFor([paused], reconciledAt);
     // Without the pause it would breach 2026-09-13 23:00.
     expect(breaches.map((b) => b.breachedAt.toISOString())).toEqual(["2026-09-14T02:30:00.000Z"]);
     expect(nonZero).toEqual([{ date: "2026-09-14", count: 1 }]);
+  });
+
+  it("does not move a first-response breach for a Pending pause", () => {
+    const pendingFirstResponse = withPendingPause(historicalCase("paused", "2026-09-13T22:00:00.000Z"));
+    const { breaches, nonZero } = chartFor([pendingFirstResponse], reconciledAt);
+    expect(breaches.map((b) => b.breachedAt.toISOString())).toEqual(["2026-09-13T23:00:00.000Z"]);
+    expect(nonZero).toEqual([{ date: "2026-09-13", count: 1 }]);
   });
 
   it("doesn't move historical breaches when reconciliation runs again later", () => {

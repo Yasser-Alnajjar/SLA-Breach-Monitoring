@@ -77,6 +77,9 @@ export interface SLAPolicyVersion {
   version: number;
   match: SLAPolicyMatch;
   targets: { kind: CommitmentKind; minutes: number }[];
+  // The policy's configured pause states. Not every commitment kind honors
+  // them — read a commitment's effective pause states through
+  // `pauseStatesFor` (clock-rules.ts), never this field directly.
   pauseOnStates: NormalizedState[];
   calendarVersionId: string;
   warnAtPercent: number[]; // e.g. [50, 80, 95]
@@ -123,7 +126,8 @@ export interface Commitment {
 
 /**
  * The SLA clock at an evaluation's cutoff, from the same event fold that
- * produced its elapsed time: `running`, `paused` on a `pauseOnStates` state,
+ * produced its elapsed time: `running`, `paused` on a state that pauses the
+ * commitment (`pauseStatesFor`),
  * or `stopped` because the commitment completed (`findCompletionEvent`).
  */
 export type ClockState = "running" | "paused" | "stopped";

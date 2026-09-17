@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canRaiseAlert,
   isTerminalStatus,
   shouldPersistEvaluation,
   toCommitmentDomain,
@@ -76,6 +77,23 @@ describe("shouldPersistEvaluation", () => {
       false,
     );
     expect(shouldPersistEvaluation("met", "met", true, true)).toBe(false);
+  });
+});
+
+describe("canRaiseAlert", () => {
+  it("lets a live commitment alert, including one finalizing in this evaluation", () => {
+    expect(canRaiseAlert(false, false)).toBe(true);
+    expect(canRaiseAlert(false, true)).toBe(true);
+  });
+
+  it("never alerts on a historical recalculation of an already-finalized commitment", () => {
+    // e.g. the reconciliation sweep re-evaluates a finalized first response
+    // under corrected clock rules and it becomes breached.
+    expect(canRaiseAlert(true, true)).toBe(false);
+  });
+
+  it("alerts again once a finalized commitment is live again (reopened)", () => {
+    expect(canRaiseAlert(true, false)).toBe(true);
   });
 });
 

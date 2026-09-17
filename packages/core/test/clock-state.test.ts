@@ -7,8 +7,11 @@ import type {
   SLAPolicyVersion,
 } from "../src/types";
 
-// Reproduces Zendesk ticket #45 (UTC+3 local): opened 12:19:30, 2-minute
-// first-response target, moved to Pending at 12:20:04, viewed at 12:23.
+// Zendesk ticket #45's timeline (UTC+3 local): opened 12:19:30, 2-minute
+// target, moved to Pending at 12:20:04, viewed at 12:23. The pause/resume
+// clock mechanics are exercised on a resolution commitment, which pauses on
+// Pending; the ticket's actual first-response commitment never pauses
+// (clock-rules.ts) and is covered at the end of this file.
 const OPENED = "2026-09-17T09:19:30.000Z";
 const PAUSED = "2026-09-17T09:20:04.000Z";
 const AS_OF = "2026-09-17T09:23:00.000Z";
@@ -27,7 +30,10 @@ const policy: SLAPolicyVersion = {
   policyId: "policy",
   version: 6,
   match: { priority: ["urgent"] },
-  targets: [{ kind: "first_response", minutes: 2 }],
+  targets: [
+    { kind: "first_response", minutes: 2 },
+    { kind: "resolution", minutes: 2 },
+  ],
   pauseOnStates: ["pending_customer"],
   calendarVersionId: alwaysOpen.id,
   warnAtPercent: [50, 80, 95],
@@ -37,7 +43,7 @@ const policy: SLAPolicyVersion = {
 const commitment: Commitment = {
   id: "commitment-45",
   caseId: "case-45",
-  kind: "first_response",
+  kind: "resolution",
   policyVersionId: policy.id,
   calendarVersionId: alwaysOpen.id,
   startedAt: OPENED,
@@ -173,5 +179,18 @@ describe("SLA clock state (ticket #45 regression)", () => {
     });
     expect(after.inputs).toEqual(before.inputs);
     expect(after.id).toBe(before.id);
+  });
+
+  it("ticket #45's first-response commitment keeps running through Pending and breaches at the nominal deadline", () => {
+    const firstResponse: Commitment = { ...commitment, id: "commitment-45-fr", kind: "first_response" };
+    const evaluation = evaluateCommitment(firstResponse, [created, pending], policy, alwaysOpen, AS_OF);
+
+    expect(evaluation.status).toBe("breached");
+    expect(evaluation.elapsedSeconds).toBe(210);
+    expect(evaluation.remainingSeconds).toBe(-90);
+    expect(evaluation.breachedBySeconds).toBe(90);
+    expect(evaluation.clock).toEqual({ state: "running", pausedSince: null, pauseCause: null });
+    expect(evaluation.effectiveDueAt).toBe(firstResponse.dueAt);
+    expect(computeBreachedAt(firstResponse, [created, pending], policy, alwaysOpen, AS_OF)).toBe(firstResponse.dueAt);
   });
 });

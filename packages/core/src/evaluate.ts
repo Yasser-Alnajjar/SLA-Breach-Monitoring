@@ -1,4 +1,5 @@
 import { computeDeadline, workingMinutesBetween } from "./calendar";
+import { pauseStatesFor } from "./clock-rules";
 import { foldClockIntervals, sumRunningWorkingMinutes } from "./elapsed";
 import { compareNormalizedEvents } from "./ordering";
 import type {
@@ -164,8 +165,8 @@ export function findFirstResponseEvent(
  * The event that completed a commitment of `kind` as of `asOf`, or null
  * while it is still open: the first agent reply for `first_response`
  * (`findFirstResponseEvent`), the case's current close for `resolution`
- * (`findCaseCloseEvent`). This is the only place commitment kinds differ —
- * both share the same pause rules and elapsed-time fold.
+ * (`findCaseCloseEvent`). Kinds also differ in what pauses their clock
+ * (`pauseStatesFor`); both share the same elapsed-time fold.
  */
 export function findCompletionEvent(
   kind: CommitmentKind,
@@ -236,7 +237,7 @@ export function evaluateCommitment(
 
   const fold = foldClockIntervals(
     caseEvents,
-    policyVersion.pauseOnStates,
+    pauseStatesFor(commitment.kind, policyVersion),
     effectiveAsOf,
   );
   const elapsedWorkingMinutes = sumRunningWorkingMinutes(
@@ -383,7 +384,8 @@ function targetCrossingInstant(
 
 /**
  * The instant a commitment actually breached: the moment its running SLA
- * clock (working minutes per `calendar`, excluding `pauseOnStates` pauses)
+ * clock (working minutes per `calendar`, excluding the commitment's own
+ * pauses, `pauseStatesFor`)
  * first reached `targetMinutes`. `null` unless `evaluateCommitment` reports
  * the commitment `breached` as of `asOf` — a met, on-track or at-risk
  * commitment has no breach instant.

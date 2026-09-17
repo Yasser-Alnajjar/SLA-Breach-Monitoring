@@ -122,8 +122,8 @@ export const CommitmentCard = ({
 
                 <dt className="text-muted-foreground">Pauses on</dt>
                 <dd>
-                  {commitment.policyVersion.pauseOnStates.length > 0
-                    ? commitment.policyVersion.pauseOnStates.join(", ")
+                  {commitment.pauseOnStates.length > 0
+                    ? commitment.pauseOnStates.join(", ")
                     : "Never pauses"}
                 </dd>
 

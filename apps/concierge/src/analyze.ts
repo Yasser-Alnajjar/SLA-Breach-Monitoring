@@ -8,8 +8,10 @@ import {
   findCaseCloseEvent,
   legAtTime,
   matchPolicyVersion,
+  pauseStatesFor,
   sumLegMinutes,
   type BusinessCalendarVersion,
+  type CommitmentKind,
   type CommitmentStatus,
   type EngineeringLegEvaluation,
   type Leg,
@@ -133,6 +135,7 @@ function toDomainEvents(caseId: string, system: NormalizedEvent["system"], deriv
  * customer breached later than its original due date.
  */
 function breachInstant(
+  kind: CommitmentKind,
   events: NormalizedEvent[],
   policyVersion: SLAPolicyVersion,
   calendar: BusinessCalendarVersion,
@@ -146,7 +149,7 @@ function breachInstant(
     const mid = lo + Math.floor((hi - lo) / 2);
     const { elapsedWorkingMinutes } = computeElapsedWorkingMinutes(
       events,
-      policyVersion.pauseOnStates,
+      pauseStatesFor(kind, policyVersion),
       calendar,
       new Date(mid),
     );
@@ -259,7 +262,7 @@ export function analyzeExport(parsed: ParsedExport, options: AnalysisOptions): F
       targetMinutes = commitment.targetMinutes;
       if (status === "breached") {
         breachedByMinutes = evaluation.breachedByMinutes ?? 0;
-        const at = breachInstant(events, policyVersion, calendar, ticket.created_at, endBound, commitment.targetMinutes);
+        const at = breachInstant(commitment.kind, events, policyVersion, calendar, ticket.created_at, endBound, commitment.targetMinutes);
         legAtBreach = legAtTime(legResult.spans, at);
       }
     }

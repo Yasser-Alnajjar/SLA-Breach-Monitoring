@@ -1,7 +1,8 @@
 /**
  * Ticket #45 regression (Case D): a commitment whose clock is paused must not
  * show its nominal `Commitment.dueAt` (startedAt + target, blind to pauses)
- * as the deadline on the case detail page.
+ * as the deadline on the case detail page. The paused commitment is a
+ * resolution one: first response never pauses (clock-rules.ts in @sla/core).
  */
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -16,11 +17,14 @@ const NOMINAL_DUE = new Date("2026-09-17T09:21:30.000Z");
 const PAUSED = new Date("2026-09-17T09:20:04.000Z");
 const AS_OF = new Date("2026-09-17T09:23:00.000Z");
 
-function fakePrisma(events: { type: string; occurredAt: Date; fromState: string | null; toState: string }[]) {
+function fakePrisma(
+  events: { type: string; occurredAt: Date; fromState: string | null; toState: string }[],
+  kind: "first_response" | "resolution" = "resolution",
+) {
   const commitment = {
     id: "commitment-45",
     caseId: "case-45",
-    kind: "first_response" as const,
+    kind,
     policyVersionId: "pv-6",
     calendarVersionId: "cal-24-7",
     startedAt: OPENED,
@@ -68,7 +72,10 @@ function fakePrisma(events: { type: string; occurredAt: Date; fromState: string 
           policyId: "policy",
           version: 6,
           match: { priority: ["urgent"] },
-          targets: [{ kind: "first_response", minutes: 2 }],
+          targets: [
+            { kind: "first_response", minutes: 2 },
+            { kind: "resolution", minutes: 2 },
+          ],
           pauseOnStates: ["pending_customer"],
           calendarVersionId: "cal-24-7",
           warnAtPercent: [50, 80, 95],
@@ -87,8 +94,11 @@ function fakePrisma(events: { type: string; occurredAt: Date; fromState: string 
 const created = { type: "case_created", occurredAt: OPENED, fromState: null, toState: "open" };
 const pending = { type: "state_changed", occurredAt: PAUSED, fromState: "open", toState: "pending_customer" };
 
-async function renderFirstResponse(events: (typeof created | typeof pending)[]) {
-  const data = await getCaseDetailData(fakePrisma(events), "org-1", "case-45", AS_OF);
+async function renderCommitment(
+  events: (typeof created | typeof pending)[],
+  kind: "first_response" | "resolution" = "resolution",
+) {
+  const data = await getCaseDetailData(fakePrisma(events, kind), "org-1", "case-45", AS_OF);
   const commitment = data!.commitments[0]!;
   const html = renderToStaticMarkup(createElement(CommitmentCard, { commitment }));
   return { commitment, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
@@ -96,7 +106,7 @@ async function renderFirstResponse(events: (typeof created | typeof pending)[]) 
 
 describe("case detail commitment deadline (ticket #45)", () => {
   it("Case D: a paused commitment shows Paused and its exact remaining time, never the nominal Due", async () => {
-    const { commitment, text } = await renderFirstResponse([created, pending]);
+    const { commitment, text } = await renderCommitment([created, pending]);
 
     expect(commitment).toMatchObject({
       status: "on_track",
@@ -126,5 +136,32 @@ describe("case detail commitment deadline (ticket #45)", () => {
     expect(text).toContain("Running");
     expect(text).toContain("1m 30s remaining");
     expect(text).toContain(`Due ${formatDateTime(NOMINAL_DUE.toISOString())}`);
+  });
+
+  it("shows each commitment's own pause states, not the policy's", async () => {
+    const resolution = await renderCommitment([created, pending], "resolution");
+    expect(resolution.commitment.pauseOnStates).toEqual(["pending_customer"]);
+    expect(resolution.commitment.policyVersion).not.toHaveProperty("pauseOnStates");
+
+    const firstResponse = await renderCommitment([created, pending], "first_response");
+    expect(firstResponse.commitment).toMatchObject({
+      pauseOnStates: [],
+      status: "breached",
+      clockState: "running",
+      pausedSince: null,
+      elapsedSeconds: 210,
+      breachedBySeconds: 90,
+    });
+    expect(firstResponse.text).not.toContain("Paused");
+  });
+
+  it("shades the timeline with the shading commitment's own pause states", async () => {
+    const firstResponseOnly = await getCaseDetailData(fakePrisma([created, pending], "first_response"), "org-1", "case-45", AS_OF);
+    expect(firstResponseOnly!.pausedIntervals).toEqual([]);
+
+    const resolution = await getCaseDetailData(fakePrisma([created, pending], "resolution"), "org-1", "case-45", AS_OF);
+    expect(resolution!.pausedIntervals).toEqual([
+      { start: PAUSED.toISOString(), end: AS_OF.toISOString(), cause: "pending_customer" },
+    ]);
   });
 });

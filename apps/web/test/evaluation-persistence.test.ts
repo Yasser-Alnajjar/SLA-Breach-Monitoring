@@ -1,7 +1,9 @@
 /**
  * Ticket #45 regression (Cases E and F): what the evaluation pipeline
  * persists must keep exact SLA timing and stay explainable after the
- * normalizer regenerates the case's NormalizedEvent rows.
+ * normalizer regenerates the case's NormalizedEvent rows. Exercised on a
+ * resolution commitment, which pauses on Pending — first response never
+ * pauses (clock-rules.ts in @sla/core).
  *
  * Real Postgres, like tenant-isolation.test.ts: the precision bug lived in
  * the column type, which a fake Prisma can't reproduce. Needs a migrated
@@ -91,7 +93,7 @@ describe.skipIf(!TEST_DATABASE_URL)("evaluation persistence (real Postgres)", ()
           create: {
             version: 6,
             match: { priority: ["urgent"] },
-            targets: [{ kind: "first_response", minutes: 2 }],
+            targets: [{ kind: "resolution", minutes: 2 }],
             pauseOnStates: ["pending_customer"],
             calendarVersionId,
             warnAtPercent: [50, 80, 95],
@@ -110,7 +112,7 @@ describe.skipIf(!TEST_DATABASE_URL)("evaluation persistence (real Postgres)", ()
     await prisma.commitment.create({
       data: {
         caseId,
-        kind: "first_response",
+        kind: "resolution",
         policyVersionId: policy.versions[0]!.id,
         calendarVersionId,
         startedAt: OPENED,

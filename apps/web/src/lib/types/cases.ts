@@ -32,12 +32,17 @@ export interface CommitmentDetail {
    * it is a nominal startedAt + target that ignores pauses.
    */
   effectiveDueAt: string | null;
+  /**
+   * The states that pause this commitment's clock (`pauseStatesFor`) — not
+   * the policy version's configured `pauseOnStates`, which not every kind
+   * honors (first response never pauses).
+   */
+  pauseOnStates: NormalizedState[];
   policyVersion: {
     id: string;
     version: number;
     match: SLAPolicyMatch;
     warnAtPercent: number[];
-    pauseOnStates: NormalizedState[];
     effectiveFrom: string;
   };
   calendar: {

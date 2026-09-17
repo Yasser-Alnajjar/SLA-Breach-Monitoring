@@ -4,6 +4,7 @@ export { policyVersionContentEquals } from "./policy-versions";
 export type { PolicyVersionContent } from "./policy-versions";
 export { computeDeadline, workingMinutesBetween } from "./calendar";
 export { computeElapsedWorkingMinutes } from "./elapsed";
+export { commitmentPausesOn, pauseStatesFor } from "./clock-rules";
 export { deriveLegSpans, validateLegSpans, sumLegMinutes, legAtTime } from "./legs";
 export type { DeriveLegSpansOptions } from "./legs";
 export { matchPolicyVersion, createCommitment } from "./commitments";

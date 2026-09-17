@@ -5,6 +5,7 @@ import {
   deriveLegSpans,
   evaluateCommitment,
   evaluateEngineeringLegTarget,
+  pauseStatesFor,
   sumLegMinutes,
   type BusinessCalendarVersion,
   type CommitmentKind,
@@ -198,12 +199,12 @@ export async function getCaseDetailData(
         clockState: evaluation.clock.state,
         pausedSince: evaluation.clock.pausedSince,
         effectiveDueAt: evaluation.effectiveDueAt,
+        pauseOnStates: pauseStatesFor(row.kind, policyVersion),
         policyVersion: {
           id: policyVersion.id,
           version: policyVersion.version,
           match: policyVersion.match,
           warnAtPercent: policyVersion.warnAtPercent,
-          pauseOnStates: policyVersion.pauseOnStates,
           effectiveFrom: policyVersion.effectiveFrom,
         },
         calendar: {
@@ -260,10 +261,11 @@ export async function getCaseDetailData(
 
   // The timeline's working/paused shading spans the whole case, so it
   // follows the resolution commitment (the one that runs until close) when
-  // the case has one, not whichever commitment happens to sort first.
+  // the case has one, not whichever commitment happens to sort first — and
+  // that commitment's own pause states, since kinds pause differently.
   const shadingCommitment =
     commitments.find((c) => c.kind === "resolution") ?? commitments[0];
-  const pauseOnStates = shadingCommitment?.policyVersion.pauseOnStates ?? [];
+  const pauseOnStates = shadingCommitment?.pauseOnStates ?? [];
   const pauseCalendar = shadingCommitment
     ? calendarsById.get(shadingCommitment.calendar.id)!
     : FALLBACK_CALENDAR;

@@ -16,8 +16,10 @@ import type {
 } from "../src/types";
 
 /**
- * First response and resolution share one clock (pauses, calendar) but
- * complete on different events: the first agent reply vs. the case close.
+ * First response and resolution share one calendar and elapsed-time fold but
+ * complete on different events (the first agent reply vs. the case close) and
+ * pause differently: resolution pauses on the policy's pause states, first
+ * response never pauses (clock-rules.ts).
  */
 
 const alwaysOpen: BusinessCalendarVersion = {
@@ -87,12 +89,13 @@ const scenario: NormalizedEvent[] = [
 ];
 
 describe("first response vs. resolution on the same case", () => {
-  it("first response completes met at the first agent reply, with pauses applied", () => {
+  it("first response completes met at the first agent reply, counting the Pending hour", () => {
+    // 10:00–12:00 with no pause is exactly the 120m target: met, not breached.
     const evaluation = evaluate("first_response", scenario, "12:00");
     expect(evaluation).toMatchObject({
       status: "met",
-      elapsedWorkingMinutes: 60,
-      remainingMinutes: 60,
+      elapsedWorkingMinutes: 120,
+      remainingMinutes: 0,
       clock: { state: "stopped", pausedSince: null, pauseCause: null },
       effectiveDueAt: null,
       warnThresholdCrossed: undefined,
@@ -103,7 +106,7 @@ describe("first response vs. resolution on the same case", () => {
     for (const asOf of ["13:00", "15:30", "17:00", "23:00"]) {
       expect(evaluate("first_response", scenario, asOf)).toMatchObject({
         status: "met",
-        elapsedWorkingMinutes: 60,
+        elapsedWorkingMinutes: 120,
         clock: { state: "stopped" },
       });
     }
@@ -140,7 +143,7 @@ describe("first response vs. resolution on the same case", () => {
     expect(evaluation).toMatchObject({
       status: "breached",
       clock: { state: "running" },
-      effectiveDueAt: at("13:00"),
+      effectiveDueAt: at("12:00"),
     });
   });
 
@@ -152,10 +155,10 @@ describe("first response vs. resolution on the same case", () => {
     const evaluation = evaluate("first_response", lateReply, "17:00");
     expect(evaluation).toMatchObject({
       status: "breached",
-      elapsedWorkingMinutes: 180,
-      breachedByMinutes: 60,
+      elapsedWorkingMinutes: 240,
+      breachedByMinutes: 120,
       clock: { state: "stopped" },
-      effectiveDueAt: at("13:00"),
+      effectiveDueAt: at("12:00"),
     });
   });
 
@@ -163,6 +166,32 @@ describe("first response vs. resolution on the same case", () => {
     const noReply = scenario.filter((e) => e.type !== "agent_replied");
     expect(evaluate("first_response", noReply, "16:30").status).toBe("breached");
     expect(evaluate("resolution", noReply, "16:30").status).toBe("at_risk");
+  });
+});
+
+describe("Pending before the first agent reply", () => {
+  it("keeps the first-response clock running while resolution pauses", () => {
+    expect(evaluate("first_response", scenario, "11:00")).toMatchObject({
+      status: "at_risk",
+      elapsedWorkingMinutes: 60,
+      clock: { state: "running", pausedSince: null, pauseCause: null },
+      effectiveDueAt: at("12:00"),
+    });
+    expect(evaluate("resolution", scenario, "11:00")).toMatchObject({
+      elapsedWorkingMinutes: 30,
+      clock: { state: "paused", pausedSince: at("10:30"), pauseCause: "pending_customer" },
+      effectiveDueAt: null,
+    });
+  });
+
+  it("does not pause first response even when the policy pauses on more states", () => {
+    const events = [
+      event("10:00", "case_created", "new", { actor: "customer" }),
+      event("10:30", "state_changed", "pending_internal"),
+    ];
+    const broadPolicy: SLAPolicyVersion = { ...policy, pauseOnStates: ["pending_customer", "pending_internal"] };
+    const evaluation = evaluateCommitment(commitmentFor("first_response"), events, broadPolicy, alwaysOpen, at("11:00"));
+    expect(evaluation).toMatchObject({ elapsedWorkingMinutes: 60, clock: { state: "running" } });
   });
 });
 

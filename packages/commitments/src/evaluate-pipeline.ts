@@ -114,6 +114,22 @@ export function shouldPersistEvaluation(
 }
 
 /**
+ * Whether this evaluation can raise a new alert. A commitment that was
+ * already finalized before this evaluation and is still terminal after it is
+ * history: the reconciliation sweep may correct its status (e.g. a clock-rule
+ * fix turning `met` into `breached`), and that correction is persisted, but
+ * nobody can act on a breach that ended in the past — so it never becomes a
+ * notification candidate. A finalized commitment that is live again (its case
+ * was reopened) alerts as usual.
+ *
+ * Trade-off: a breach alert whose every channel failed in the cycle that
+ * finalized the commitment is no longer retried by the hourly sweep.
+ */
+export function canRaiseAlert(alreadyFinalized: boolean, terminal: boolean): boolean {
+  return !(alreadyFinalized && terminal);
+}
+
+/**
  * The provider's own id for each RawEvent an evaluation's `lastEvent` was
  * derived from (e.g. `ticket_audit:39016977009682`), so a persisted snapshot
  * names its source in the provider's terms too, not only by RawEvent row id.
@@ -181,6 +197,8 @@ export type EvaluationScope = "active" | "all";
  * meaningful notification. Actual dedup against `(commitmentId, threshold)`
  * happens downstream, in @sla/notifications, via the `Notification` table's
  * unique constraint — this list is candidates, not guaranteed-new alerts.
+ * Commitments that were already finalized and stay terminal never become
+ * candidates (`canRaiseAlert`).
  */
 export interface NotificationCandidate {
   commitmentId: string;
@@ -347,7 +365,7 @@ export async function runEvaluationPipeline(
       );
       const finalized = row.closedAt !== null;
 
-      if (evaluation.warnThresholdCrossed !== undefined) {
+      if (evaluation.warnThresholdCrossed !== undefined && canRaiseAlert(finalized, terminal)) {
         result.notificationCandidates.push({
           commitmentId: row.id,
           caseId: row.caseId,

@@ -22,7 +22,7 @@ const METRIC_TO_COMMITMENT_KIND: Record<string, CommitmentKind> = {
 /** Condition fields the importer can express in `SLAPolicyMatch`. Anything else (group_id, tags, form_id, ...) is dropped — Phase 10 explicitly defers a configurable rules engine. */
 const SUPPORTED_CONDITION_FIELDS = new Set(["priority", "organization_id"]);
 
-/** The customer-facing commitment pauses only on customer-caused waiting, regardless of which system reports it (Phase 13.4) — fixed for every imported policy, not configurable in v1. */
+/** Customer-caused waiting, regardless of which system reports it (Phase 13.4) — fixed for every imported policy, not configurable in v1. Only commitment kinds whose clock rules honor the policy's pause states pause on it (`pauseStatesFor` in @sla/core): resolution does, first response never pauses. */
 export const PAUSE_ON_STATES: NormalizedState[] = ["pending_customer"];
 export const WARN_AT_PERCENT = [50, 80, 95];
 export const DEFAULT_CALENDAR_NAME = "Default (always open)";

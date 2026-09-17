@@ -303,9 +303,10 @@ describe("evaluateCommitment", () => {
     // four days later. Jira: in_progress at 22:42:16 while Zendesk is still
     // pending. Previously Jira ended the pause and the clock ran to the
     // auto-close (~5787m, breached); only the 3m16s before pending count.
-    const firstResponse: Commitment = {
+    // Resolution, since first response never pauses (clock-rules.ts).
+    const resolution: Commitment = {
       ...commitment,
-      kind: "first_response",
+      kind: "resolution",
       startedAt: "2026-09-09T21:33:56.000Z",
       targetMinutes: 60,
       dueAt: "2026-09-09T22:33:56.000Z",
@@ -325,7 +326,7 @@ describe("evaluateCommitment", () => {
     ];
 
     const evaluation = evaluateCommitment(
-      firstResponse,
+      resolution,
       events,
       pausingPolicy,
       alwaysOpen,

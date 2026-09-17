@@ -33,7 +33,10 @@ function policyFor(calendar: BusinessCalendarVersion): SLAPolicyVersion {
     policyId: "policy",
     version: 1,
     match: {},
-    targets: [{ kind: "first_response", minutes: 60 }],
+    targets: [
+      { kind: "first_response", minutes: 60 },
+      { kind: "resolution", minutes: 60 },
+    ],
     pauseOnStates: ["pending_customer"],
     calendarVersionId: calendar.id,
     warnAtPercent: [50, 80, 95],
@@ -41,11 +44,18 @@ function policyFor(calendar: BusinessCalendarVersion): SLAPolicyVersion {
   };
 }
 
-function commitmentAt(startedAt: string, targetMinutes = 60, calendar = alwaysOpen): Commitment {
+// Resolution: the breach instant follows its pause-aware clock. First
+// response never pauses (clock-rules.ts), covered at the end of this file.
+function commitmentAt(
+  startedAt: string,
+  targetMinutes = 60,
+  calendar = alwaysOpen,
+  kind: Commitment["kind"] = "resolution",
+): Commitment {
   return {
     id: "commitment-1",
     caseId: "case-1",
-    kind: "first_response",
+    kind,
     policyVersionId: "policy-v1",
     calendarVersionId: calendar.id,
     startedAt,
@@ -271,5 +281,18 @@ describe("computeBreachedAt", () => {
     expect(evaluation.status).toBe("met");
     expect(evaluation.elapsedWorkingMinutes).toBe(10);
     expect(computeBreachedAt(commitment, events, policy, alwaysOpen, asOf)).toBeNull();
+  });
+
+  it("does not push a first-response breach out for a customer pause", () => {
+    const commitment = commitmentAt("2026-09-10T09:00:00.000Z", 60, alwaysOpen, "first_response");
+    const events = [
+      created("2026-09-10T09:00:00.000Z"),
+      event("2026-09-10T09:30:00.000Z", { type: "state_changed", fromState: "open", toState: "pending_customer" }),
+      event("2026-09-10T10:30:00.000Z", { type: "state_changed", fromState: "pending_customer", toState: "open", actor: "customer" }),
+    ];
+
+    expect(
+      computeBreachedAt(commitment, events, policyFor(alwaysOpen), alwaysOpen, "2026-09-16T00:00:00.000Z"),
+    ).toBe("2026-09-10T10:00:00.000Z");
   });
 });

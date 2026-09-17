@@ -13,10 +13,12 @@ interface CommitmentClockRule {
  * - `first_response` never pauses: a customer being asked for more
  *   information doesn't excuse a late first reply.
  * - `resolution` pauses on the policy version's `pauseOnStates`.
+ * - `next_reply` never pauses: a reply is owed whatever state the case is in.
  */
 const COMMITMENT_CLOCK_RULES: Record<CommitmentKind, CommitmentClockRule> = {
   first_response: { pauseStates: () => [] },
   resolution: { pauseStates: (policyVersion) => policyVersion.pauseOnStates },
+  next_reply: { pauseStates: () => [] },
 };
 
 /**

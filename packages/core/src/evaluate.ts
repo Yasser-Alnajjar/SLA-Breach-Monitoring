@@ -173,9 +173,16 @@ export function findCompletionEvent(
   events: NormalizedEvent[],
   asOf: string,
 ): NormalizedEvent | null {
-  return kind === "first_response"
-    ? findFirstResponseEvent(events, asOf)
-    : findCaseCloseEvent(events, asOf);
+  switch (kind) {
+    case "first_response":
+      return findFirstResponseEvent(events, asOf);
+    case "resolution":
+      return findCaseCloseEvent(events, asOf);
+    case "next_reply":
+      // A Next Reply commitment completes on its own cycle's agent reply, not
+      // on a case-wide event; evaluating one needs its cycle window.
+      throw new Error("next_reply commitments can't be evaluated yet");
+  }
 }
 
 /**

@@ -18,6 +18,7 @@ export interface CommitmentRecord {
   id: string;
   caseId: string;
   kind: CommitmentKind;
+  cycleKey: string;
   policyVersionId: string;
   calendarVersionId: string;
   startedAt: Date;
@@ -46,6 +47,7 @@ export function toCommitmentDomain(row: CommitmentRecord): Commitment {
     id: row.id,
     caseId: row.caseId,
     kind: row.kind,
+    cycleKey: row.cycleKey,
     policyVersionId: row.policyVersionId,
     calendarVersionId: row.calendarVersionId,
     startedAt: row.startedAt.toISOString(),
@@ -225,7 +227,9 @@ export interface EvaluationPipelineResult {
  * active-set poll — only commitments not yet finalized (`closedAt: null`).
  * `scope: "all"` is the 60-minute reconciliation sweep — re-checks every
  * commitment, including already-finalized ones, as a safety net against a
- * missed or failed active-set cycle. Only meaningful evaluations are written
+ * missed or failed active-set cycle. Neither scope includes a `cancelled`
+ * commitment — its cycle no longer exists (`persistCycleCommitments`), so
+ * there is nothing to measure. Only meaningful evaluations are written
  * (see `shouldPersistEvaluation`), and an Evaluation's id is a deterministic
  * hash of its inputs, so a re-run at the same `asOf` writes nothing twice.
  */
@@ -248,6 +252,7 @@ export async function runEvaluationPipeline(
   const commitmentRows = await prisma.commitment.findMany({
     where: {
       case: { organizationId, deletedAt: null },
+      status: { not: "cancelled" },
       ...(scope === "active" ? { closedAt: null } : {}),
     },
   });

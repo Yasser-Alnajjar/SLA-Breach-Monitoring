@@ -57,7 +57,14 @@ export interface NormalizedEvent {
   sourceSequence?: number;
 }
 
-export type CommitmentKind = "first_response" | "resolution";
+export type CommitmentKind = "first_response" | "resolution" | "next_reply";
+
+/**
+ * `Commitment.cycleKey` of every single-cycle kind (first_response,
+ * resolution). Multi-cycle kinds (next_reply) key each cycle by the cycle's
+ * own stable key (`nextReplyCycleKey`).
+ */
+export const SINGLE_CYCLE_KEY = "single";
 export type CommitmentStatus =
   | "on_track"
   | "at_risk"
@@ -112,6 +119,12 @@ export interface Commitment {
   id: string;
   caseId: string;
   kind: CommitmentKind;
+  /**
+   * Which cycle of `kind` on the case this commitment covers — unique per
+   * `(caseId, kind)`. `SINGLE_CYCLE_KEY` for single-cycle kinds; a Next Reply
+   * cycle's `NextReplyCycle.key` otherwise.
+   */
+  cycleKey: string;
   policyVersionId: string; // frozen at creation — the reproducibility anchor
   calendarVersionId: string;
   startedAt: string; // ISO 8601

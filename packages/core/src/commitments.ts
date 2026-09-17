@@ -7,6 +7,7 @@ import type {
   CommitmentKind,
   SLAPolicyVersion,
 } from "./types";
+import { SINGLE_CYCLE_KEY } from "./types";
 
 function specificity(match: SLAPolicyVersion["match"]): number {
   return (
@@ -72,7 +73,8 @@ export function matchPolicyVersion(
  * Creates a Commitment for a Case under a specific policy and calendar
  * version, freezing both ids onto the result permanently (Phase 13.1).
  * Later edits to the policy or calendar create new versions and never
- * retroactively affect this commitment.
+ * retroactively affect this commitment. `cycleKey` defaults to
+ * `SINGLE_CYCLE_KEY`; a Next Reply commitment passes its cycle's key.
  */
 export function createCommitment(
   caseId: string,
@@ -80,6 +82,7 @@ export function createCommitment(
   startedAt: string,
   policyVersion: SLAPolicyVersion,
   calendarVersion: BusinessCalendarVersion,
+  cycleKey: string = SINGLE_CYCLE_KEY,
 ): Commitment {
   const target = policyVersion.targets.find((t) => t.kind === kind);
   if (!target) {
@@ -94,6 +97,7 @@ export function createCommitment(
     id: randomUUID(),
     caseId,
     kind,
+    cycleKey,
     policyVersionId: policyVersion.id,
     calendarVersionId: calendarVersion.id,
     startedAt,

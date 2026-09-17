@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCommitment, matchPolicyVersion } from "../src/commitments.js";
+import { SINGLE_CYCLE_KEY } from "../src/types";
 import type {
   BusinessCalendarVersion,
   CaseAttributes,
@@ -101,6 +102,30 @@ describe("createCommitment", () => {
     expect(commitment.targetMinutes).toBe(240);
     expect(commitment.dueAt).toBe("2026-09-07T13:00:00.000Z");
     expect(commitment.status).toBe("on_track");
+  });
+
+  it("keys a single-cycle kind as the one cycle of its kind on the case", () => {
+    const commitment = createCommitment("case-1", "resolution", "2026-09-07T09:00:00.000Z", p1Policy, calendar);
+    expect(commitment.cycleKey).toBe(SINGLE_CYCLE_KEY);
+  });
+
+  it("keeps the given cycle key for a next reply cycle and starts at that cycle", () => {
+    const policy: SLAPolicyVersion = { ...p1Policy, targets: [{ kind: "next_reply", minutes: 60 }] };
+    const commitment = createCommitment(
+      "case-1",
+      "next_reply",
+      "2026-09-07T10:00:00.000Z",
+      policy,
+      calendar,
+      "next_reply:zendesk:raw_7:customer_replied:2026-09-07T10:00:00.000Z",
+    );
+    expect(commitment).toMatchObject({
+      kind: "next_reply",
+      cycleKey: "next_reply:zendesk:raw_7:customer_replied:2026-09-07T10:00:00.000Z",
+      startedAt: "2026-09-07T10:00:00.000Z",
+      targetMinutes: 60,
+      dueAt: "2026-09-07T11:00:00.000Z",
+    });
   });
 
   it("throws when the policy has no target for the requested kind", () => {

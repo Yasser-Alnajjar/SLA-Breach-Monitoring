@@ -100,6 +100,7 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
       id: `commitment-${name}`,
       caseId: `case-${name}`,
       kind: "first_response",
+      cycleKey: "single",
       policyVersionId: policy.id,
       calendarVersionId: calendar.id,
       startedAt,

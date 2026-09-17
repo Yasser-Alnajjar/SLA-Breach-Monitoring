@@ -237,4 +237,65 @@ describe.skipIf(!TEST_DATABASE_URL)("multiple commitments per case (real Postgre
       startedAt: at("10:00"),
     });
   });
+
+  it("ignores a persisted Next Reply commitment when finishing a case's still-missing sibling kind", async () => {
+    const original = await createPolicy("Urgent", 1);
+
+    // Attached to no SLAPolicyVersion, so it's only ever loaded via the
+    // missing-calendar-version prefetch — never via the policy-version load.
+    const overrideCalendar = await prisma.businessCalendar.create({
+      data: {
+        organizationId,
+        name: "Enterprise 24/7",
+        versions: { create: { version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true } },
+      },
+      include: { versions: true },
+    });
+    const overrideCalendarVersionId = overrideCalendar.versions[0]!.id;
+    const customer = await prisma.customer.create({
+      data: { organizationId, name: "Acme", calendarId: overrideCalendar.id },
+    });
+    await prisma.case.update({ where: { id: caseId }, data: { customerId: customer.id } });
+
+    // The case's existing first-response commitment was created under the
+    // customer's calendar override; a Next Reply commitment also exists on
+    // the case. Before the fix, the unfiltered `commitments` relation counted
+    // both toward `commitments.length < COMMITMENT_KINDS.length`, wrongly
+    // skipping the calendar-version prefetch that this sibling's
+    // `calendarVersionId` needs — resolution creation would fail with
+    // "No BusinessCalendarVersion loaded".
+    await prisma.commitment.create({
+      data: {
+        caseId,
+        kind: "first_response",
+        policyVersionId: original.id,
+        calendarVersionId: overrideCalendarVersionId,
+        startedAt: at("10:00"),
+        targetMinutes: 120,
+        dueAt: at("12:00"),
+      },
+    });
+    await prisma.commitment.create({
+      data: {
+        caseId,
+        kind: "next_reply",
+        cycleKey: "next_reply:zendesk:raw_1:customer_replied:2026-09-17T11:00:00.000Z",
+        policyVersionId: original.id,
+        calendarVersionId,
+        startedAt: at("11:00"),
+        targetMinutes: 60,
+        dueAt: at("12:00"),
+      },
+    });
+
+    const result = await commitments.runCommitmentPipeline(prisma, organizationId);
+    expect(result.casesFailed).toEqual([]);
+    expect(result.commitmentsCreated).toBe(1);
+    expect((await byKind()).resolution).toMatchObject({
+      policyVersionId: original.id,
+      calendarVersionId: overrideCalendarVersionId,
+      targetMinutes: 480,
+      startedAt: at("10:00"),
+    });
+  });
 });

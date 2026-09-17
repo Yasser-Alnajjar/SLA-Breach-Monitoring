@@ -321,10 +321,16 @@ model BusinessCalendarVersion {
 /// One obligation on one Case. Created once, resolved once. `policyVersionId`
 /// and `calendarVersionId` are frozen at creation — the reproducibility
 /// anchor that keeps historical numbers stable when today's policy changes.
+/// One SLA commitment on a case. `cycleKey` tells apart commitments of the
+/// same kind on one case: single-cycle kinds (first_response, resolution)
+/// always use "single"; next_reply has one commitment per reply cycle, keyed
+/// by `nextReplyCycleKey` so a cycle keeps its row across re-evaluation. A
+/// cycle that stops being derived is cancelled, never deleted.
 model Commitment {
   id                String                  @id @default(cuid())
   caseId            String
   kind              CommitmentKind
+  cycleKey          String                  @default("single")
   policyVersionId   String
   calendarVersionId String
   startedAt         DateTime
@@ -339,7 +345,7 @@ model Commitment {
   evaluations       Evaluation[]
   notifications     Notification[]
 
-  @@unique([caseId, kind])
+  @@unique([caseId, kind, cycleKey])
   @@index([status])
   @@map("commitments")
 }
@@ -533,6 +539,7 @@ enum LegConfidence {
 enum CommitmentKind {
   first_response
   resolution
+  next_reply
 }
 
 enum CommitmentStatus {

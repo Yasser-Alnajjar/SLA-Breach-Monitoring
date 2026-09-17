@@ -42,6 +42,10 @@ describe("pauseStatesFor", () => {
       "pending_internal",
     ]);
   });
+
+  it("gives next reply no pause states, whatever the policy configures", () => {
+    expect(pauseStatesFor("next_reply", { ...policy, pauseOnStates: ALL_STATES })).toEqual([]);
+  });
 });
 
 describe("commitmentPausesOn", () => {
@@ -53,5 +57,9 @@ describe("commitmentPausesOn", () => {
     for (const state of ALL_STATES) {
       expect(commitmentPausesOn("resolution", state, policy)).toBe(state === "pending_customer");
     }
+  });
+
+  it("never pauses next reply, not even on pending", () => {
+    for (const state of ALL_STATES) expect(commitmentPausesOn("next_reply", state, policy)).toBe(false);
   });
 });

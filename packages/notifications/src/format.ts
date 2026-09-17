@@ -30,6 +30,7 @@ export interface EmailContent {
 const KIND_LABEL: Record<NotificationCandidate["kind"], string> = {
   first_response: "First response",
   resolution: "Resolution",
+  next_reply: "Next reply",
 };
 
 /** e.g. `2h 15m`, `45m`, `3h`. Always non-negative — callers decide sign. */

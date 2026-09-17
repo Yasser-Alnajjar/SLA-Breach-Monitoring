@@ -107,8 +107,9 @@ export interface CommitmentPipelineResult {
  * Creates first-response and resolution `Commitment`s for every Case in an
  * organization that doesn't have one yet, matching the Case's attributes
  * against the organization's active `SLAPolicyVersion`s (Phase 13.1). A
- * commitment, once created, is permanent — `@@unique([caseId, kind])`
- * enforces that a later policy edit or re-run never creates a second one;
+ * commitment, once created, is permanent — `@@unique([caseId, kind, cycleKey])`
+ * with the single `SINGLE_CYCLE_KEY` enforces that a later policy edit or
+ * re-run never creates a second one;
  * only an explicit future recalculation action (Phase 13.6) may replace it.
  * Safe to re-run: cases with both kinds already, or that match no policy,
  * are skipped without side effects.
@@ -175,7 +176,13 @@ export async function runCommitmentPipeline(
       customerId: true,
       tier: true,
       openedAt: true,
-      commitments: { select: { kind: true, policyVersionId: true, calendarVersionId: true } },
+      // Scoped to the single-cycle kinds this pipeline creates: a persisted
+      // Next Reply commitment must never be picked as the "sibling" below or
+      // counted toward the calendar-version prefetch's completeness check.
+      commitments: {
+        where: { kind: { in: COMMITMENT_KINDS } },
+        select: { kind: true, policyVersionId: true, calendarVersionId: true },
+      },
     },
   });
 

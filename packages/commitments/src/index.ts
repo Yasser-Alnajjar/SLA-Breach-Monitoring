@@ -20,6 +20,13 @@ export type {
   NormalizedEventRecord,
   NotificationCandidate,
 } from "./evaluate-pipeline";
+export { persistNextReplyCommitments, planCycleCommitments } from "./cycle-commitments";
+export type {
+  CycleCommitmentPlan,
+  CycleCommitmentRecord,
+  PersistNextReplyCommitmentsInput,
+  PersistNextReplyCommitmentsResult,
+} from "./cycle-commitments";
 export { overridePolicyTargets, PolicyNotFoundError } from "./override";
 export type { PolicyOverrideResult } from "./override";
 export { CalendarNotFoundError, CustomerNotFoundError, setCustomerCalendar } from "./customer-calendar";

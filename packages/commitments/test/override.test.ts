@@ -159,4 +159,22 @@ describe("overridePolicyTargets", () => {
     ).rejects.toBeInstanceOf(PolicyNotFoundError);
     expect(created).toHaveLength(0);
   });
+
+  it("appends a version with a next_reply target alongside first_response and resolution", async () => {
+    const { prisma, created } = fakePrisma(policies, [version({ id: "ver_2", version: 2 })]);
+
+    const result = await overridePolicyTargets(prisma, "org_a", "pol_1", [
+      { kind: "first_response", minutes: 60 },
+      { kind: "resolution", minutes: 480 },
+      { kind: "next_reply", minutes: 30 },
+    ]);
+
+    expect(result.created).toBe(true);
+    expect(result.version.version).toBe(3);
+    expect(created[0]!.targets).toEqual([
+      { kind: "first_response", minutes: 60 },
+      { kind: "resolution", minutes: 480 },
+      { kind: "next_reply", minutes: 30 },
+    ]);
+  });
 });

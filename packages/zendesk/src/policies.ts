@@ -8,15 +8,17 @@ import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilte
  * Zendesk SLA metric name -> the CommitmentKind packages/core knows how to
  * track. Zendesk's API names the resolution metric `total_resolution_time`
  * (admin center: "Total resolution time"); `resolution_time` is kept for
- * snapshots that use the shorter name. Every other Zendesk metric
- * (next_reply_time, requester_wait_time, agent_work_time,
- * periodic_update_time, pausable_update_time) has no equivalent and is
- * dropped.
+ * snapshots that use the shorter name. `next_reply_time` maps to `next_reply`
+ * (Step 8) — the per-cycle target `runNextReplyCyclePipeline` freezes onto
+ * each cycle's Commitment. Every other Zendesk metric (requester_wait_time,
+ * agent_work_time, periodic_update_time, pausable_update_time) has no
+ * equivalent and is dropped.
  */
 const METRIC_TO_COMMITMENT_KIND: Record<string, CommitmentKind> = {
   first_reply_time: "first_response",
   total_resolution_time: "resolution",
   resolution_time: "resolution",
+  next_reply_time: "next_reply",
 };
 
 /** Condition fields the importer can express in `SLAPolicyMatch`. Anything else (group_id, tags, form_id, ...) is dropped — Phase 10 explicitly defers a configurable rules engine. */

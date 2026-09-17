@@ -81,6 +81,33 @@ describe("groupPolicyMetricsByPriority", () => {
     expect(unsupportedMetrics).toBe(0);
   });
 
+  it("maps next_reply_time to next_reply", () => {
+    const { groups, unsupportedMetrics } = groupPolicyMetricsByPriority([
+      metric({ metric: "next_reply_time", target: 60 }),
+    ]);
+    expect(groups).toEqual([{ priority: null, targets: [{ kind: "next_reply", minutes: 60 }] }]);
+    expect(unsupportedMetrics).toBe(0);
+  });
+
+  it("groups first_reply_time, total_resolution_time, and next_reply_time under the same priority", () => {
+    const { groups, unsupportedMetrics } = groupPolicyMetricsByPriority([
+      metric({ priority: "urgent", metric: "first_reply_time", target: 30 }),
+      metric({ priority: "urgent", metric: "total_resolution_time", target: 480 }),
+      metric({ priority: "urgent", metric: "next_reply_time", target: 60 }),
+    ]);
+    expect(groups).toEqual([
+      {
+        priority: "urgent",
+        targets: [
+          { kind: "first_response", minutes: 30 },
+          { kind: "resolution", minutes: 480 },
+          { kind: "next_reply", minutes: 60 },
+        ],
+      },
+    ]);
+    expect(unsupportedMetrics).toBe(0);
+  });
+
   it("splits metrics into separate groups per priority tier", () => {
     const { groups } = groupPolicyMetricsByPriority([
       metric({ priority: "urgent", metric: "first_reply_time", target: 30 }),
@@ -89,6 +116,16 @@ describe("groupPolicyMetricsByPriority", () => {
     expect(groups).toHaveLength(2);
     expect(groups.find((g) => g.priority === "urgent")?.targets).toEqual([{ kind: "first_response", minutes: 30 }]);
     expect(groups.find((g) => g.priority === "low")?.targets).toEqual([{ kind: "first_response", minutes: 240 }]);
+  });
+
+  it("splits next_reply_time targets into separate groups per priority tier", () => {
+    const { groups } = groupPolicyMetricsByPriority([
+      metric({ priority: "urgent", metric: "next_reply_time", target: 15 }),
+      metric({ priority: "low", metric: "next_reply_time", target: 120 }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups.find((g) => g.priority === "urgent")?.targets).toEqual([{ kind: "next_reply", minutes: 15 }]);
+    expect(groups.find((g) => g.priority === "low")?.targets).toEqual([{ kind: "next_reply", minutes: 120 }]);
   });
 
   it("lowercases priority so it matches Zendesk ticket priority values", () => {

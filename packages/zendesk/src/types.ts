@@ -122,8 +122,8 @@ export interface ZendeskSlaPolicyFilter {
  * applies regardless of priority. `metric` is Zendesk's full metric
  * vocabulary (first_reply_time, next_reply_time, requester_wait_time,
  * agent_work_time, periodic_update_time, total_resolution_time); only
- * `first_reply_time`/`total_resolution_time` map to a `CommitmentKind` we
- * track (see `METRIC_TO_COMMITMENT_KIND` in ./policies).
+ * `first_reply_time`/`total_resolution_time`/`next_reply_time` map to a
+ * `CommitmentKind` we track (see `METRIC_TO_COMMITMENT_KIND` in ./policies).
  */
 export interface ZendeskSlaPolicyMetric {
   priority: string | null;

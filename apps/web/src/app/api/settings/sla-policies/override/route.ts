@@ -5,7 +5,7 @@ import type { CommitmentKind } from "@sla/core";
 import { overridePolicyTargets, PolicyNotFoundError } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
 
-const VALID_KINDS: CommitmentKind[] = ["first_response", "resolution"];
+const VALID_KINDS: CommitmentKind[] = ["first_response", "resolution", "next_reply"];
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);

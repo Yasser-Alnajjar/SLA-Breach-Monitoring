@@ -94,4 +94,25 @@ describe("upsertPolicyVersion with a manual override on top", () => {
     expect(created).toBe(true);
     expect(versions).toMatchObject([{ version: 1, source: "imported" }]);
   });
+
+  it("leaves a next_reply override as the latest version when Zendesk's policy is unchanged", async () => {
+    const importedNextReply = [{ kind: "next_reply" as const, minutes: 60 }];
+    const overriddenNextReply = [{ kind: "next_reply" as const, minutes: 15 }];
+    const versions: VersionRow[] = [
+      { id: "ver_1", policyId: "pol_1", version: 1, match, targets: importedNextReply, calendarVersionId: "calv_1", source: "imported" },
+      { id: "ver_2", policyId: "pol_1", version: 2, match, targets: overriddenNextReply, calendarVersionId: "calv_1", source: "override" },
+    ];
+
+    const created = await upsertPolicyVersion(fakePrisma(versions), "org_1", "123:urgent", "Urgent", {
+      match,
+      targets: importedNextReply,
+      calendarVersionId: "calv_1",
+    });
+
+    expect(created).toBe(false);
+    expect(versions.map((v) => [v.version, v.source])).toEqual([
+      [1, "imported"],
+      [2, "override"],
+    ]);
+  });
 });

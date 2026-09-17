@@ -75,6 +75,24 @@ export function nextReplyCycleNumbers(
   );
 }
 
+/**
+ * The most recently started commitment of `kind` — e.g. the Next Reply cycle
+ * currently in flight once an earlier cycle has been superseded. Generic
+ * over every `CommitmentKind`; first_response/resolution only ever have one
+ * commitment each, so this is simply that one for them.
+ */
+export function latestCommitmentOfKind<
+  T extends { id: string; kind: CommitmentKind; startedAt: string },
+>(commitments: T[], kind: CommitmentKind): T | undefined {
+  return commitments
+    .filter((c) => c.kind === kind)
+    .reduce<T | undefined>(
+      (latest, c) =>
+        !latest || c.startedAt > latest.startedAt ? c : latest,
+      undefined,
+    );
+}
+
 /** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */
 export function formatPolicyMatch(match: {
   priority?: string[];

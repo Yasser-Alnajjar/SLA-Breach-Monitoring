@@ -16,7 +16,8 @@ import {
   Unlink,
 } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { Reveal } from "@/components/shared/reveal";
@@ -64,7 +65,10 @@ const PROVIDER_LABELS = INTEGRATION_PROVIDER_LABELS as Record<string, string>;
 
 function StateBadge({ state }: { state: string }) {
   return (
-    <Badge variant={NORMALIZED_STATE_VARIANT[state] ?? "default"}>
+    <Badge
+      variant={NORMALIZED_STATE_VARIANT[state] ?? "default"}
+      className="text-nowrap"
+    >
       {formatNormalizedState(state)}
     </Badge>
   );
@@ -112,13 +116,16 @@ function TimelineGlossary() {
         <button
           type="button"
           aria-label="What do these states mean?"
-          className="text-muted-foreground transition-colors hover:text-foreground"
+          className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
         >
           <HelpCircle className="size-4" />
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-80">
+      <PopoverContent
+        align="start"
+        className="w-full max-w-xs sm:max-w-md lg:max-w-xl"
+      >
         <div className="text-xs leading-5 text-muted-foreground">
           These are normalized states used by this app across Zendesk, Jira,
           Linear, and other providers.
@@ -548,6 +555,47 @@ function LinkedRecords({ data }: { data: CaseDetailData }) {
   );
 }
 
+/**
+ * Keeps the URL's `commitmentId` pointed at the case's active Next Reply
+ * cycle (roadmap: Next Reply auto-advance). The page polls via
+ * `SlaAutoRefreshProvider`, which re-fetches `data` for the same URL, so a
+ * Next Reply cycle that gets superseded (its commitment resolves and a new
+ * cycle starts) leaves the currently selected commitment stale. When that
+ * happens, replace the URL's `commitmentId` with the cycle that is actually
+ * on track — the existing SSR flow then re-renders around it.
+ *
+ * A selection that isn't a Next Reply commitment (e.g. First Response, or a
+ * "Breached cases" link into a superseded cycle) never auto-advances.
+ */
+function useNextReplyCycleSync(
+  commitments: CaseDetailData["commitments"],
+  selectedCommitmentId: string | null,
+): void {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const selected = commitments.find((c) => c.id === selectedCommitmentId);
+  const activeNextReply = commitments.find(
+    (c) => c.kind === "next_reply" && c.status === "on_track",
+  );
+
+  const staleCommitmentId =
+    selected?.kind === "next_reply" &&
+    activeNextReply !== undefined &&
+    activeNextReply.id !== selectedCommitmentId
+      ? activeNextReply.id
+      : null;
+
+  useEffect(() => {
+    if (!staleCommitmentId) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("commitmentId", staleCommitmentId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [staleCommitmentId, pathname, router, searchParams]);
+}
+
 interface CaseDetailViewProps {
   data: CaseDetailData;
   /** A commitment of this case to highlight (validated by the SSR layer), or null. */
@@ -558,6 +606,8 @@ export const CaseDetailView = ({
   data,
   selectedCommitmentId,
 }: CaseDetailViewProps) => {
+  useNextReplyCycleSync(data.commitments, selectedCommitmentId);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Link

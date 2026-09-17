@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Bell,
-  BookText,
   LayoutDashboard,
   ListChecks,
   Settings2,

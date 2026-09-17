@@ -18,7 +18,10 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     header: "Case",
     cell: ({ row }) => (
       <Link
-        href={caseCommitmentHref(row.original.caseId, row.original.commitmentId)}
+        href={caseCommitmentHref(
+          row.original.caseId,
+          row.original.commitmentId,
+        )}
         className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
         title={row.original.subject ?? `#${row.original.externalId}`}
       >
@@ -30,7 +33,12 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     accessorKey: "externalId",
     header: "Ticket",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">#{row.original.externalId}</span>
+      <Link
+        href={row.original.externalId}
+        className="text-muted-foreground hover:underline"
+      >
+        {`#${row.original.externalId}`}
+      </Link>
     ),
   },
   {
@@ -97,7 +105,10 @@ export const useOtherCasesColumns = (): ColumnDef<AtRiskRow>[] => [
     header: "Ticket",
     cell: ({ row }) => (
       <Link
-        href={caseCommitmentHref(row.original.caseId, row.original.commitmentId)}
+        href={caseCommitmentHref(
+          row.original.caseId,
+          row.original.commitmentId,
+        )}
         className="text-primary hover:underline"
       >
         #{row.original.externalId}

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenuTrigger,
   DropdownMenuContent,
-} from "@radix-ui/react-dropdown-menu";
+} from "@components/ui/dropdown-menu";
 import {
   Select,
   SelectTrigger,

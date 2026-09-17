@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
             <Link href="/docs">Documentation</Link>
           </Button>
         </header>
-        <main className="mx-auto min-w-0 w-full max-w-7xl flex-1 px-4 py-4">
+        <main className="mx-auto min-w-0 w-full flex-1 px-4 py-4">
           {children}
         </main>
       </SidebarInset>

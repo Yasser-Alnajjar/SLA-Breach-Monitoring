@@ -199,25 +199,37 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
   );
 }
 
-function CommitmentSummary({ data }: { data: CaseDetailData }) {
+function CommitmentSummary({
+  data,
+  selectedCommitmentId,
+}: {
+  data: CaseDetailData;
+  selectedCommitmentId: string | null;
+}) {
+  const commitments = selectedCommitmentId
+    ? data.commitments.filter(
+        (commitment) => commitment.id === selectedCommitmentId,
+      )
+    : data.commitments;
   return (
     <Reveal delay={0.1}>
-      {data.commitments.length === 0 ? (
+      {" "}
+      {commitments.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="No SLA policy has matched this case yet"
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {data.commitments.map((commitment) => (
+          {" "}
+          {commitments.map((commitment) => (
             <CommitmentCard key={commitment.id} commitment={commitment} />
-          ))}
+          ))}{" "}
         </div>
-      )}
+      )}{" "}
     </Reveal>
   );
 }
-
 function CaseJourney({ data }: { data: CaseDetailData }) {
   const timelineStart = new Date(data.case.openedAt).getTime();
   const timelineEnd = new Date(data.case.closedAt ?? data.asOf).getTime();
@@ -526,9 +538,14 @@ function LinkedRecords({ data }: { data: CaseDetailData }) {
 
 interface CaseDetailViewProps {
   data: CaseDetailData;
+  /** A commitment of this case to highlight (validated by the SSR layer), or null. */
+  selectedCommitmentId: string | null;
 }
 
-export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
+export const CaseDetailView = ({
+  data,
+  selectedCommitmentId,
+}: CaseDetailViewProps) => {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Link
@@ -542,7 +559,10 @@ export const CaseDetailView = ({ data }: CaseDetailViewProps) => {
       <CaseHeader data={data} />
 
       <div className="mt-6">
-        <CommitmentSummary data={data} />
+        <CommitmentSummary
+          data={data}
+          selectedCommitmentId={selectedCommitmentId}
+        />
       </div>
 
       <div className="mt-4">

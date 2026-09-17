@@ -8,6 +8,7 @@ import {
   mapScheduleHolidaysToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
+  mapUserToRawEvent,
   type RawEventInput,
 } from "./rawEvents";
 import { loadFreshZendeskCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
@@ -133,7 +134,7 @@ export async function runZendeskBackfill(
         }
         throw error;
       }
-      await writeRawEvents(page.audits.map(mapAuditToRawEvent));
+      await writeRawEvents([...page.audits.map(mapAuditToRawEvent), ...(page.users ?? []).map(mapUserToRawEvent)]);
       count += page.audits.length;
 
       if (!page.next_page) break;

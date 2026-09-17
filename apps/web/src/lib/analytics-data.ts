@@ -135,6 +135,7 @@ export function toBreachedCaseRows(
     const details = caseDetailsById.get(breach.caseId);
     if (!details) continue;
     rows.push({
+      commitmentId: breach.commitmentId,
       caseId: breach.caseId,
       externalId: details.externalId,
       customerName: details.customerName,

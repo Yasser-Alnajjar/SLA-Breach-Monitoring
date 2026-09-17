@@ -26,6 +26,7 @@ const getLiveRemainingSeconds = (commitment: CommitmentDetail): number => {
 
   return Math.floor((dueAt - now) / 1000);
 };
+
 export const CommitmentCard = ({
   commitment,
 }: {

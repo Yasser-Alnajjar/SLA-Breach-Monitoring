@@ -110,8 +110,19 @@ export class ZendeskClient {
     return this.request<ZendeskSlaPoliciesPage>(nextPageUrl ?? "/api/v2/slas/policies.json");
   }
 
+  /**
+   * Sideloads `users` (https://developer.zendesk.com/documentation/ticketing/using-the-zendesk-api/side_loading/)
+   * so each audit author's role arrives in the same response — no separate
+   * Users API call. `include` is re-applied to `nextPageUrl` in case Zendesk
+   * doesn't carry it over to later pages.
+   */
   fetchTicketAuditsPage(ticketId: number, nextPageUrl?: string): Promise<ZendeskAuditsPage> {
-    return this.request<ZendeskAuditsPage>(nextPageUrl ?? `/api/v2/tickets/${ticketId}/audits.json`);
+    if (!nextPageUrl) {
+      return this.request<ZendeskAuditsPage>(`/api/v2/tickets/${ticketId}/audits.json?include=users`);
+    }
+    const url = new URL(nextPageUrl);
+    if (!url.searchParams.has("include")) url.searchParams.set("include", "users");
+    return this.request<ZendeskAuditsPage>(url.toString());
   }
 
   /**

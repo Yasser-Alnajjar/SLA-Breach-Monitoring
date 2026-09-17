@@ -200,13 +200,14 @@ describe("runZendeskWebhookIngest", () => {
       if (url.includes("/api/v2/tickets/42.json")) {
         return jsonResponse(200, { ticket: ticket(42) });
       }
-      if (url === "https://acme.zendesk.com/api/v2/tickets/42/audits.json") {
+      if (url === "https://acme.zendesk.com/api/v2/tickets/42/audits.json?include=users") {
         return jsonResponse(200, {
           audits: [{ id: 1, ticket_id: 42, created_at: "2026-01-01T00:00:00Z", author_id: 1, events: [] }],
+          users: [{ id: 1, role: "agent", name: "Agent A", email: "a@example.com" }],
           next_page: "https://acme.zendesk.com/api/v2/tickets/42/audits.json?page=2",
         });
       }
-      if (url.includes("page=2")) {
+      if (url === "https://acme.zendesk.com/api/v2/tickets/42/audits.json?page=2&include=users") {
         return jsonResponse(200, {
           audits: [{ id: 2, ticket_id: 42, created_at: "2026-01-01T00:05:00Z", author_id: 1, events: [] }],
           next_page: null,
@@ -220,9 +221,14 @@ describe("runZendeskWebhookIngest", () => {
     const result = await runZendeskWebhookIngest(prisma as never, "integration-1", config, 42);
 
     expect(result).toEqual({ ticketsFetched: 1, ticketAuditsFetched: 2 });
-    expect(prisma._rawEvents).toHaveLength(3);
+    expect(prisma._rawEvents).toHaveLength(4);
     expect(prisma._rawEvents.map((e) => e.providerEventId)).toEqual(
-      expect.arrayContaining([expect.stringContaining("ticket:42:"), "ticket_audit:1", "ticket_audit:2"]),
+      expect.arrayContaining([
+        expect.stringContaining("ticket:42:"),
+        "ticket_audit:1",
+        "ticket_audit:2",
+        expect.stringContaining("user:1:"),
+      ]),
     );
     expect(prisma.integration.update).not.toHaveBeenCalled();
   });

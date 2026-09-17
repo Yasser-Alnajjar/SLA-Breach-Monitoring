@@ -27,6 +27,7 @@ export interface AgingEscalationRow {
 }
 
 export interface BreachedCaseRow {
+  commitmentId: string;
   caseId: string;
   externalId: string;
   customerName: string | null;

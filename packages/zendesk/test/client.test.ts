@@ -86,3 +86,21 @@ describe("ZendeskClient 403 handling", () => {
     expect(error).not.toBeInstanceOf(ZendeskPermissionDeniedError);
   });
 });
+
+describe("ZendeskClient.fetchTicketAuditsPage", () => {
+  it("sideloads users on the first page and on a next_page URL that dropped the include", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { audits: [], users: [], next_page: null }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ZendeskClient(baseCredentials);
+
+    await client.fetchTicketAuditsPage(51);
+    await client.fetchTicketAuditsPage(51, "https://acme.zendesk.com/api/v2/tickets/51/audits.json?page=2");
+    await client.fetchTicketAuditsPage(51, "https://acme.zendesk.com/api/v2/tickets/51/audits.json?page=3&include=users");
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "https://acme.zendesk.com/api/v2/tickets/51/audits.json?include=users",
+      "https://acme.zendesk.com/api/v2/tickets/51/audits.json?page=2&include=users",
+      "https://acme.zendesk.com/api/v2/tickets/51/audits.json?page=3&include=users",
+    ]);
+  });
+});

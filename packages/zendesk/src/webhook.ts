@@ -2,7 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "@sla/db";
 import { ZendeskApiError, ZendeskClient } from "./client";
 import type { ZendeskOAuthConfig } from "./oauth";
-import { mapAuditToRawEvent, mapTicketToRawEvent, type RawEventInput } from "./rawEvents";
+import { mapAuditToRawEvent, mapTicketToRawEvent, mapUserToRawEvent, type RawEventInput } from "./rawEvents";
 import { loadFreshZendeskCredentials, refreshAfterUnauthorized } from "./tokenLifecycle";
 
 /** Random per-integration secret, generated once at connect and never rotated on reconnect (see Integration.webhookSecret's doc comment). */
@@ -166,7 +166,7 @@ export async function runZendeskWebhookIngest(
   let nextPageUrl: string | undefined;
   for (;;) {
     const page = await client.fetchTicketAuditsPage(ticketId, nextPageUrl);
-    rawEvents.push(...page.audits.map(mapAuditToRawEvent));
+    rawEvents.push(...page.audits.map(mapAuditToRawEvent), ...(page.users ?? []).map(mapUserToRawEvent));
     ticketAuditsFetched += page.audits.length;
     if (!page.next_page) break;
     nextPageUrl = page.next_page;

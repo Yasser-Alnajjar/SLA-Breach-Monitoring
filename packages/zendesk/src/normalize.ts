@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import type { Actor, NormalizedEventType, NormalizedState } from "@sla/core";
-import type { ZendeskAudit, ZendeskOrganization, ZendeskTicket } from "./types";
+import type { ZendeskAudit, ZendeskOrganization, ZendeskTicket, ZendeskUser, ZendeskUserRole } from "./types";
 
 /** Zendesk's closed set of ticket statuses, mapped to the provider-independent vocabulary. */
 const STATUS_TO_NORMALIZED_STATE: Record<string, NormalizedState> = {
@@ -28,14 +28,38 @@ export function normalizeZendeskStatus(status: string): NormalizedState {
 /** Channels Zendesk uses when a trigger/automation/rule made the change, not a person. */
 const SYSTEM_CHANNELS = new Set(["trigger", "automation", "rule"]);
 
+/** Zendesk user id → role, from the users sideloaded alongside ticket audits. */
+export type ZendeskUserRoles = ReadonlyMap<number, ZendeskUserRole>;
+
+const ACTOR_BY_ROLE: Record<ZendeskUserRole, Actor> = {
+  "end-user": "customer",
+  agent: "agent",
+  admin: "agent",
+};
+
+function actorForKnownRole(authorId: number, userRoles: ZendeskUserRoles): Actor | undefined {
+  const role = userRoles.get(authorId);
+  return role ? ACTOR_BY_ROLE[role] : undefined;
+}
+
 /**
- * Best-effort actor resolution without a Users export (out of scope for this
- * step): a system channel wins outright; otherwise compare the actor to the
- * ticket's requester, defaulting to "agent" since most audit activity is
- * agent-side and requester_id may be unknown for older/minimal payloads.
+ * A system channel wins outright. Otherwise the author's Zendesk role
+ * decides: agents and admins are "agent", end users are "customer" — even
+ * when an agent is the ticket's own requester.
+ *
+ * Only when the author's role hasn't been ingested (audits fetched before
+ * users were sideloaded) does this fall back to the older guess: the
+ * ticket's requester is the customer, anyone else an agent.
  */
-export function resolveActor(channel: string | undefined, authorId: number, ticket: ZendeskTicket): Actor {
+export function resolveActor(
+  channel: string | undefined,
+  authorId: number,
+  ticket: ZendeskTicket,
+  userRoles: ZendeskUserRoles = new Map(),
+): Actor {
   if (channel && SYSTEM_CHANNELS.has(channel)) return "system";
+  const byRole = actorForKnownRole(authorId, userRoles);
+  if (byRole) return byRole;
   if (ticket.requester_id != null && authorId === ticket.requester_id) return "customer";
   return "agent";
 }
@@ -93,13 +117,15 @@ export function sortAuditsChronologically(audits: AuditRecord[]): AuditRecord[] 
  * Public agent comments become `agent_replied` events — what completes a
  * first-response commitment. Comments on the ticket's creation audit (the
  * ticket's own description, even when an agent opened it) never count, and
- * neither do replies on a ticket whose requester is unknown, since
- * `resolveActor` could not tell the customer's comments from an agent's.
+ * neither do replies whose author has no known role on a ticket whose
+ * requester is also unknown, since `resolveActor` could not tell the
+ * customer's comments from an agent's.
  */
 export function deriveNormalizedEventsForTicket(
   ticket: ZendeskTicket,
   auditsForTicket: AuditRecord[],
   ticketRawEventId: string,
+  userRoles: ZendeskUserRoles = new Map(),
 ): DerivedNormalizedEvent[] {
   const sorted = sortAuditsChronologically(auditsForTicket);
   const statusChanges = sorted.flatMap(({ rawEventId, audit }) =>
@@ -109,8 +135,8 @@ export function deriveNormalizedEventsForTicket(
   const firstChange = statusChanges[0];
   const initialStatus = firstChange ? firstChange.event.previous_value : ticket.status;
   const createdActor = firstChange
-    ? resolveActor(firstChange.audit.via?.channel, firstChange.audit.author_id, ticket)
-    : resolveActor(ticket.via?.channel, ticket.requester_id ?? -1, ticket);
+    ? resolveActor(firstChange.audit.via?.channel, firstChange.audit.author_id, ticket, userRoles)
+    : resolveActor(ticket.via?.channel, ticket.requester_id ?? -1, ticket, userRoles);
 
   const events: DerivedNormalizedEvent[] = [
     {
@@ -133,29 +159,29 @@ export function deriveNormalizedEventsForTicket(
       // non-terminal state, which is emitted as a plain state_changed below.
       type: toState === "closed" || toState === "resolved" ? "case_closed" : "state_changed",
       occurredAt: audit.created_at,
-      actor: resolveActor(audit.via?.channel, audit.author_id, ticket),
+      actor: resolveActor(audit.via?.channel, audit.author_id, ticket, userRoles),
       fromState: normalizeZendeskStatus(event.previous_value),
       toState,
       sourceRawEventId: rawEventId,
     });
   }
 
-  if (ticket.requester_id != null) {
-    const createdAtMs = Date.parse(ticket.created_at);
-    for (const { rawEventId, audit } of sorted) {
-      if (Date.parse(audit.created_at) <= createdAtMs) continue;
-      for (const event of audit.events.filter(isPublicCommentEvent)) {
-        const actor = resolveActor(audit.via?.channel, event.author_id ?? audit.author_id, ticket);
-        if (actor !== "agent") continue;
-        events.push({
-          type: "agent_replied",
-          occurredAt: audit.created_at,
-          actor,
-          fromState: null,
-          toState: null,
-          sourceRawEventId: rawEventId,
-        });
-      }
+  const createdAtMs = Date.parse(ticket.created_at);
+  for (const { rawEventId, audit } of sorted) {
+    if (Date.parse(audit.created_at) <= createdAtMs) continue;
+    for (const event of audit.events.filter(isPublicCommentEvent)) {
+      const authorId = event.author_id ?? audit.author_id;
+      if (ticket.requester_id == null && !actorForKnownRole(authorId, userRoles)) continue;
+      const actor = resolveActor(audit.via?.channel, authorId, ticket, userRoles);
+      if (actor !== "agent") continue;
+      events.push({
+        type: "agent_replied",
+        occurredAt: audit.created_at,
+        actor,
+        fromState: null,
+        toState: null,
+        sourceRawEventId: rawEventId,
+      });
     }
   }
 
@@ -252,7 +278,7 @@ export async function runZendeskNormalization(
     ticketsFailed: [],
   };
 
-  const [orgRows, ticketRows, auditRows] = await Promise.all([
+  const [orgRows, ticketRows, auditRows, userRows] = await Promise.all([
     prisma.rawEvent.findMany({
       where: { integrationId, providerEventId: { startsWith: "organization:" } },
       select: { id: true, payload: true, fetchedAt: true },
@@ -265,6 +291,10 @@ export async function runZendeskNormalization(
     }),
     prisma.rawEvent.findMany({
       where: { integrationId, providerEventId: { startsWith: "ticket_audit:" } },
+      select: { id: true, payload: true, fetchedAt: true },
+    }),
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "user:" } },
       select: { id: true, payload: true, fetchedAt: true },
     }),
   ]);
@@ -281,6 +311,9 @@ export async function runZendeskNormalization(
 
   const latestTickets = latestSnapshotById<ZendeskTicket>(ticketRows);
   const auditsByTicketId = groupAuditsByTicketId(auditRows);
+  const userRoles: ZendeskUserRoles = new Map(
+    [...latestSnapshotById<ZendeskUser>(userRows).values()].map(({ value }) => [value.id, value.role]),
+  );
 
   for (const { rawEventId: ticketRawEventId, value: ticket, rawEventIds: ticketSnapshotRawEventIds } of latestTickets.values()) {
     try {
@@ -306,7 +339,7 @@ export async function runZendeskNormalization(
           : null;
 
       const auditsForTicket = auditsByTicketId.get(ticket.id) ?? [];
-      const derived = deriveNormalizedEventsForTicket(ticket, auditsForTicket, ticketRawEventId);
+      const derived = deriveNormalizedEventsForTicket(ticket, auditsForTicket, ticketRawEventId, userRoles);
       const closedAt = deriveCaseClosedAt(ticket, derived);
       // Every RawEvent this ticket's own derivation could ever have sourced
       // an event from — every ticket snapshot (each re-fetch with changes is

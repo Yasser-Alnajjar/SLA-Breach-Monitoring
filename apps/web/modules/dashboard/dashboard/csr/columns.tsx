@@ -1,6 +1,7 @@
 "use client";
 
 import { StatusBadge } from "@/components/shared/status-badge";
+import { caseCommitmentHref } from "@/lib/case-links";
 import { formatCommitmentKind, formatLeg, formatMinutes } from "@/lib/format";
 import { AtRiskRow } from "@/lib/types/dashboard";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -17,7 +18,7 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     header: "Case",
     cell: ({ row }) => (
       <Link
-        href={`/cases/${row.original.caseId}`}
+        href={caseCommitmentHref(row.original.caseId, row.original.commitmentId)}
         className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
         title={row.original.subject ?? `#${row.original.externalId}`}
       >
@@ -96,7 +97,7 @@ export const useOtherCasesColumns = (): ColumnDef<AtRiskRow>[] => [
     header: "Ticket",
     cell: ({ row }) => (
       <Link
-        href={`/cases/${row.original.caseId}`}
+        href={caseCommitmentHref(row.original.caseId, row.original.commitmentId)}
         className="text-primary hover:underline"
       >
         #{row.original.externalId}

@@ -4,6 +4,7 @@ import {
   mapOrganizationToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
+  mapUserToRawEvent,
 } from "../src/rawEvents";
 import type { ZendeskAudit, ZendeskOrganization, ZendeskSlaPolicy, ZendeskTicket } from "../src/types";
 
@@ -18,6 +19,17 @@ const ticket: ZendeskTicket = {
   priority: "high",
   organization_id: 7,
 };
+
+describe("mapUserToRawEvent", () => {
+  it("keeps only id and role, keyed by a hash that changes only when the role does", () => {
+    const agent = { id: 7, role: "agent" as const, name: "Agent A", email: "a@example.com" };
+    const result = mapUserToRawEvent(agent);
+    expect(result.payload).toEqual({ id: 7, role: "agent" });
+    expect(result.providerEventId).toBe(`user:7:${result.sourceHash}`);
+    expect(mapUserToRawEvent({ ...agent, name: "Renamed" }).providerEventId).toBe(result.providerEventId);
+    expect(mapUserToRawEvent({ ...agent, role: "end-user" }).providerEventId).not.toBe(result.providerEventId);
+  });
+});
 
 describe("mapAuditToRawEvent", () => {
   it("keys by audit id alone — audits are immutable, never re-hashed", () => {

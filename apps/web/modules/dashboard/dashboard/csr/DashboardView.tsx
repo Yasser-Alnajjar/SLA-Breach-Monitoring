@@ -21,6 +21,7 @@ import { StatTile } from "@/components/shared/stat-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { caseCommitmentHref } from "@/lib/case-links";
 import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { DashboardData } from "@/lib/types/dashboard";
 import { AtRiskList } from "./AtRiskList";
@@ -173,7 +174,7 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                           <ul className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
                             {data.breachedThisPeriod.map((row, i) => (
                               <li
-                                key={`${row.caseId}-${row.kind}-${i}`}
+                                key={`${row.commitmentId}-${i}`}
                                 className="text-muted-foreground flex"
                               >
                                 <span className="text-foreground">
@@ -181,7 +182,7 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                                 </span>{" "}
                                 ·{" "}
                                 <a
-                                  href={`/cases/${row.caseId}`}
+                                  href={caseCommitmentHref(row.caseId, row.commitmentId)}
                                   title={row.subject ?? `#${row.externalId}`}
                                   className="text-primary hover:underline truncate max-w-lg block"
                                 >

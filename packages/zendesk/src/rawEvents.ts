@@ -6,6 +6,7 @@ import type {
   ZendeskScheduleHoliday,
   ZendeskSlaPolicy,
   ZendeskTicket,
+  ZendeskUser,
 } from "./types";
 
 /** What gets written to one RawEvent row, minus the integrationId FK. */
@@ -36,6 +37,18 @@ export function mapAuditToRawEvent(audit: ZendeskAudit): RawEventInput {
 export function mapTicketToRawEvent(ticket: ZendeskTicket): RawEventInput {
   const sourceHash = computeSourceHash(ticket);
   return { providerEventId: `ticket:${ticket.id}:${sourceHash}`, sourceHash, payload: ticket };
+}
+
+/**
+ * Only `{ id, role }` is kept, not the full sideloaded user: role is the one
+ * field the normalizer reads, and it avoids storing end users' names, emails
+ * and phone numbers. It also means a new snapshot lands only when the role
+ * itself changes, not on every profile edit.
+ */
+export function mapUserToRawEvent(user: ZendeskUser): RawEventInput {
+  const payload = { id: user.id, role: user.role };
+  const sourceHash = computeSourceHash(payload);
+  return { providerEventId: `user:${user.id}:${sourceHash}`, sourceHash, payload };
 }
 
 export function mapOrganizationToRawEvent(organization: ZendeskOrganization): RawEventInput {

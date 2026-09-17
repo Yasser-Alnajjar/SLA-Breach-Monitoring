@@ -14,11 +14,13 @@ export {
   mapScheduleHolidaysToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
+  mapUserToRawEvent,
 } from "./rawEvents";
 export type {
   AuditRecord,
   DerivedNormalizedEvent,
   NormalizationResult,
+  ZendeskUserRoles,
 } from "./normalize";
 export {
   DEFAULT_CALENDAR_NAME,

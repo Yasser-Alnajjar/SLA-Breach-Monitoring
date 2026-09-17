@@ -75,6 +75,36 @@ describe("resolveActor", () => {
   it("defaults to agent when the requester is unknown", () => {
     expect(resolveActor("web", 501, { ...ticket, requester_id: null })).toBe("agent");
   });
+
+  describe("with Zendesk user roles", () => {
+    const roles = new Map([
+      [501, "agent"],
+      [502, "admin"],
+      [900, "end-user"],
+    ] as const);
+
+    it("attributes an agent to agent even when they are the ticket's requester", () => {
+      expect(resolveActor("web", 501, ticket, roles)).toBe("agent");
+    });
+
+    it("attributes an admin to agent", () => {
+      expect(resolveActor("web", 502, ticket, roles)).toBe("agent");
+    });
+
+    it("attributes an end user to customer even when they are not the requester", () => {
+      expect(resolveActor("web", 900, ticket, roles)).toBe("customer");
+    });
+
+    it("still lets a system channel win over the author's role", () => {
+      expect(resolveActor("trigger", 501, ticket, roles)).toBe("system");
+      expect(resolveActor("rule", 900, ticket, roles)).toBe("system");
+    });
+
+    it("falls back to the requester comparison for an author whose role is unknown", () => {
+      expect(resolveActor("web", 777, { ...ticket, requester_id: 777 }, roles)).toBe("customer");
+      expect(resolveActor("web", 778, ticket, roles)).toBe("agent");
+    });
+  });
 });
 
 describe("sortAuditsChronologically", () => {
@@ -415,6 +445,90 @@ describe("deriveNormalizedEventsForTicket agent replies", () => {
     expect(replies(events)).toEqual([]);
   });
 
+  describe("classified by the author's Zendesk role", () => {
+    const AGENT_A = 501; // the ticket's requester in these tests
+    const AGENT_B = 502;
+    const END_USER = 900;
+    const roles = new Map([
+      [AGENT_A, "agent"],
+      [AGENT_B, "admin"],
+      [END_USER, "end-user"],
+    ] as const);
+
+    it("emits agent_replied when the agent who is the requester replies", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: AGENT_A, assignee_id: AGENT_B },
+        [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: AGENT_A, events: [comment({ author_id: AGENT_A })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toMatchObject([{ occurredAt: "2026-01-01T09:40:00Z", actor: "agent", sourceRawEventId: "raw_2" }]);
+    });
+
+    it("emits agent_replied when a different agent replies on an agent-requested ticket", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: AGENT_A },
+        [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: AGENT_B, events: [comment({ author_id: AGENT_B })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toMatchObject([{ occurredAt: "2026-01-01T09:40:00Z", actor: "agent" }]);
+    });
+
+    it("emits no agent_replied when the end user who is the requester replies", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: END_USER },
+        [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: END_USER, events: [comment({ author_id: END_USER })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toEqual([]);
+    });
+
+    it("emits no agent_replied for an end user who is not the requester (e.g. a CC)", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: AGENT_A },
+        [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: END_USER, events: [comment({ author_id: END_USER })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toEqual([]);
+    });
+
+    it("ignores an agent's own ticket description on the creation audit", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: AGENT_A },
+        [audit({ id: 1, created_at: openTicket.created_at, author_id: AGENT_A, events: [comment({ author_id: AGENT_A })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toEqual([]);
+    });
+
+    it("ignores private notes and trigger/automation comments even from agents", () => {
+      const events = deriveNormalizedEventsForTicket(
+        openTicket,
+        [
+          audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: AGENT_A, events: [comment({ author_id: AGENT_A, public: false })] }),
+          audit({ id: 3, created_at: "2026-01-01T09:20:00Z", author_id: AGENT_B, via: { channel: "rule" }, events: [comment({ author_id: AGENT_B })] }),
+        ],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toEqual([]);
+    });
+
+    it("emits agent_replied by role even when the requester is unknown", () => {
+      const events = deriveNormalizedEventsForTicket(
+        { ...openTicket, requester_id: null },
+        [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: AGENT_B, events: [comment({ author_id: AGENT_B })] })],
+        "raw_ticket",
+        roles,
+      );
+      expect(replies(events)).toHaveLength(1);
+    });
+  });
+
   it("keeps events in chronological order, status change before a reply in the same audit", () => {
     const events = deriveNormalizedEventsForTicket(
       openTicket,
@@ -435,5 +549,107 @@ describe("deriveNormalizedEventsForTicket agent replies", () => {
       ["agent_replied", "2026-01-01T09:40:00Z"],
       ["state_changed", "2026-01-01T10:00:00Z"],
     ]);
+  });
+});
+
+/**
+ * Regression: Zendesk ticket 51 as actually ingested. The agent who created
+ * it is also its requester (and assignee), so the old requester-based guess
+ * called their "asd" reply a customer comment and First Response breached.
+ */
+describe("deriveNormalizedEventsForTicket ticket 51 regression", () => {
+  const AGENT = 38669107468434;
+  const ticket51: ZendeskTicket = {
+    ...ticket,
+    id: 51,
+    subject: "ticket#51",
+    created_at: "2026-09-17T10:32:43Z",
+    updated_at: "2026-09-17T10:34:25Z",
+    status: "solved",
+    priority: "urgent",
+    requester_id: AGENT,
+    submitter_id: AGENT,
+    assignee_id: AGENT,
+  };
+  const audits51: AuditRecord[] = [
+    {
+      rawEventId: "cmu5e551902ka14ryto7on7e1",
+      audit: {
+        id: 39019693023378,
+        ticket_id: 51,
+        created_at: "2026-09-17T10:32:43Z",
+        author_id: AGENT,
+        via: { channel: "web" },
+        events: [
+          { id: 39019693023506, type: "Comment", public: true, body: "ticket#50", author_id: AGENT },
+          { id: 39019693024146, type: "Create", field_name: "status", value: "open" },
+        ],
+      },
+    },
+    {
+      rawEventId: "cmu5e551902kb14ryvvvidlqk",
+      audit: {
+        id: 39019715177618,
+        ticket_id: 51,
+        created_at: "2026-09-17T10:32:43Z",
+        author_id: -1,
+        via: { channel: "sla" },
+        events: [{ id: 39019693061138, type: "Change", field_name: "total_resolution_time", value: { minutes: 240 }, previous_value: null }],
+      },
+    },
+    {
+      rawEventId: "cmu5e5zon02og14ryo9w4q25x",
+      audit: {
+        id: 39019723346834,
+        ticket_id: 51,
+        created_at: "2026-09-17T10:33:23Z",
+        author_id: AGENT,
+        via: { channel: "web" },
+        events: [{ id: 39019723347090, type: "Change", field_name: "subject", value: "ticket#51", previous_value: "ticket#50" }],
+      },
+    },
+    {
+      rawEventId: "cmu5e7bdt02sl14ry0woq5z2y",
+      audit: {
+        id: 39019734767762,
+        ticket_id: 51,
+        created_at: "2026-09-17T10:33:26Z",
+        author_id: AGENT,
+        via: { channel: "web" },
+        events: [
+          { id: 39019740503570, type: "Comment", public: true, body: "asd", author_id: AGENT },
+          { id: 39019740504338, type: "Notification", via: { channel: "rule" }, recipients: [AGENT] },
+        ],
+      },
+    },
+    {
+      rawEventId: "cmu5e7bdt02sm14ryke6hgtfp",
+      audit: {
+        id: 39019768686098,
+        ticket_id: 51,
+        created_at: "2026-09-17T10:34:25Z",
+        author_id: AGENT,
+        via: { channel: "web" },
+        events: [{ id: 39019768686226, type: "Change", field_name: "status", value: "solved", previous_value: "open" }],
+      },
+    },
+  ];
+
+  it("emits agent_replied at 10:33:26Z for the agent-requester's reply, and not for the description", () => {
+    const events = deriveNormalizedEventsForTicket(ticket51, audits51, "raw_ticket_51", new Map([[AGENT, "agent"]]));
+    expect(events.map((e) => [e.type, e.occurredAt, e.actor])).toEqual([
+      ["case_created", "2026-09-17T10:32:43Z", "agent"],
+      ["agent_replied", "2026-09-17T10:33:26Z", "agent"],
+      ["case_closed", "2026-09-17T10:34:25Z", "agent"],
+    ]);
+    expect(events[1]?.sourceRawEventId).toBe("cmu5e7bdt02sl14ry0woq5z2y");
+  });
+
+  it("keeps the solve as the only case_closed, unchanged by the author's role", () => {
+    const withRoles = deriveNormalizedEventsForTicket(ticket51, audits51, "raw_ticket_51", new Map([[AGENT, "agent"]]));
+    const withoutRoles = deriveNormalizedEventsForTicket(ticket51, audits51, "raw_ticket_51");
+    const closures = (events: DerivedNormalizedEvent[]) =>
+      events.filter((e) => e.type === "case_closed").map(({ actor: _actor, ...rest }) => rest);
+    expect(closures(withRoles)).toEqual(closures(withoutRoles));
   });
 });

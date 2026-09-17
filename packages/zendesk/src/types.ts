@@ -65,8 +65,23 @@ export interface ZendeskAudit {
   [key: string]: unknown;
 }
 
+/**
+ * A Zendesk user's account role — what actually tells an agent's comment
+ * from a customer's. Ticket relationships (requester, assignee) don't: an
+ * agent can be a ticket's requester.
+ */
+export type ZendeskUserRole = "end-user" | "agent" | "admin";
+
+export interface ZendeskUser {
+  id: number;
+  role: ZendeskUserRole;
+  [key: string]: unknown;
+}
+
 export interface ZendeskAuditsPage {
   audits: ZendeskAudit[];
+  /** Sideloaded via `include=users` (see `ZendeskClient.fetchTicketAuditsPage`): the audits' authors, with their roles. */
+  users?: ZendeskUser[];
   next_page: string | null;
 }
 

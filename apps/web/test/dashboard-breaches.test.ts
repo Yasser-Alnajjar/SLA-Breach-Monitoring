@@ -170,6 +170,7 @@ describe("getDashboardData breaches this period", () => {
 
     expect(data.breachedThisPeriod).toEqual([
       {
+        commitmentId: "commitment-in-closed",
         caseId: "case-in-closed",
         externalId: "ZD-in-closed",
         customerName: "Customer in-closed",
@@ -177,6 +178,7 @@ describe("getDashboardData breaches this period", () => {
         subject: "Subject in-closed",
       },
       {
+        commitmentId: "commitment-in-open",
         caseId: "case-in-open",
         externalId: "ZD-in-open",
         customerName: "Customer in-open",

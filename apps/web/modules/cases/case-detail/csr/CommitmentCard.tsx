@@ -34,8 +34,11 @@ const getLiveRemainingSeconds = (commitment: CommitmentDetail): number => {
 
 export const CommitmentCard = ({
   commitment,
+  cycleNumber,
 }: {
   commitment: CommitmentDetail;
+  /** This commitment's 1-based Next Reply cycle position (`nextReplyCycleNumbers`), when it has one — presentation-only, never the engine's `cycleKey`. */
+  cycleNumber?: number;
 }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(
     () => commitment.remainingSeconds,
@@ -75,6 +78,11 @@ export const CommitmentCard = ({
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground">
             {formatCommitmentKind(commitment.kind)}
+            {cycleNumber !== undefined && (
+              <span className="ml-1.5 font-normal text-muted-foreground">
+                · Cycle {cycleNumber}
+              </span>
+            )}
           </span>
 
           <div className="flex items-center gap-2">

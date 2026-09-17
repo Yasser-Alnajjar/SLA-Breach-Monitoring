@@ -1,3 +1,5 @@
+import type { CommitmentKind } from "@sla/core";
+
 /** Formats a signed minute count as "1d 2h 3m", dropping leading zero units. */
 export function formatMinutes(totalMinutes: number): string {
   const abs = Math.round(Math.abs(totalMinutes));
@@ -41,13 +43,36 @@ export function formatLeg(leg: string): string {
   return LEG_LABELS[leg] ?? leg;
 }
 
-const COMMITMENT_KIND_LABELS: Record<string, string> = {
+// Record<CommitmentKind, string>, not Record<string, string>: a new
+// CommitmentKind fails to compile here until it's given a label, so this
+// can't silently fall behind the engine's own kinds again.
+const COMMITMENT_KIND_LABELS: Record<CommitmentKind, string> = {
   first_response: "First response",
   resolution: "Resolution",
+  next_reply: "Next reply",
 };
 
-export function formatCommitmentKind(kind: string): string {
-  return COMMITMENT_KIND_LABELS[kind] ?? kind;
+export function formatCommitmentKind(kind: CommitmentKind): string {
+  return COMMITMENT_KIND_LABELS[kind];
+}
+
+/**
+ * A Next Reply commitment's 1-based position among a case's Next Reply
+ * cycles, ordered by `startedAt` — e.g. "Cycle 1", "Cycle 2" for display
+ * only. Purely presentational: derived fresh from already-fetched
+ * commitments, never stored, and unrelated to `cycleKey` (the engine's own
+ * stable cycle identity). Commitments of other kinds are absent from the map.
+ */
+export function nextReplyCycleNumbers(
+  commitments: { id: string; kind: CommitmentKind; startedAt: string }[],
+): Map<string, number> {
+  return new Map(
+    commitments
+      .filter((c) => c.kind === "next_reply")
+      .slice()
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+      .map((c, index) => [c.id, index + 1]),
+  );
 }
 
 /** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */

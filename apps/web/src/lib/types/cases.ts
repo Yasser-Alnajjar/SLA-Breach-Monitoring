@@ -15,6 +15,13 @@ import type {
 export interface CommitmentDetail {
   id: string;
   kind: CommitmentKind;
+  /**
+   * Which cycle of `kind` this commitment covers (`Commitment.cycleKey`):
+   * `"single"` for first_response/resolution, a Next Reply cycle's own stable
+   * key otherwise — a case can have several `next_reply` commitments at
+   * once, and this is what tells them apart. Opaque; not a display label.
+   */
+  cycleKey: string;
   status: CommitmentStatus;
   startedAt: string;
   targetMinutes: number;

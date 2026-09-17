@@ -203,6 +203,106 @@ describe.skipIf(!TEST_DATABASE_URL)("Next Reply commitment persistence (real Pos
     expect(rows[1]).toMatchObject({ id: cycle2!.id, status: "on_track", closedAt: null });
   });
 
+  it("keeps an existing cycle's frozen policy/calendar snapshot across a resync, while a genuinely new cycle gets the current one", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const [cycle1] = await nextReplyRows();
+    expect(cycle1).toMatchObject({
+      policyVersionId: policyVersion.id,
+      calendarVersionId: calendarVersion.id,
+      targetMinutes: 60,
+    });
+
+    // The org edits its SLA policy after cycle 1 already exists: a new
+    // SLAPolicyVersion with a different next_reply target.
+    const policyRow = await prisma.sLAPolicy.findFirstOrThrow({ where: { id: policyVersion.policyId } });
+    const newPolicyRow = await prisma.sLAPolicyVersion.create({
+      data: {
+        policyId: policyRow.id,
+        version: 2,
+        match: {},
+        targets: [
+          { kind: "first_response", minutes: 120 },
+          { kind: "next_reply", minutes: 90 },
+        ],
+        pauseOnStates: ["pending_customer"],
+        calendarVersionId: calendarVersion.id,
+        warnAtPercent: [50, 80, 95],
+        effectiveFrom: at("14:00"),
+      },
+    });
+    const newPolicyVersion: SLAPolicyVersion = {
+      id: newPolicyRow.id,
+      policyId: policyRow.id,
+      version: 2,
+      match: {},
+      targets: [
+        { kind: "first_response", minutes: 120 },
+        { kind: "next_reply", minutes: 90 },
+      ],
+      pauseOnStates: ["pending_customer"],
+      calendarVersionId: calendarVersion.id,
+      warnAtPercent: [50, 80, 95],
+      effectiveFrom: at("14:00").toISOString(),
+    };
+
+    // Re-deriving the same conversation plus a brand-new customer reply: the
+    // existing 3 cycles are unchanged, plus one genuinely new cycle.
+    const withNewReply = [...conversation, { time: "14:35", type: "agent_replied", sequence: 9 }, { time: "15:00", type: "customer_replied", sequence: 10 }];
+    const laterAsOf = at("15:10").toISOString();
+    const cycles = await deriveFromPersisted(withNewReply, laterAsOf);
+    expect(cycles).toHaveLength(4);
+    expect(
+      await commitments.persistNextReplyCommitments(prisma, {
+        caseId,
+        cycles,
+        policyVersion: newPolicyVersion,
+        calendarVersion,
+        asOf: laterAsOf,
+      }),
+    ).toEqual({ created: 1, cancelled: 0, restored: 0 });
+
+    const rows = await nextReplyRows();
+    expect(rows).toHaveLength(4);
+    // Cycle 1 (and the other pre-existing cycles) keep their original,
+    // frozen policy version and target — untouched by the resync's newer
+    // policyVersion argument.
+    expect(rows[0]).toMatchObject({
+      id: cycle1!.id,
+      policyVersionId: policyVersion.id,
+      targetMinutes: 60,
+    });
+    // The newly derived cycle is frozen onto the current policy version.
+    expect(rows.some((r) => r.policyVersionId === newPolicyVersion.id && r.targetMinutes === 90)).toBe(true);
+  });
+
+  it("excludes a cancelled commitment from the evaluation pipeline entirely — no new evaluation, no notification", async () => {
+    const asOf = at("14:30").toISOString();
+    await persist(await deriveFromPersisted(conversation, asOf), asOf);
+    const [, cycle2] = await nextReplyRows();
+
+    // The 12:00 customer reply (cycle 2's anchor) disappears on renormalization.
+    const withoutCycle2 = conversation.filter((e) => e.sequence !== 6 && e.sequence !== 7);
+    const cancelledAt = at("15:00").toISOString();
+    await persist(await deriveFromPersisted(withoutCycle2, cancelledAt), cancelledAt);
+    expect(
+      await prisma.commitment.findUniqueOrThrow({ where: { id: cycle2!.id } }),
+    ).toMatchObject({ status: "cancelled" });
+
+    const organizationId = (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).organizationId;
+    // A later sweep, well past cycle 2's original 60-minute target — if it
+    // were still evaluated live, it would surface as a fresh breach.
+    const laterAsOf = at("16:00").toISOString();
+    const swept = await commitments.runEvaluationPipeline(prisma, organizationId, { asOf: laterAsOf, scope: "all" });
+
+    expect(swept.notificationCandidates.some((c) => c.commitmentId === cycle2!.id)).toBe(false);
+    expect(await prisma.evaluation.count({ where: { commitmentId: cycle2!.id } })).toBe(0);
+    // Untouched: still cancelled, closedAt still the cancellation instant.
+    expect(
+      await prisma.commitment.findUniqueOrThrow({ where: { id: cycle2!.id } }),
+    ).toMatchObject({ status: "cancelled", closedAt: new Date(cancelledAt) });
+  });
+
   it("never cancels a finalized commitment when its cycle disappears, and leaves its closedAt and history untouched", async () => {
     const asOf = at("14:30").toISOString();
     await persist(await deriveFromPersisted(conversation, asOf), asOf);

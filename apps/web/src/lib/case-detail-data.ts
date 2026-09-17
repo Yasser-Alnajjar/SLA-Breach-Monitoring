@@ -43,6 +43,18 @@ const FALLBACK_CALENDAR: BusinessCalendarVersion = {
   alwaysOpen: true,
 };
 
+/**
+ * Deterministic display order for a case's commitments — first response,
+ * then every Next Reply cycle, then resolution — independent of the
+ * unordered `commitments: true` include above (`Record<CommitmentKind, …>`
+ * so a future kind fails to compile here until it's placed).
+ */
+const COMMITMENT_KIND_DISPLAY_ORDER: Record<CommitmentKind, number> = {
+  first_response: 0,
+  next_reply: 1,
+  resolution: 2,
+};
+
 function complementIntervals(
   pausedIntervals: PausedInterval[],
   start: string,
@@ -178,27 +190,39 @@ export async function getCaseDetailData(
       const calendar = calendarsById.get(row.calendarVersionId);
       if (!policyVersion || !calendarRow || !calendar) return null;
 
+      // A cancelled commitment is a finalized lifecycle state (Step 6) that
+      // evaluateCommitment can't express — it only ever returns on_track |
+      // at_risk | met | breached, since it has no notion of a cycle having
+      // been superseded or disappeared. The persisted `status` column is the
+      // source of truth for that, so it — not the live evaluation — decides
+      // the displayed status here, generically for every commitment kind.
+      // The clock is still evaluated, but frozen at the cancellation instant
+      // (`closedAt`) rather than the live `asOf`, so a cancelled cycle's
+      // elapsed/remaining numbers reflect its state at cancellation instead
+      // of continuing to run against events that no longer apply to it.
+      const isCancelled = row.status === "cancelled";
       const evaluation = evaluateCommitment(
         toCommitmentDomain(row),
         domainEvents,
         policyVersion,
         calendar,
-        asOf,
+        isCancelled ? (row.closedAt?.toISOString() ?? asOf) : asOf,
       );
 
       return {
         id: row.id,
         kind: row.kind,
-        status: evaluation.status,
+        cycleKey: row.cycleKey,
+        status: isCancelled ? "cancelled" : evaluation.status,
         startedAt: row.startedAt.toISOString(),
         targetMinutes: row.targetMinutes,
         closedAt: row.closedAt?.toISOString() ?? null,
         elapsedSeconds: evaluation.elapsedSeconds,
         remainingSeconds: evaluation.remainingSeconds,
-        breachedBySeconds: evaluation.breachedBySeconds ?? null,
-        clockState: evaluation.clock.state,
-        pausedSince: evaluation.clock.pausedSince,
-        effectiveDueAt: evaluation.effectiveDueAt,
+        breachedBySeconds: isCancelled ? null : (evaluation.breachedBySeconds ?? null),
+        clockState: isCancelled ? "stopped" : evaluation.clock.state,
+        pausedSince: isCancelled ? null : evaluation.clock.pausedSince,
+        effectiveDueAt: isCancelled ? null : evaluation.effectiveDueAt,
         pauseOnStates: pauseStatesFor(row.kind, policyVersion),
         policyVersion: {
           id: policyVersion.id,
@@ -218,7 +242,14 @@ export async function getCaseDetailData(
       };
     })
     .filter((c): c is CommitmentDetail => c !== null)
-    .sort((a, b) => (a.kind === "first_response" ? -1 : 1));
+    .sort((a, b) => {
+      const kindOrder = COMMITMENT_KIND_DISPLAY_ORDER[a.kind] - COMMITMENT_KIND_DISPLAY_ORDER[b.kind];
+      if (kindOrder !== 0) return kindOrder;
+      // Only next_reply ever has more than one commitment per case — its
+      // cycles order chronologically by their own anchor (startedAt), never
+      // by whatever order the DB happened to return them in.
+      return a.startedAt.localeCompare(b.startedAt);
+    });
 
   const endBound = caseRow.closedAt?.toISOString() ?? asOf;
 

@@ -35,6 +35,14 @@ describe("formatSlackMessage", () => {
     expect(text).toContain("First response");
   });
 
+  it("labels a next_reply candidate as Next reply", () => {
+    const text = formatSlackMessage({ ...baseCandidate, kind: "next_reply" }, {
+      externalId: "1",
+      customerName: null,
+    });
+    expect(text).toContain("Next reply");
+  });
+
   it("reports a breach with elapsed-over time, not remaining time", () => {
     const text = formatSlackMessage(
       { ...baseCandidate, status: "breached", threshold: BREACH_NOTIFICATION_THRESHOLD, breachedByMinutes: 130 },
@@ -74,6 +82,16 @@ describe("formatEmailMessage", () => {
       customerName: null,
     });
     expect(subject).toContain("First response");
+  });
+
+  it("labels a next_reply candidate as Next reply", () => {
+    const { subject, text, html } = formatEmailMessage({ ...baseCandidate, kind: "next_reply" }, {
+      externalId: "1",
+      customerName: null,
+    });
+    expect(subject).toContain("Next reply");
+    expect(text).toContain("Next reply");
+    expect(html).toContain("Next reply");
   });
 
   it("reports a breach with elapsed-over time, not remaining time", () => {

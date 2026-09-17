@@ -9,6 +9,7 @@ import type { PrismaClient } from "@sla/db";
 import { describe, expect, it } from "vitest";
 import { toBreachedCaseRows } from "../src/lib/analytics-data";
 import { getDashboardData } from "../src/lib/dashboard-data";
+import { formatCommitmentKind } from "../src/lib/format";
 
 const ORG = "org-1";
 const asOf = new Date("2026-09-17T12:00:00.000Z");
@@ -229,5 +230,15 @@ describe("toBreachedCaseRows", () => {
 
   it("drops a breach whose case details aren't loaded", () => {
     expect(toBreachedCaseRows([breach("missing")], new Map())).toEqual([]);
+  });
+
+  it("carries a next_reply breach through with the correct display label", () => {
+    const rows = toBreachedCaseRows(
+      [{ ...breach("c1"), kind: "next_reply" }],
+      new Map([["c1", { externalId: "ZD-1", subject: null, customerName: null }]]),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.kind).toBe("next_reply");
+    expect(formatCommitmentKind(rows[0]!.kind)).toBe("Next reply");
   });
 });

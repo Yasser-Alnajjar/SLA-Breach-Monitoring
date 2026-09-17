@@ -36,6 +36,7 @@ import {
   formatLeg,
   formatMinutes,
   formatNormalizedState,
+  nextReplyCycleNumbers,
   NORMALIZED_STATE_DESCRIPTIONS,
 } from "@/lib/format";
 import {
@@ -214,6 +215,10 @@ function CommitmentSummary({
         (commitment) => commitment.id === selectedCommitmentId,
       )
     : data.commitments;
+  // Computed from the case's full commitment list, not the filtered
+  // `commitments` above, so a single selected Next Reply card still shows
+  // its correct cycle position among all of the case's cycles.
+  const cycleNumbers = nextReplyCycleNumbers(data.commitments);
   return (
     <Reveal delay={0.1}>
       {" "}
@@ -226,7 +231,11 @@ function CommitmentSummary({
         <div className="grid gap-3 md:grid-cols-2">
           {" "}
           {commitments.map((commitment) => (
-            <CommitmentCard key={commitment.id} commitment={commitment} />
+            <CommitmentCard
+              key={commitment.id}
+              commitment={commitment}
+              cycleNumber={cycleNumbers.get(commitment.id)}
+            />
           ))}{" "}
         </div>
       )}{" "}

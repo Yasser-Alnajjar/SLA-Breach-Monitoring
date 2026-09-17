@@ -44,7 +44,7 @@ export interface ZendeskIncrementalTicketExport {
 /**
  * One entry in an audit's `events` array. Zendesk emits many event `type`s
  * (Comment, Notification, Rating, …) — the normalizer only reads `Change`
- * events on the `status` field.
+ * events on the `status` field and public `Comment` events.
  */
 export interface ZendeskAuditEvent {
   id: number;
@@ -106,8 +106,9 @@ export interface ZendeskSlaPolicyFilter {
  * different targets per ticket priority — `priority: null` means the target
  * applies regardless of priority. `metric` is Zendesk's full metric
  * vocabulary (first_reply_time, next_reply_time, requester_wait_time,
- * agent_work_time, periodic_update_time, resolution_time); only
- * `first_reply_time`/`resolution_time` map to a `CommitmentKind` we track.
+ * agent_work_time, periodic_update_time, total_resolution_time); only
+ * `first_reply_time`/`total_resolution_time` map to a `CommitmentKind` we
+ * track (see `METRIC_TO_COMMITMENT_KIND` in ./policies).
  */
 export interface ZendeskSlaPolicyMetric {
   priority: string | null;

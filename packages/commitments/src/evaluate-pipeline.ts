@@ -1,7 +1,6 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import {
   evaluateCommitment,
-  findCaseCloseEvent,
   type BusinessCalendarVersion,
   type Commitment,
   type CommitmentKind,
@@ -74,33 +73,20 @@ export function toNormalizedEventDomain(
 }
 
 /**
- * Whether the case is closed as of `asOf` — delegates to the same
- * `findCaseCloseEvent` lookup `evaluateCommitment` uses internally
- * (packages/core/evaluate.ts), so the pipeline can tell a truly final
- * evaluation (the case closed, and hasn't since been reopened) apart from a
- * commitment that merely reads as "breached" right now because time ran out
- * on a still-open case.
- */
-export function hasCaseClosedEvent(
-  events: NormalizedEvent[],
-  asOf: string,
-): boolean {
-  return findCaseCloseEvent(events, asOf) !== null;
-}
-
-/**
- * A Commitment is permanently resolved once the case that owns it has
- * closed: `met` if it closed inside the target, `breached` if not. A
- * `breached` status without a close event just means time ran out on a
- * still-open case — remaining evaluations must keep running so
- * `breachedByMinutes` keeps growing until the case actually closes.
+ * A Commitment is resolved once it has completed — `evaluation.clock.state`
+ * is `stopped`: its first agent reply for first response, the case's close
+ * for resolution (`findCompletionEvent` in packages/core). `met` if it
+ * completed inside the target, `breached` if not. A `breached` status
+ * without completion just means time ran out on a still-open commitment —
+ * remaining evaluations must keep running so `breachedByMinutes` keeps
+ * growing until it actually completes.
  */
 export function isTerminalStatus(
   status: CommitmentStatus,
-  caseClosed: boolean,
+  completed: boolean,
 ): boolean {
   if (status === "met") return true;
-  if (status === "breached") return caseClosed;
+  if (status === "breached") return completed;
   return false;
 }
 
@@ -350,8 +336,11 @@ export async function runEvaluationPipeline(
         asOf,
       );
 
-      const caseClosed = hasCaseClosedEvent(caseEvents, asOf);
-      const terminal = isTerminalStatus(evaluation.status, caseClosed);
+      const terminal = isTerminalStatus(
+        evaluation.status,
+        evaluation.clock.state === "stopped",
+      );
+      const finalized = row.closedAt !== null;
 
       if (evaluation.warnThresholdCrossed !== undefined) {
         result.notificationCandidates.push({
@@ -370,19 +359,25 @@ export async function runEvaluationPipeline(
           evaluation.status,
           previousStatusByCommitmentId.get(row.id) ?? null,
           terminal,
-          row.closedAt !== null,
+          finalized,
         )
       ) {
         evaluationsToCreate.push(evaluation);
       }
 
-      if (evaluation.status !== row.status || (terminal && !row.closedAt)) {
+      // A finalized commitment keeps its original closedAt when a later
+      // evaluation revises its status, and loses it when it is no longer
+      // terminal (its case was reopened), so the active-set poll picks it
+      // back up instead of leaving it to the hourly reconciliation sweep.
+      if (evaluation.status !== row.status || terminal !== finalized) {
         commitmentUpdates.push({
           id: row.id,
           status: evaluation.status,
-          closedAt: terminal ? evaluation.evaluatedAt : null,
+          closedAt: terminal
+            ? (row.closedAt?.toISOString() ?? evaluation.evaluatedAt)
+            : null,
         });
-        if (terminal && !row.closedAt) result.commitmentsFinalized += 1;
+        if (terminal && !finalized) result.commitmentsFinalized += 1;
       }
     } catch (error) {
       result.commitmentsFailed.push({
@@ -411,7 +406,7 @@ export async function runEvaluationPipeline(
       where: { id: update.id },
       data: {
         status: update.status,
-        ...(update.closedAt ? { closedAt: new Date(update.closedAt) } : {}),
+        closedAt: update.closedAt ? new Date(update.closedAt) : null,
       },
     });
   }

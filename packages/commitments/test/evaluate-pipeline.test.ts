@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedEvent } from "@sla/core";
 import {
-  hasCaseClosedEvent,
   isTerminalStatus,
   shouldPersistEvaluation,
   toCommitmentDomain,
@@ -27,99 +25,12 @@ function commitmentRow(
   };
 }
 
-function zendeskEvent(
-  overrides: Partial<NormalizedEvent> = {},
-): NormalizedEvent {
-  return {
-    id: "evt",
-    caseId: "case_1",
-    type: "state_changed",
-    occurredAt: "2026-01-01T09:00:00Z",
-    actor: "agent",
-    system: "zendesk",
-    fromState: "open",
-    toState: "open",
-    sourceRawEventId: "raw",
-    ...overrides,
-  };
-}
-
-describe("hasCaseClosedEvent", () => {
-  it("is true for a case_closed event at or before asOf", () => {
-    const events = [
-      zendeskEvent({
-        type: "case_closed",
-        occurredAt: "2026-01-01T09:30:00Z",
-        toState: "resolved",
-      }),
-    ];
-    expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(true);
-    expect(hasCaseClosedEvent(events, "2026-01-01T09:30:00Z")).toBe(true);
-  });
-
-  it("ignores a close that happens after asOf", () => {
-    const events = [
-      zendeskEvent({
-        type: "case_closed",
-        occurredAt: "2026-01-01T11:00:00Z",
-        toState: "resolved",
-      }),
-    ];
-    expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
-  });
-
-  it("ignores other event types", () => {
-    const events = [
-      zendeskEvent({
-        type: "state_changed",
-        occurredAt: "2026-01-01T09:30:00Z",
-      }),
-    ];
-    expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
-  });
-
-  it("ignores a linked Jira issue reaching Done", () => {
-    const events = [
-      zendeskEvent({ id: "e1", occurredAt: "2026-01-01T09:00:00Z" }),
-      zendeskEvent({
-        id: "e2",
-        system: "jira",
-        type: "state_changed",
-        occurredAt: "2026-01-01T09:30:00Z",
-        fromState: "in_progress",
-        toState: "resolved",
-      }),
-    ];
-    expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
-  });
-
-  it("is false again once a solved ticket has been reopened", () => {
-    const events = [
-      zendeskEvent({
-        id: "e1",
-        type: "case_closed",
-        occurredAt: "2026-01-01T09:30:00Z",
-        fromState: "open",
-        toState: "resolved",
-      }),
-      zendeskEvent({
-        id: "e2",
-        type: "state_changed",
-        occurredAt: "2026-01-01T09:45:00Z",
-        fromState: "resolved",
-        toState: "open",
-      }),
-    ];
-    expect(hasCaseClosedEvent(events, "2026-01-01T10:00:00Z")).toBe(false);
-  });
-});
-
 describe("isTerminalStatus", () => {
   it("treats met as final", () => {
     expect(isTerminalStatus("met", true)).toBe(true);
   });
 
-  it("treats breached as final only once the case has closed", () => {
+  it("treats breached as final only once the commitment has completed", () => {
     expect(isTerminalStatus("breached", true)).toBe(true);
     expect(isTerminalStatus("breached", false)).toBe(false);
   });

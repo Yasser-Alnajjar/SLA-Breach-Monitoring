@@ -386,11 +386,13 @@ By default, a commitment pauses only while the case is in the **"Pending custome
 
 ### Reopened tickets
 
-If a Zendesk ticket is solved and later reopened, the commitment's clock is **not** reset. It resumes live evaluation from where it left off, using the original commitment start time — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the working time consumed (including the time before the original solve) now exceeds target.
+If a Zendesk ticket is solved and later reopened, the resolution commitment's clock is **not** reset. It resumes live evaluation from where it left off, using the original commitment start time — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the working time consumed (including the time before the original solve) now exceeds target.
+
+A first-response commitment is not affected by a reopen: once an agent has replied (or the ticket was solved before any reply), its result is final.
 
 ### Priority changes
 
-Changing a case's priority after its commitments have already been created has no effect on those commitments — a case gets exactly one first-response commitment and one resolution commitment, matched once, at creation. A later SLA policy change (Section 19) only affects commitments created after the change.
+Changing a case's priority after its commitments have already been created has no effect on those commitments — a case gets exactly one first-response commitment and one resolution commitment, matched once, at creation, and both always share the same policy and calendar version. A later SLA policy change (Section 19) only affects commitments created after the change.
 
 ### Multiple SLA policies
 
@@ -416,8 +418,8 @@ A commitment moves through a small, fixed set of statuses:
 |---|---|---|
 | **On track** | Elapsed working time is below every configured warning threshold | Default state on creation |
 | **At risk** | Elapsed working time has crossed a configured warning threshold (default thresholds: 50%, 80%, 95% of target) but the target has not been exceeded | Working time crosses a threshold |
-| **Breached** | Elapsed working time has exceeded the target, or the case closed after its target was already consumed | Target exceeded, evaluated on every sync cycle |
-| **Met** | The case closed with elapsed working time still within target | Case closes (Zendesk marks it solved) before target is exceeded |
+| **Breached** | Elapsed working time has exceeded the target, or the commitment completed after its target was already consumed | Target exceeded, evaluated on every sync cycle |
+| **Met** | The commitment completed with elapsed working time still within target | First response: an agent's first public reply (Zendesk public comment, Intercom admin reply), or the case closing before any reply. Resolution: the case closes (Zendesk marks it solved). Either one before target is exceeded |
 | **Cancelled** | Defined in the data model but not currently produced by any part of the product | — |
 
 **Notifications:** crossing into **at risk** or **breached** triggers a Slack and/or email alert, if configured (Section 16) — but only for the customer-facing first-response and resolution commitments. The separate, optional engineering-leg target (Section 19) is currently dashboard-only and does not send its own alert.

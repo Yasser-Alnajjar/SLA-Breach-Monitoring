@@ -64,10 +64,10 @@ describe("groupPolicyMetricsByPriority", () => {
     return { priority: null, metric: "first_reply_time", target: 60, business_hours: true, ...overrides };
   }
 
-  it("maps first_reply_time and resolution_time to their CommitmentKind", () => {
+  it("maps first_reply_time and total_resolution_time to their CommitmentKind", () => {
     const { groups, unsupportedMetrics } = groupPolicyMetricsByPriority([
       metric({ metric: "first_reply_time", target: 60 }),
-      metric({ metric: "resolution_time", target: 480 }),
+      metric({ metric: "total_resolution_time", target: 480 }),
     ]);
     expect(groups).toEqual([
       {

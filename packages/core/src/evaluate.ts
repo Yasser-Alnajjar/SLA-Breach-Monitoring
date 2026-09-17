@@ -4,6 +4,7 @@ import type {
   BusinessCalendarVersion,
   ClockState,
   Commitment,
+  CommitmentKind,
   CommitmentStatus,
   Evaluation,
   EvaluationEventRef,
@@ -134,20 +135,63 @@ export function findCaseCloseEvent(
 }
 
 /**
- * Where a commitment's SLA clock stops as of `asOf`: the close instant if
- * the case is closed (`findCaseCloseEvent`), otherwise `asOf` itself. The
- * single cutoff rule `evaluateCommitment` and `computeBreachedAt` both use,
- * so the status and the breach instant can never disagree about when the
- * clock stopped.
+ * The event that completed a first-response commitment as of `asOf`: the
+ * first ticket-source `agent_replied`, or the first ticket-source
+ * `case_closed` when the case was closed before any agent replied —
+ * whichever came first. Null while neither has happened.
+ *
+ * Unlike a resolution, a first response happens once: a case reopened after
+ * the reply (or after a reply-less close) never reopens its first-response
+ * commitment, so this deliberately ignores later reopens rather than using
+ * `findCaseCloseEvent`'s current-closure rule.
  */
-export function resolveClockCutoff(
+export function findFirstResponseEvent(
   events: NormalizedEvent[],
   asOf: string,
-): { closeEvent: NormalizedEvent | null; cutoff: string } {
-  const closeEvent = findCaseCloseEvent(events, asOf);
+): NormalizedEvent | null {
+  let first: NormalizedEvent | null = null;
+  for (const event of events) {
+    if (!TICKET_SOURCE_SYSTEMS.has(event.system)) continue;
+    if (event.type !== "agent_replied" && event.type !== "case_closed") continue;
+    if (event.occurredAt > asOf) continue;
+    if (!first || event.occurredAt < first.occurredAt) first = event;
+  }
+  return first;
+}
+
+/**
+ * The event that completed a commitment of `kind` as of `asOf`, or null
+ * while it is still open: the first agent reply for `first_response`
+ * (`findFirstResponseEvent`), the case's current close for `resolution`
+ * (`findCaseCloseEvent`). This is the only place commitment kinds differ —
+ * both share the same pause rules and elapsed-time fold.
+ */
+export function findCompletionEvent(
+  kind: CommitmentKind,
+  events: NormalizedEvent[],
+  asOf: string,
+): NormalizedEvent | null {
+  return kind === "first_response"
+    ? findFirstResponseEvent(events, asOf)
+    : findCaseCloseEvent(events, asOf);
+}
+
+/**
+ * Where a commitment's SLA clock stops as of `asOf`: the completion instant
+ * if the commitment is complete (`findCompletionEvent`), otherwise `asOf`
+ * itself. The single cutoff rule `evaluateCommitment` and
+ * `computeBreachedAt` both use, so the status and the breach instant can
+ * never disagree about when the clock stopped.
+ */
+export function resolveClockCutoff(
+  kind: CommitmentKind,
+  events: NormalizedEvent[],
+  asOf: string,
+): { completionEvent: NormalizedEvent | null; cutoff: string } {
+  const completionEvent = findCompletionEvent(kind, events, asOf);
   const cutoff =
-    closeEvent && closeEvent.occurredAt < asOf ? closeEvent.occurredAt : asOf;
-  return { closeEvent, cutoff };
+    completionEvent && completionEvent.occurredAt < asOf ? completionEvent.occurredAt : asOf;
+  return { completionEvent, cutoff };
 }
 
 /**
@@ -159,8 +203,10 @@ export function resolveClockCutoff(
  * it is simply an Evaluation whose status is `"breached"`.
  *
  * Status transitions: `on_track → at_risk → met | breached`, driven by
- * `policyVersion.warnAtPercent` thresholds and, once a `case_closed` event
- * is observed, by whether the close happened inside or past the target.
+ * `policyVersion.warnAtPercent` thresholds and, once the commitment's
+ * completion event is observed (`findCompletionEvent` — the first agent
+ * reply for first response, the case close for resolution), by whether it
+ * happened inside or past the target.
  */
 export function evaluateCommitment(
   commitment: Commitment,
@@ -173,7 +219,11 @@ export function evaluateCommitment(
     .filter((e) => e.caseId === commitment.caseId)
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-  const { closeEvent, cutoff: effectiveAsOf } = resolveClockCutoff(caseEvents, asOf);
+  const { completionEvent, cutoff: effectiveAsOf } = resolveClockCutoff(
+    commitment.kind,
+    caseEvents,
+    asOf,
+  );
 
   const eventsUpToCutoff = caseEvents.filter(
     (e) => e.occurredAt <= effectiveAsOf,
@@ -196,7 +246,7 @@ export function evaluateCommitment(
 
   let status: CommitmentStatus;
   let warnThresholdCrossed: number | undefined;
-  if (closeEvent) {
+  if (completionEvent) {
     status = remainingMinutes >= 0 ? "met" : "breached";
     if (status === "breached") warnThresholdCrossed = BREACH_NOTIFICATION_THRESHOLD;
   } else if (remainingMinutes <= 0) {
@@ -212,7 +262,7 @@ export function evaluateCommitment(
     warnThresholdCrossed = highestCrossedThreshold;
   }
 
-  const clockState: ClockState = closeEvent
+  const clockState: ClockState = completionEvent
     ? "stopped"
     : fold.currentPause
       ? "paused"
@@ -347,8 +397,8 @@ function targetCrossingInstant(
  *
  * Consistent with `evaluateCommitment`'s own boundary: an open commitment
  * is breached once elapsed reaches the target, so the crossing can be the
- * `asOf` instant itself; a closed one only once it strictly exceeds the
- * target before the close, so the crossing is always before the close.
+ * `asOf` instant itself; a completed one only once it strictly exceeds the
+ * target before completing, so the crossing is always before completion.
  */
 export function computeBreachedAt(
   commitment: Commitment,

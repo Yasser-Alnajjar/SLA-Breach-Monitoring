@@ -10,6 +10,8 @@ export {
   computeBreachedAt,
   evaluateCommitment,
   findCaseCloseEvent,
+  findCompletionEvent,
+  findFirstResponseEvent,
   evaluateEngineeringLegTarget,
   BREACH_NOTIFICATION_THRESHOLD,
   ENGINEERING_LEG_WARN_AT_PERCENT,

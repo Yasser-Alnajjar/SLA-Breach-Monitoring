@@ -350,3 +350,90 @@ describe("deriveCaseClosedAt", () => {
     expect(first.derived.map((e) => e.type)).toEqual(["case_created", "state_changed", "case_closed"]);
   });
 });
+
+describe("deriveNormalizedEventsForTicket agent replies", () => {
+  const openTicket: ZendeskTicket = { ...ticket, status: "open" };
+
+  function comment(overrides: Record<string, unknown> = {}) {
+    return { id: 9, type: "Comment", public: true, body: "hello", ...overrides };
+  }
+
+  const replies = (events: DerivedNormalizedEvent[]) => events.filter((e) => e.type === "agent_replied");
+
+  it("emits agent_replied for a public comment by someone other than the requester", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: 900, events: [comment({ author_id: 900 })] })],
+      "raw_ticket",
+    );
+    expect(replies(events)).toEqual([
+      {
+        type: "agent_replied",
+        occurredAt: "2026-01-01T09:40:00Z",
+        actor: "agent",
+        fromState: null,
+        toState: null,
+        sourceRawEventId: "raw_2",
+      },
+    ]);
+  });
+
+  it("ignores the ticket's own description, even when an agent opened the ticket", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [audit({ id: 1, created_at: openTicket.created_at, author_id: 900, events: [comment({ author_id: 900 })] })],
+      "raw_ticket",
+    );
+    expect(replies(events)).toEqual([]);
+  });
+
+  it("ignores customer comments, private notes, and trigger/automation comments", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({ id: 2, created_at: "2026-01-01T09:10:00Z", author_id: 501, events: [comment({ author_id: 501 })] }),
+        audit({ id: 3, created_at: "2026-01-01T09:20:00Z", author_id: 900, events: [comment({ author_id: 900, public: false })] }),
+        audit({
+          id: 4,
+          created_at: "2026-01-01T09:30:00Z",
+          author_id: -1,
+          via: { channel: "rule" },
+          events: [comment({ author_id: -1 })],
+        }),
+      ],
+      "raw_ticket",
+    );
+    expect(replies(events)).toEqual([]);
+  });
+
+  it("emits no replies when the ticket's requester is unknown", () => {
+    const events = deriveNormalizedEventsForTicket(
+      { ...openTicket, requester_id: null },
+      [audit({ id: 2, created_at: "2026-01-01T09:40:00Z", author_id: 900, events: [comment({ author_id: 900 })] })],
+      "raw_ticket",
+    );
+    expect(replies(events)).toEqual([]);
+  });
+
+  it("keeps events in chronological order, status change before a reply in the same audit", () => {
+    const events = deriveNormalizedEventsForTicket(
+      openTicket,
+      [
+        audit({ id: 3, created_at: "2026-01-01T10:00:00Z", author_id: 900, events: [statusChange("open", "pending")] }),
+        audit({
+          id: 2,
+          created_at: "2026-01-01T09:40:00Z",
+          author_id: 900,
+          events: [comment({ author_id: 900 }), statusChange("pending", "new")],
+        }),
+      ],
+      "raw_ticket",
+    );
+    expect(events.map((e) => [e.type, e.occurredAt])).toEqual([
+      ["case_created", "2026-01-01T09:00:00Z"],
+      ["state_changed", "2026-01-01T09:40:00Z"],
+      ["agent_replied", "2026-01-01T09:40:00Z"],
+      ["state_changed", "2026-01-01T10:00:00Z"],
+    ]);
+  });
+});

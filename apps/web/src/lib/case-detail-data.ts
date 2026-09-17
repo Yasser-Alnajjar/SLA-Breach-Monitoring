@@ -255,9 +255,14 @@ export async function getCaseDetailData(
         )
       : null;
 
-  const pauseOnStates = commitments[0]?.policyVersion.pauseOnStates ?? [];
-  const pauseCalendar = commitments[0]
-    ? calendarsById.get(commitments[0].calendar.id)!
+  // The timeline's working/paused shading spans the whole case, so it
+  // follows the resolution commitment (the one that runs until close) when
+  // the case has one, not whichever commitment happens to sort first.
+  const shadingCommitment =
+    commitments.find((c) => c.kind === "resolution") ?? commitments[0];
+  const pauseOnStates = shadingCommitment?.policyVersion.pauseOnStates ?? [];
+  const pauseCalendar = shadingCommitment
+    ? calendarsById.get(shadingCommitment.calendar.id)!
     : FALLBACK_CALENDAR;
   const { pausedIntervals } = computeElapsedWorkingMinutes(
     domainEvents,

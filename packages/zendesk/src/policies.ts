@@ -4,9 +4,18 @@ import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
 import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilter, ZendeskSlaPolicyMetric } from "./types";
 
-/** Zendesk SLA metric name -> the CommitmentKind packages/core knows how to track. Every other Zendesk metric (next_reply_time, requester_wait_time, agent_work_time, periodic_update_time) has no equivalent and is dropped. */
+/**
+ * Zendesk SLA metric name -> the CommitmentKind packages/core knows how to
+ * track. Zendesk's API names the resolution metric `total_resolution_time`
+ * (admin center: "Total resolution time"); `resolution_time` is kept for
+ * snapshots that use the shorter name. Every other Zendesk metric
+ * (next_reply_time, requester_wait_time, agent_work_time,
+ * periodic_update_time, pausable_update_time) has no equivalent and is
+ * dropped.
+ */
 const METRIC_TO_COMMITMENT_KIND: Record<string, CommitmentKind> = {
   first_reply_time: "first_response",
+  total_resolution_time: "resolution",
   resolution_time: "resolution",
 };
 

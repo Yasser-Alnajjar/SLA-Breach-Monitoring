@@ -8,6 +8,7 @@ const realDatabaseSuites = [
   "apps/web/test/tenant-isolation.test.ts",
   "apps/web/test/source-sync-evaluation.test.ts",
   "apps/web/test/evaluation-persistence.test.ts",
+  "apps/web/test/multi-commitment-pipeline.test.ts",
 ];
 
 export default defineConfig({

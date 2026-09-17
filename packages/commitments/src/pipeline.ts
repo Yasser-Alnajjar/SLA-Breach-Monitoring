@@ -78,6 +78,24 @@ export function resolveCommitmentCalendarVersion(
   return customerCalendarVersion ?? policyCalendarVersion;
 }
 
+function toCalendarVersionDomain(row: {
+  id: string;
+  version: number;
+  timezone: string;
+  weekly: unknown;
+  holidays: string[];
+  alwaysOpen: boolean;
+}): BusinessCalendarVersion {
+  return {
+    id: row.id,
+    version: row.version,
+    timezone: row.timezone,
+    weekly: row.weekly as WeeklyWindow[],
+    holidays: row.holidays,
+    alwaysOpen: row.alwaysOpen,
+  };
+}
+
 export interface CommitmentPipelineResult {
   casesConsidered: number;
   commitmentsCreated: number;
@@ -94,6 +112,14 @@ export interface CommitmentPipelineResult {
  * only an explicit future recalculation action (Phase 13.6) may replace it.
  * Safe to re-run: cases with both kinds already, or that match no policy,
  * are skipped without side effects.
+ *
+ * A case's commitments always share one policy and calendar version: a kind
+ * still missing on a case that already has a commitment is created under
+ * that commitment's frozen policy version and calendar version, never
+ * re-matched against other policies. Only when that version has no target
+ * for the kind (e.g. the policy gained a resolution target after the case's
+ * first-response commitment was created) does it fall back to the newest
+ * version of the *same* policy — still with the sibling's calendar.
  */
 export async function runCommitmentPipeline(
   prisma: PrismaClient,
@@ -112,32 +138,22 @@ export async function runCommitmentPipeline(
   });
   if (policyVersionRows.length === 0) return result;
 
-  const activePolicyVersions: SLAPolicyVersion[] = latestVersionPerPolicy(
-    policyVersionRows.map((row) => ({
-      id: row.id,
-      policyId: row.policyId,
-      version: row.version,
-      match: row.match as SLAPolicyMatch,
-      targets: row.targets as { kind: CommitmentKind; minutes: number }[],
-      pauseOnStates: row.pauseOnStates as NormalizedState[],
-      calendarVersionId: row.calendarVersionId,
-      warnAtPercent: row.warnAtPercent,
-      effectiveFrom: row.effectiveFrom.toISOString(),
-    })),
-  );
+  const allPolicyVersions: SLAPolicyVersion[] = policyVersionRows.map((row) => ({
+    id: row.id,
+    policyId: row.policyId,
+    version: row.version,
+    match: row.match as SLAPolicyMatch,
+    targets: row.targets as { kind: CommitmentKind; minutes: number }[],
+    pauseOnStates: row.pauseOnStates as NormalizedState[],
+    calendarVersionId: row.calendarVersionId,
+    warnAtPercent: row.warnAtPercent,
+    effectiveFrom: row.effectiveFrom.toISOString(),
+  }));
+  const policyVersionsById = new Map(allPolicyVersions.map((pv) => [pv.id, pv]));
+  const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
 
   const calendarsById = new Map<string, BusinessCalendarVersion>(
-    policyVersionRows.map((row) => [
-      row.calendarVersion.id,
-      {
-        id: row.calendarVersion.id,
-        version: row.calendarVersion.version,
-        timezone: row.calendarVersion.timezone,
-        weekly: row.calendarVersion.weekly as unknown as WeeklyWindow[],
-        holidays: row.calendarVersion.holidays,
-        alwaysOpen: row.calendarVersion.alwaysOpen,
-      },
-    ]),
+    policyVersionRows.map((row) => [row.calendarVersion.id, toCalendarVersionDomain(row.calendarVersion)]),
   );
 
   const customersWithCalendarOverride = await prisma.customer.findMany({
@@ -148,14 +164,7 @@ export async function runCommitmentPipeline(
   for (const customer of customersWithCalendarOverride) {
     const version = customer.calendar?.versions[0];
     if (!version) continue;
-    customerCalendarVersionByCustomerId.set(customer.id, {
-      id: version.id,
-      version: version.version,
-      timezone: version.timezone,
-      weekly: version.weekly as unknown as WeeklyWindow[],
-      holidays: version.holidays,
-      alwaysOpen: version.alwaysOpen,
-    });
+    customerCalendarVersionByCustomerId.set(customer.id, toCalendarVersionDomain(version));
   }
 
   const cases = await prisma.case.findMany({
@@ -166,9 +175,25 @@ export async function runCommitmentPipeline(
       customerId: true,
       tier: true,
       openedAt: true,
-      commitments: { select: { kind: true } },
+      commitments: { select: { kind: true, policyVersionId: true, calendarVersionId: true } },
     },
   });
+
+  // Calendar versions frozen onto existing commitments that aren't already
+  // loaded (e.g. a customer override that has since moved to a newer version).
+  const missingCalendarVersionIds = [
+    ...new Set(
+      cases.flatMap((c) =>
+        c.commitments.length < COMMITMENT_KINDS.length
+          ? c.commitments.map((cm) => cm.calendarVersionId).filter((id) => !calendarsById.has(id))
+          : [],
+      ),
+    ),
+  ];
+  if (missingCalendarVersionIds.length > 0) {
+    const rows = await prisma.businessCalendarVersion.findMany({ where: { id: { in: missingCalendarVersionIds } } });
+    for (const row of rows) calendarsById.set(row.id, toCalendarVersionDomain(row));
+  }
 
   for (const caseRow of cases) {
     result.casesConsidered += 1;
@@ -176,19 +201,36 @@ export async function runCommitmentPipeline(
       const missingKinds = missingCommitmentKinds(caseRow.commitments.map((c) => c.kind as CommitmentKind));
       if (missingKinds.length === 0) continue;
 
-      const policyVersion = matchPolicyVersion(toCaseAttributes(caseRow), activePolicyVersions);
-      if (!policyVersion) {
-        result.casesWithNoMatchingPolicy += 1;
-        continue;
+      const sibling = caseRow.commitments[0];
+      let policyVersionFor: (kind: CommitmentKind) => SLAPolicyVersion;
+      let calendarVersion: BusinessCalendarVersion;
+      if (sibling) {
+        const siblingPolicyVersion = policyVersionsById.get(sibling.policyVersionId);
+        if (!siblingPolicyVersion) throw new Error(`No SLAPolicyVersion loaded for ${sibling.policyVersionId}`);
+        const siblingCalendarVersion = calendarsById.get(sibling.calendarVersionId);
+        if (!siblingCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${sibling.calendarVersionId}`);
+        const latestOfSamePolicy =
+          activePolicyVersions.find((pv) => pv.policyId === siblingPolicyVersion.policyId) ?? siblingPolicyVersion;
+        policyVersionFor = (kind) =>
+          siblingPolicyVersion.targets.some((t) => t.kind === kind) ? siblingPolicyVersion : latestOfSamePolicy;
+        calendarVersion = siblingCalendarVersion;
+      } else {
+        const matched = matchPolicyVersion(toCaseAttributes(caseRow), activePolicyVersions);
+        if (!matched) {
+          result.casesWithNoMatchingPolicy += 1;
+          continue;
+        }
+        const policyCalendarVersion = calendarsById.get(matched.calendarVersionId);
+        if (!policyCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${matched.calendarVersionId}`);
+        policyVersionFor = () => matched;
+        calendarVersion = resolveCommitmentCalendarVersion(
+          policyCalendarVersion,
+          caseRow.customerId ? customerCalendarVersionByCustomerId.get(caseRow.customerId) : undefined,
+        );
       }
-      const policyCalendarVersion = calendarsById.get(policyVersion.calendarVersionId);
-      if (!policyCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${policyVersion.calendarVersionId}`);
-      const calendarVersion = resolveCommitmentCalendarVersion(
-        policyCalendarVersion,
-        caseRow.customerId ? customerCalendarVersionByCustomerId.get(caseRow.customerId) : undefined,
-      );
 
       for (const kind of missingKinds) {
+        const policyVersion = policyVersionFor(kind);
         if (!policyVersion.targets.some((t) => t.kind === kind)) continue;
 
         const commitment = createCommitment(

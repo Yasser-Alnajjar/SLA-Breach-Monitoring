@@ -289,3 +289,50 @@ describe("deriveIntercomSubject", () => {
     );
   });
 });
+
+describe("deriveNormalizedEventsForConversation agent replies", () => {
+  const openConversation: IntercomConversationWithParts = { ...conversation, state: "open" };
+  const replies = (events: DerivedNormalizedEvent[]) => events.filter((e) => e.type === "agent_replied");
+
+  it("emits agent_replied for an admin comment with a body", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [part({ id: "p1", body: "<p>On it</p>" })],
+      "raw_conversation",
+    );
+    expect(replies(events)).toEqual([
+      {
+        type: "agent_replied",
+        occurredAt: new Date((conversation.created_at + 100) * 1000).toISOString(),
+        actor: "agent",
+        fromState: null,
+        toState: null,
+        sourceRawEventId: "raw_p1",
+      },
+    ]);
+  });
+
+  it("counts a reply sent together with a close, after the close transition", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [part({ id: "p1", part_type: "close", body: "<p>Fixed, closing</p>" })],
+      "raw_conversation",
+    );
+    expect(events.map((e) => e.type)).toEqual(["case_created", "case_closed", "agent_replied"]);
+  });
+
+  it("ignores notes, bot and customer messages, and body-less admin parts", () => {
+    const events = deriveNormalizedEventsForConversation(
+      openConversation,
+      [
+        part({ id: "p1", part_type: "note", body: "<p>internal</p>" }),
+        part({ id: "p2", body: "<p>Fin here</p>", author: { type: "bot", id: "fin" } }),
+        part({ id: "p3", body: "<p>any update?</p>", author: { type: "user", id: "u1" } }),
+        part({ id: "p4", part_type: "assignment", body: null }),
+        part({ id: "p5", body: "   " }),
+      ],
+      "raw_conversation",
+    );
+    expect(replies(events)).toEqual([]);
+  });
+});

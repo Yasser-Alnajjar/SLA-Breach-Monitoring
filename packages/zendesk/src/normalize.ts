@@ -51,6 +51,12 @@ function isStatusChangeEvent(
   );
 }
 
+function isPublicCommentEvent(
+  event: ZendeskAudit["events"][number],
+): event is { id: number; type: "Comment"; public: true; author_id?: number } {
+  return event.type === "Comment" && event.public === true;
+}
+
 export interface AuditRecord {
   /** The RawEvent row id this audit was read from — becomes NormalizedEvent.sourceRawEventId. */
   rawEventId: string;
@@ -83,6 +89,12 @@ export function sortAuditsChronologically(audits: AuditRecord[]): AuditRecord[] 
  * `previous_value` (falling back to the ticket's current status when no
  * status change was ever recorded) rather than from re-deriving it by
  * replaying transitions ourselves.
+ *
+ * Public agent comments become `agent_replied` events — what completes a
+ * first-response commitment. Comments on the ticket's creation audit (the
+ * ticket's own description, even when an agent opened it) never count, and
+ * neither do replies on a ticket whose requester is unknown, since
+ * `resolveActor` could not tell the customer's comments from an agent's.
  */
 export function deriveNormalizedEventsForTicket(
   ticket: ZendeskTicket,
@@ -128,7 +140,28 @@ export function deriveNormalizedEventsForTicket(
     });
   }
 
-  return events;
+  if (ticket.requester_id != null) {
+    const createdAtMs = Date.parse(ticket.created_at);
+    for (const { rawEventId, audit } of sorted) {
+      if (Date.parse(audit.created_at) <= createdAtMs) continue;
+      for (const event of audit.events.filter(isPublicCommentEvent)) {
+        const actor = resolveActor(audit.via?.channel, event.author_id ?? audit.author_id, ticket);
+        if (actor !== "agent") continue;
+        events.push({
+          type: "agent_replied",
+          occurredAt: audit.created_at,
+          actor,
+          fromState: null,
+          toState: null,
+          sourceRawEventId: rawEventId,
+        });
+      }
+    }
+  }
+
+  // Stable, so a status change and a reply at the same instant keep the
+  // status change first.
+  return events.sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
 }
 
 /**

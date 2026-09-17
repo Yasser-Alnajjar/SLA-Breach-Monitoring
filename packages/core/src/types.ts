@@ -28,7 +28,10 @@ export type NormalizedEventType =
   | "state_changed"
   | "issue_linked"
   | "issue_unlinked"
-  | "case_closed";
+  | "case_closed"
+  // A public reply from an agent on the ticket source — what completes a
+  // first-response commitment. Carries no state (`fromState`/`toState` null).
+  | "agent_replied";
 
 export interface NormalizedEvent {
   id: string;
@@ -109,7 +112,7 @@ export interface Commitment {
 /**
  * The SLA clock at an evaluation's cutoff, from the same event fold that
  * produced its elapsed time: `running`, `paused` on a `pauseOnStates` state,
- * or `stopped` because the case is closed.
+ * or `stopped` because the commitment completed (`findCompletionEvent`).
  */
 export type ClockState = "running" | "paused" | "stopped";
 

@@ -47,6 +47,29 @@ const TRANSITION_PART_TYPE_TO_STATE: Record<string, IntercomConversationState> =
   snoozed: "snoozed",
 };
 
+/**
+ * Part types that deliver a message to the customer when they carry a body:
+ * a plain reply, or a reply sent together with a close/reopen/snooze/assign
+ * ("reply and close"). Notes (`note`, `note_and_reopen`) are internal and
+ * never count as a reply.
+ */
+const CUSTOMER_VISIBLE_REPLY_PART_TYPES = new Set(["comment", "close", "open", "snoozed", "assignment"]);
+
+/**
+ * Whether a part is a human agent's reply to the customer — what completes a
+ * first-response commitment. Only `admin` authors count: bots and workflows
+ * (`resolveIntercomActor`'s "system") are not a first response, and an
+ * unrecognized author type is not guessed at.
+ */
+export function isAgentReplyPart(part: IntercomConversationPart): boolean {
+  return (
+    part.author?.type === "admin" &&
+    CUSTOMER_VISIBLE_REPLY_PART_TYPES.has(part.part_type) &&
+    typeof part.body === "string" &&
+    part.body.trim() !== ""
+  );
+}
+
 /** Channels Intercom uses when an automation/workflow made the change, not a person. */
 const SYSTEM_AUTHOR_TYPES = new Set(["bot", "team", "operator"]);
 
@@ -74,7 +97,7 @@ export interface DerivedNormalizedEvent {
   occurredAt: string;
   actor: Actor;
   fromState: NormalizedState | null;
-  toState: NormalizedState;
+  toState: NormalizedState | null;
   sourceRawEventId: string;
 }
 
@@ -97,6 +120,9 @@ export function sortPartsChronologically(parts: ConversationPartRecord[]): Conve
  * starts open) rather than reading an explicit previous value off each event.
  * A transition part whose target state matches the currently-tracked state
  * (a redundant re-close, say) is skipped rather than emitted as a no-op.
+ *
+ * Admin replies (`isAgentReplyPart`) additionally become `agent_replied`
+ * events, independently of any transition the same part carries.
  */
 export function deriveNormalizedEventsForConversation(
   conversation: IntercomConversationWithParts,
@@ -140,7 +166,21 @@ export function deriveNormalizedEventsForConversation(
     currentState = targetState;
   }
 
-  return events;
+  for (const { rawEventId, part } of sorted) {
+    if (!isAgentReplyPart(part)) continue;
+    events.push({
+      type: "agent_replied",
+      occurredAt: new Date(part.created_at * 1000).toISOString(),
+      actor: "agent",
+      fromState: null,
+      toState: null,
+      sourceRawEventId: rawEventId,
+    });
+  }
+
+  // Stable, so a transition and a reply carried by the same part keep the
+  // transition first.
+  return events.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 }
 
 /**

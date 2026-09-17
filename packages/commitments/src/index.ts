@@ -7,7 +7,6 @@ export {
 } from "./pipeline";
 export type { CaseRecord, CommitmentPipelineResult, PolicyVersionRecord } from "./pipeline";
 export {
-  hasCaseClosedEvent,
   isTerminalStatus,
   runEvaluationPipeline,
   shouldPersistEvaluation,

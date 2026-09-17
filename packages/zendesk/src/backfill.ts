@@ -97,7 +97,7 @@ export async function runZendeskBackfill(
         await markCaseDeletedForTicket(prisma, integrationId, ticket.id);
       }
 
-      const rawEvents: RawEventInput[] = liveTickets.map(mapTicketToRawEvent);
+      const rawEvents: RawEventInput[] = liveTickets.map((ticket) => mapTicketToRawEvent(ticket, page.users));
       await writeRawEvents(rawEvents);
       result.ticketsFetched += liveTickets.length;
 

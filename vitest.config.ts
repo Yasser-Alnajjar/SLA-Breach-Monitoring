@@ -10,6 +10,7 @@ const realDatabaseSuites = [
   "apps/web/test/evaluation-persistence.test.ts",
   "apps/web/test/multi-commitment-pipeline.test.ts",
   "apps/web/test/event-ordering-persistence.test.ts",
+  "apps/web/test/zendesk-requester-name.test.ts",
 ];
 
 export default defineConfig({
@@ -39,9 +40,11 @@ export default defineConfig({
   oxc: { jsx: { runtime: "automatic" } },
   resolve: {
     alias: {
-      // Mirrors apps/web/tsconfig.json's "@/*" path mapping — needed so tests
-      // under apps/web/test can import modules (like proxy.ts) that use the
+      // Mirrors apps/web/tsconfig.json's "@/*" and "@modules/*" path
+      // mappings — needed so tests under apps/web/test can import modules
+      // (like proxy.ts, or a component under apps/web/modules) that use the
       // alias internally, without duplicating Next's own webpack/SWC config.
+      "@modules": fileURLToPath(new URL("./apps/web/modules", import.meta.url)),
       "@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),
     },
   },

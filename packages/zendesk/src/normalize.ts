@@ -383,6 +383,10 @@ export async function runZendeskNormalization(
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
           closedAt,
+          // Display-only, like `subject` — never feeds Customer resolution,
+          // SLA matching, calendar overrides, or anomaly grouping (see
+          // Customer resolution above, which this never touches).
+          requesterName: ticket.requester_name ?? null,
         },
         create: {
           organizationId,
@@ -394,6 +398,7 @@ export async function runZendeskNormalization(
           channel: ticket.via?.channel ?? null,
           openedAt: new Date(ticket.created_at),
           closedAt,
+          requesterName: ticket.requester_name ?? null,
         },
       });
       result.casesUpserted += 1;

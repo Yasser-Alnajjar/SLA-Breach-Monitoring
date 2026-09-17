@@ -90,7 +90,10 @@ export interface CaseListRow {
   caseId: string;
   externalId: string;
   subject: string | null;
+  /** The case's account/company (Zendesk Organization / Intercom Company), or null when the ticket has none. Never falls back to `requesterName` — a requester is not a customer. */
   customerName: string | null;
+  /** The individual who submitted the ticket (e.g. a Zendesk ticket's requester), or null when unknown. Independent of `customerName` — never merged with it. */
+  requesterName: string | null;
   priority: string | null;
   tier: string | null;
   channel: string | null;
@@ -116,7 +119,10 @@ export interface CaseDetailData {
     channel: string | null;
     openedAt: string;
     closedAt: string | null;
+    /** The case's account/company (Zendesk Organization / Intercom Company), or null when the ticket has none. Never falls back to `requesterName` — a requester is not a customer. */
     customerName: string | null;
+    /** The individual who submitted the ticket (e.g. a Zendesk ticket's requester), or null when unknown. Independent of `customerName` — never merged with it. */
+    requesterName: string | null;
     /** Which ticket source created this case. */
     system: "zendesk" | "jira" | "linear" | "intercom" | "github";
     /** Outbound link to the source ticket (Zendesk ticket or Intercom conversation), when buildable. */

@@ -31,6 +31,15 @@ export interface ZendeskTicket {
   organization_id: number | null;
   requester_id?: number | null;
   via?: { channel: string };
+  /**
+   * Not a real Zendesk API field — resolved from the `users` sideload
+   * (`include=users`) and embedded onto the ticket snapshot before it's
+   * persisted as a RawEvent (see `mapTicketToRawEvent`), so the normalizer
+   * can read the requester's display name straight off the ticket without a
+   * separate RawEvent stream. Null when the ticket has no requester or the
+   * requester wasn't present in the sideload.
+   */
+  requester_name?: string | null;
   [key: string]: unknown;
 }
 
@@ -39,6 +48,8 @@ export interface ZendeskIncrementalTicketExport {
   end_time: number;
   next_page: string | null;
   count: number;
+  /** Sideloaded via `include=users` (see `ZendeskClient.fetchTicketsPage`): every user referenced by a ticket in this page (requesters, assignees, ...), deduplicated by Zendesk. */
+  users?: ZendeskUser[];
 }
 
 /**
@@ -75,6 +86,8 @@ export type ZendeskUserRole = "end-user" | "agent" | "admin";
 export interface ZendeskUser {
   id: number;
   role: ZendeskUserRole;
+  /** Present on the `users` sideload (`include=users`); not read from the audits sideload, which only ever asks for `role` (see `mapUserToRawEvent`'s privacy-minimization comment). */
+  name?: string;
   [key: string]: unknown;
 }
 
@@ -83,6 +96,12 @@ export interface ZendeskAuditsPage {
   /** Sideloaded via `include=users` (see `ZendeskClient.fetchTicketAuditsPage`): the audits' authors, with their roles. */
   users?: ZendeskUser[];
   next_page: string | null;
+}
+
+export interface ZendeskTicketShow {
+  ticket: ZendeskTicket;
+  /** Sideloaded via `include=users` (see `ZendeskClient.fetchTicket`): every user referenced by this ticket (requester, assignee, ...). */
+  users?: ZendeskUser[];
 }
 
 export interface ZendeskOrganization {

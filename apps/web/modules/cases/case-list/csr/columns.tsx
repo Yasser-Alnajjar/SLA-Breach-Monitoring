@@ -21,6 +21,19 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
     enableColumnFilter: true,
   },
   {
+    accessorKey: "requesterName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Requester" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.requesterName ?? "—"}
+      </span>
+    ),
+    enableSorting: true,
+    enableColumnFilter: true,
+  },
+  {
     accessorKey: "subject",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Case" />

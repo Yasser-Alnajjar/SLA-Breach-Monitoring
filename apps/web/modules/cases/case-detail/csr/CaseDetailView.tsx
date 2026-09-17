@@ -148,8 +148,23 @@ function TimelineGlossary() {
   );
 }
 
+/**
+ * Customer (account/company) and Requester (the individual who submitted
+ * the ticket) are distinct concepts and must never be merged: a requester is
+ * never shown as if it were the customer. When there's no customer, the
+ * requester is labeled explicitly rather than filling the customer's slot
+ * unlabeled — that would read as "this is the customer."
+ */
+export function formatCaseIdentity(customerName: string | null, requesterName: string | null): string {
+  if (customerName && requesterName) return `${customerName} · Requester: ${requesterName}`;
+  if (customerName) return customerName;
+  if (requesterName) return `Requester: ${requesterName}`;
+  return "—";
+}
+
 function CaseHeader({ data }: { data: CaseDetailData }) {
   const { case: caseData, currentLeg } = data;
+  const identity = formatCaseIdentity(caseData.customerName, caseData.requesterName);
 
   return (
     <Reveal delay={0.05} className="mt-5">
@@ -160,8 +175,7 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
               className="min-w-0 max-w-3xl font-display text-2xl font-medium tracking-tight"
               title={caseData.subject ?? `#${caseData.externalId}`}
             >
-              {caseData.subject ??
-                `${caseData.customerName ?? "—"} · #${caseData.externalId}`}
+              {caseData.subject ?? `${identity} · #${caseData.externalId}`}
             </h1>
 
             <Badge variant="outline" className="shrink-0">
@@ -171,7 +185,7 @@ function CaseHeader({ data }: { data: CaseDetailData }) {
 
           {caseData.subject && (
             <p className="mt-1 text-sm text-muted-foreground">
-              {caseData.customerName ?? "—"} · #{caseData.externalId}
+              {identity} · #{caseData.externalId}
             </p>
           )}
 

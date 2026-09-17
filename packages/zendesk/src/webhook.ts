@@ -151,8 +151,9 @@ export async function runZendeskWebhookIngest(
   });
 
   let ticket;
+  let users;
   try {
-    ({ ticket } = await client.fetchTicket(ticketId));
+    ({ ticket, users } = await client.fetchTicket(ticketId));
   } catch (error) {
     if (error instanceof ZendeskApiError && error.status === 404) {
       await markCaseDeletedForTicket(prisma, integrationId, ticketId);
@@ -160,7 +161,7 @@ export async function runZendeskWebhookIngest(
     }
     throw error;
   }
-  const rawEvents: RawEventInput[] = [mapTicketToRawEvent(ticket)];
+  const rawEvents: RawEventInput[] = [mapTicketToRawEvent(ticket, users)];
 
   let ticketAuditsFetched = 0;
   let nextPageUrl: string | undefined;

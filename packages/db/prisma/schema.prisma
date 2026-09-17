@@ -202,6 +202,14 @@ model Case {
   /// whose source system was ingested before this column existed, or whose
   /// ticket-source normalizer doesn't populate it yet.
   subject          String?
+  /// The source ticket's requester/submitter display name (e.g. a Zendesk
+  /// ticket's requester). Display-only, exactly like `subject` — never used
+  /// for matching, correlation, or Customer resolution. Deliberately NOT a
+  /// Customer: Customer stays account/company-only (Zendesk Organization /
+  /// Intercom Company), so a ticket with no organization has `customerId:
+  /// null` here rather than a Customer row synthesized from the requester.
+  /// Null for cases from a source/normalizer that doesn't populate it.
+  requesterName    String?
   priority         String?
   tier             String?
   channel          String?

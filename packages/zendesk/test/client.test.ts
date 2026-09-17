@@ -104,3 +104,51 @@ describe("ZendeskClient.fetchTicketAuditsPage", () => {
     ]);
   });
 });
+
+// Requester-name resolution (case/customer/requester separation) reads the
+// ticket's requester off this `users` sideload — these lock in that the
+// sideload is actually requested on every path a ticket can be fetched from,
+// so a requester name is available without a separate per-user request.
+describe("ZendeskClient requester sideload (include=users)", () => {
+  it("fetchTicket sideloads users on a single-ticket fetch", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { ticket: { id: 51 }, users: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ZendeskClient(baseCredentials);
+
+    await client.fetchTicket(51);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://acme.zendesk.com/api/v2/tickets/51.json?include=users");
+  });
+
+  it("fetchTicketsPage sideloads users on the incremental export's first page", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse(200, { tickets: [], end_time: 1000, next_page: null, count: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ZendeskClient(baseCredentials);
+
+    await client.fetchTicketsPage(500);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://acme.zendesk.com/api/v2/incremental/tickets.json?start_time=500&include=users",
+    );
+  });
+
+  it("fetchTicketsNextPage sideloads users on a next_page URL, re-applying include if Zendesk dropped it", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse(200, { tickets: [], end_time: 1000, next_page: null, count: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ZendeskClient(baseCredentials);
+
+    await client.fetchTicketsNextPage("https://acme.zendesk.com/api/v2/incremental/tickets.json?cursor=abc");
+    await client.fetchTicketsNextPage(
+      "https://acme.zendesk.com/api/v2/incremental/tickets.json?cursor=def&include=users",
+    );
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "https://acme.zendesk.com/api/v2/incremental/tickets.json?cursor=abc&include=users",
+      "https://acme.zendesk.com/api/v2/incremental/tickets.json?cursor=def&include=users",
+    ]);
+  });
+});

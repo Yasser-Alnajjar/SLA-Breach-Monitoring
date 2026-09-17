@@ -6,7 +6,7 @@ import type {
   ZendeskIncrementalTicketExport,
   ZendeskScheduleHolidaysPage,
   ZendeskSlaPoliciesPage,
-  ZendeskTicket,
+  ZendeskTicketShow,
 } from "./types";
 
 export class ZendeskApiError extends Error {
@@ -85,15 +85,23 @@ export class ZendeskClient {
     return (await response.json()) as T;
   }
 
-  /** https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/ */
+  /**
+   * https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/
+   * Sideloads `users` (each page's tickets' requesters/assignees/etc.,
+   * deduplicated by Zendesk) so the normalizer can resolve a ticket's
+   * requester name without a separate per-ticket/per-user request.
+   */
   fetchTicketsPage(startTime: number): Promise<ZendeskIncrementalTicketExport> {
     return this.request<ZendeskIncrementalTicketExport>(
-      `/api/v2/incremental/tickets.json?start_time=${startTime}`,
+      `/api/v2/incremental/tickets.json?start_time=${startTime}&include=users`,
     );
   }
 
+  /** `include` is re-applied in case Zendesk doesn't carry it over to `next_page` (mirrors `fetchTicketAuditsPage`). */
   fetchTicketsNextPage(nextPageUrl: string): Promise<ZendeskIncrementalTicketExport> {
-    return this.request<ZendeskIncrementalTicketExport>(nextPageUrl);
+    const url = new URL(nextPageUrl);
+    if (!url.searchParams.has("include")) url.searchParams.set("include", "users");
+    return this.request<ZendeskIncrementalTicketExport>(url.toString());
   }
 
   fetchOrganizationsPage(startTime: number): Promise<ZendeskIncrementalOrganizationExport> {
@@ -130,9 +138,11 @@ export class ZendeskClient {
    * Single-ticket fetch for a targeted refetch (roadmap step 20's webhook
    * receiver) — unlike the incremental export, this reflects the ticket's
    * state at the moment of the call rather than at the last poll window.
+   * Sideloads `users` (see `fetchTicketsPage`) for the same requester-name
+   * resolution the incremental-export path gets.
    */
-  fetchTicket(ticketId: number): Promise<{ ticket: ZendeskTicket }> {
-    return this.request<{ ticket: ZendeskTicket }>(`/api/v2/tickets/${ticketId}.json`);
+  fetchTicket(ticketId: number): Promise<ZendeskTicketShow> {
+    return this.request<ZendeskTicketShow>(`/api/v2/tickets/${ticketId}.json?include=users`);
   }
 
   /** https://developer.zendesk.com/api-reference/ticketing/business-hours/schedules/ — accounts have few schedules, so Zendesk returns them unpaginated. */

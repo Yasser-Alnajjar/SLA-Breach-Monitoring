@@ -400,6 +400,7 @@ export async function getCaseDetailData(
       openedAt: caseRow.openedAt.toISOString(),
       closedAt: caseRow.closedAt?.toISOString() ?? null,
       customerName: caseRow.customer?.name ?? null,
+      requesterName: caseRow.requesterName ?? null,
       system: caseRow.system,
       ticketUrl,
     },

@@ -38,7 +38,10 @@ vi.mock("@sla/zendesk", async (importOriginal) => {
     ...actual,
     runZendeskBackfill: vi.fn(async (prisma: PrismaClient, integrationId: string) => {
       const inputs = [
-        ...zendeskFixture.tickets.map(actual.mapTicketToRawEvent),
+        // Explicit wrapper: `mapTicketToRawEvent` now takes an optional
+        // second `users` (sideload) argument, so passing it to `.map`
+        // directly would leak the array index into that parameter.
+        ...zendeskFixture.tickets.map((ticket) => actual.mapTicketToRawEvent(ticket)),
         ...zendeskFixture.audits.map(actual.mapAuditToRawEvent),
         ...zendeskFixture.slaPolicies.map(actual.mapSlaPolicyToRawEvent),
       ];

@@ -31,6 +31,7 @@ export async function getCaseListData(prisma: PrismaClient, organizationId: stri
     externalId: row.externalId,
     subject: row.subject,
     customerName: row.customer?.name ?? null,
+    requesterName: row.requesterName ?? null,
     priority: row.priority,
     tier: row.tier,
     channel: row.channel,

@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "@sla/db";
 import { JiraClient } from "./client";
 import type { JiraOAuthConfig } from "./oauth";
@@ -17,12 +17,30 @@ export function generateWebhookSecret(): string {
 }
 
 /**
- * Classic Jira webhooks (registered manually in Jira admin — there is no
- * self-service REST registration under the read-only OAuth scope this app
- * requests) carry no HMAC signature the way Zendesk's do, so authenticity is
- * verified via a shared secret the customer includes as a `?secret=` query
- * parameter on the webhook URL they configure. Constant-time compare so a
- * partial match can't be timed out of the endpoint.
+ * Jira admin webhooks (Settings > System > WebHooks) accept a "Secret" the
+ * admin types in; Jira then signs each delivery with HMAC-SHA256 over the
+ * raw body and sends `X-Hub-Signature: sha256=<hex>` (WebSub format, per
+ * Atlassian's "Secure admin webhooks" docs). The customer pastes our
+ * per-integration `webhookSecret` into that field, so no secret travels in
+ * the URL. Only `sha256` is accepted; anything else fails closed.
+ */
+export function verifyJiraWebhookSignature(secret: string, rawBody: string, header: string | null): boolean {
+  if (!header) return false;
+  const separator = header.indexOf("=");
+  if (separator === -1) return false;
+  const method = header.slice(0, separator).trim().toLowerCase();
+  const signature = header.slice(separator + 1).trim().toLowerCase();
+  if (method !== "sha256" || !/^[0-9a-f]{64}$/.test(signature)) return false;
+  const expected = createHmac("sha256", secret).update(rawBody, "utf8").digest();
+  return timingSafeEqual(expected, Buffer.from(signature, "hex"));
+}
+
+/**
+ * Legacy fallback (roadmap step 20) for webhooks configured before step 43,
+ * whose URL carries the shared secret as `?secret=`. Kept so existing
+ * customer webhooks keep working; new setups use the signed form above.
+ * Constant-time compare so a partial match can't be timed out of the
+ * endpoint.
  */
 export function verifyJiraWebhookSecret(expected: string, provided: string | null): boolean {
   if (!provided) return false;

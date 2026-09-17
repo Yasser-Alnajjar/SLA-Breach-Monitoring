@@ -258,6 +258,20 @@ so run the check at a quiet time.
   reverse-proxy note above for where the client IP comes from), and both
   webhook receivers reject stale payloads via a timestamp check alongside
   their existing secret verification.
+- Jira webhook secrets (roadmap step 43): new Jira webhooks put the
+  integration's secret in Jira's own **Secret** field, and Jira signs each
+  delivery (`X-Hub-Signature`, HMAC-SHA256 of the body). Nothing secret is
+  in the URL. Webhooks set up before this step use a URL ending in
+  `?secret=…`, which still works but ends up wherever request URLs are
+  logged. The app strips it from Sentry events. Your reverse proxy's
+  access log is yours to handle: either have those customers move the
+  secret into the Secret field (the Jira settings card explains how), or
+  don't log query strings for `/api/webhooks/jira/*`. In Caddy, the
+  default access log is off unless you add `log`; if you use it, filter
+  the field with
+  `log { format filter { request>uri query { delete secret } } }`.
+  In nginx, use a `log_format` that logs `$uri` instead of `$request` or
+  `$request_uri` for that location.
 - Security headers and CSRF hardening (roadmap step 33): every response
   carries a CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
   a `Referrer-Policy`, and, in production, HSTS (see

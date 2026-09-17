@@ -10,6 +10,7 @@ import {
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,
+  verifyJiraWebhookSignature,
   type JiraWebhookPayload,
 } from "@sla/jira";
 import { getPrismaClient } from "@sla/db";
@@ -23,9 +24,11 @@ export const maxDuration = 60;
  * calls this directly. Classic Jira webhooks (registered manually by the
  * customer under Jira admin: Settings > System > WebHooks — there is no
  * self-service REST registration under this app's read-only OAuth scope)
- * carry no HMAC the way Zendesk's do, so authenticity rests on a shared
- * secret the customer includes as `?secret=` in the URL they configure,
- * shown on the integrations settings page alongside the URL itself.
+ * are authenticated by the integration's `webhookSecret`, which the customer
+ * pastes into the webhook's "Secret" field; Jira signs each delivery with it
+ * (`X-Hub-Signature`, roadmap step 43). Webhooks set up before that step
+ * carry the same secret as `?secret=` in the URL instead, still accepted as
+ * a fallback when no signature header is present.
  *
  * On success this runs the full poll-cycle tail (ingest → correlate →
  * normalize → commitments → evaluation → notifications) for one issue,
@@ -42,9 +45,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     return NextResponse.json({ error: "Unknown webhook endpoint" }, { status: 404 });
   }
 
-  const secret = new URL(request.url).searchParams.get("secret");
-  if (!verifyJiraWebhookSecret(integration.webhookSecret, secret)) {
-    return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 });
+  // Read the raw body once: the signature covers these exact bytes, so it
+  // must be verified before (and independently of) JSON parsing.
+  const rawBody = await request.text();
+  const signature = request.headers.get("x-hub-signature");
+  const authenticated =
+    signature !== null
+      ? // A signed delivery must verify on its own; a bad signature never
+        // falls through to the legacy query-string check.
+        verifyJiraWebhookSignature(integration.webhookSecret, rawBody, signature)
+      : verifyJiraWebhookSecret(integration.webhookSecret, new URL(request.url).searchParams.get("secret"));
+  if (!authenticated) {
+    return NextResponse.json({ error: "Invalid webhook signature or secret" }, { status: 401 });
   }
 
   // A disconnected integration has no credentials to ingest with — accept
@@ -56,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
 
   let payload: JiraWebhookPayload;
   try {
-    payload = (await request.json()) as JiraWebhookPayload;
+    payload = JSON.parse(rawBody) as JiraWebhookPayload;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

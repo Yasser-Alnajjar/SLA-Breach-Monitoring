@@ -1350,7 +1350,7 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       session fired `worker_lock_lost`. **Not verified:** an actual
       overlapping `docker compose` deploy on the VPS.
 
-- [ ] **43 — Get the Jira webhook secret out of the query string**
+- [x] **43 — Get the Jira webhook secret out of the query string**
       Still open from the audit: step 30 added replay protection but left the
       secret in `?secret=`, where reverse-proxy access logs, Sentry request
       data, and browser history can capture it. First check whether Jira
@@ -1359,6 +1359,28 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       `?secret=` only as a fallback for existing webhooks. If it doesn't, at
       least scrub the query string from web access logs and Sentry events for
       `/api/webhooks/jira/**`, and document why.
+      **Done (2026-09-17).** It does now. Atlassian's webhook docs say admin
+      webhooks take a Secret (typed in or generated, and addable to an
+      existing webhook), and Jira sends `X-Hub-Signature: sha256=<hex>`, an
+      HMAC-SHA256 of the raw body. `verifyJiraWebhookSignature`
+      (`packages/jira/src/webhook.ts`) checks it, tested against Atlassian's
+      published test vector. The route reads the raw body once and checks
+      the signature before parsing JSON. If the header is present it must
+      verify, and a bad signature never falls back to `?secret=`. Without
+      the header, `?secret=` still works for existing webhooks. The settings
+      card now shows the plain URL and a separate Secret, and tells legacy
+      customers how to move over. The same `webhookSecret` works for both,
+      so nobody has to reconnect. While the fallback exists, both Sentry
+      configs run `apps/web/src/lib/sentry-scrub.ts` as `beforeSend` and
+      `beforeBreadcrumb`. Sentry v10 copies both `request.url` and
+      `request.query_string` into events, so this matters. The reverse
+      proxy isn't ours, so `docs/deployment.md` explains why and gives
+      Caddy and nginx settings that keep the secret out of access logs.
+      Verified against the dev server with the local disconnected Jira
+      integration: valid signature → 200; wrong body or wrong secret → 401;
+      bad signature plus a valid `?secret=` → 401; unsigned with a valid
+      `?secret=` → 200; wrong or missing secret → 401. **Not verified:** a
+      real signed delivery from a Jira Cloud site.
 
 - [ ] **44 — Close the remaining core test gaps from the audit**
       `packages/commitments/test` still has no tests for `override.ts`

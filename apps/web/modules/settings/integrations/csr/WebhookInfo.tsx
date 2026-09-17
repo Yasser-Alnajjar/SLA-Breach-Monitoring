@@ -57,7 +57,7 @@ interface WebhookInfoProps {
 }
 
 /**
- * Shows the URL (and, for Zendesk, the signing secret) the customer pastes
+ * Shows the URL and secret the customer pastes
  * into their own provider's webhook admin UI — roadmap step 20's receivers
  * are inbound-only and register nothing on the provider side (no write
  * scope is requested), so this is the entire "setup" surface. Read from
@@ -108,13 +108,19 @@ export function WebhookInfo({
 
   return (
     <div className="space-y-3">
-      <CopyField
-        label="Webhook URL"
-        value={`${baseUrl}?secret=${webhookSecret}`}
-      />
+      <CopyField label="Webhook URL" value={baseUrl} />
+      <CopyField label="Secret" value={webhookSecret} />
       <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
-        In Jira, add this as a WebHook (Settings → System → WebHooks) subscribed
-        to Issue: created and Issue: updated events.
+        In Jira, add a WebHook (Settings → System → WebHooks) with this URL,
+        paste this value into its <strong>Secret</strong> field, and subscribe
+        it to Issue: created and Issue: updated events. Jira signs every
+        delivery with the secret, so it never appears in the URL.
+      </p>
+      <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+        Set up earlier with a URL ending in <code>?secret=…</code>? It keeps
+        working, but that URL can end up in proxy logs. Edit the webhook in
+        Jira, remove <code>?secret=…</code> from the URL, and paste the secret
+        into the Secret field instead.
       </p>
     </div>
   );

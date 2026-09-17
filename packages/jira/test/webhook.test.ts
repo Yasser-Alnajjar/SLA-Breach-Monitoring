@@ -6,6 +6,7 @@ import {
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,
+  verifyJiraWebhookSignature,
 } from "../src/webhook";
 import type { JiraCredentials, JiraIssue } from "../src/types";
 
@@ -89,6 +90,40 @@ describe("verifyJiraWebhookSecret", () => {
 
   it("rejects a secret of a different length without throwing", () => {
     expect(verifyJiraWebhookSecret("abc123", "abc1234")).toBe(false);
+  });
+});
+
+describe("verifyJiraWebhookSignature", () => {
+  // Test vector from Atlassian's "Secure admin webhooks" documentation.
+  const secret = "It's a Secret to Everybody";
+  const body = "Hello World!";
+  const signature = "sha256=a4771c39fbe90f317c7824e83ddef3caae9cb3d976c214ace1f2937e133263c9";
+
+  it("accepts Atlassian's documented signature", () => {
+    expect(verifyJiraWebhookSignature(secret, body, signature)).toBe(true);
+  });
+
+  it("accepts an uppercase method or digest", () => {
+    expect(verifyJiraWebhookSignature(secret, body, signature.toUpperCase())).toBe(true);
+  });
+
+  it("rejects a signature over a different body", () => {
+    expect(verifyJiraWebhookSignature(secret, "Hello World?", signature)).toBe(false);
+  });
+
+  it("rejects a signature made with a different secret", () => {
+    expect(verifyJiraWebhookSignature("another secret", body, signature)).toBe(false);
+  });
+
+  it("rejects a missing header", () => {
+    expect(verifyJiraWebhookSignature(secret, body, null)).toBe(false);
+  });
+
+  it("rejects other methods and malformed headers without throwing", () => {
+    expect(verifyJiraWebhookSignature(secret, body, "sha1=0123456789abcdef0123456789abcdef01234567")).toBe(false);
+    expect(verifyJiraWebhookSignature(secret, body, "a4771c39fbe90f317c7824e83ddef3caae9cb3d976c214ace1f2937e133263c9")).toBe(false);
+    expect(verifyJiraWebhookSignature(secret, body, "sha256=abc")).toBe(false);
+    expect(verifyJiraWebhookSignature(secret, body, "sha256=zz771c39fbe90f317c7824e83ddef3caae9cb3d976c214ace1f2937e133263c9")).toBe(false);
   });
 });
 

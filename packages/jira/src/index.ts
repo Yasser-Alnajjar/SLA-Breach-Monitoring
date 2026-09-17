@@ -47,5 +47,6 @@ export {
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,
+  verifyJiraWebhookSignature,
 } from "./webhook";
 export type { JiraWebhookPayload, WebhookIngestResult } from "./webhook";

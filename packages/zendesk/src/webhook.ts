@@ -19,9 +19,9 @@ export function generateWebhookSecret(): string {
  * does offer is "Bearer token", where the customer pastes a token of their
  * choice and Zendesk sends it back as `Authorization: Bearer <token>` on
  * every call. Verification here is a constant-time compare against that
- * header, using this integration's `webhookSecret` as the token — the same
- * shared-secret model as Jira's `?secret=` query parameter, just carried in
- * a header instead of the URL.
+ * header, using this integration's `webhookSecret` as the token. (Jira
+ * does let the customer set the secret, so it verifies an HMAC signature
+ * instead — see `verifyJiraWebhookSignature`.)
  */
 export function verifyZendeskWebhookSecret(expected: string, authorizationHeader: string | null): boolean {
   const match = authorizationHeader ? /^Bearer (.+)$/.exec(authorizationHeader) : null;

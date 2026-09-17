@@ -629,7 +629,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       type-check, test, and build the whole workspace. Investigated the root
       `pnpm build` failure on `packages/core`/`packages/slack` rather than
       deleting the script — both packages' `tsconfig.json` had `"types":
-      ["node"]` as a sibling of `compilerOptions` instead of nested inside
+    ["node"]` as a sibling of `compilerOptions` instead of nested inside
       it, a silently-ignored key in every one of the 10 non-`db` packages'
       `tsconfig.json`. With no ambient Node types loaded, `core`'s
       `node:crypto` import and `slack`'s global `fetch`/`URL`/
@@ -639,7 +639,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `type-check` script (`tsc --noEmit`) to those same 10 packages and to
       `apps/worker` (mirroring `apps/web`'s existing `type-check`), plus a
       root `pnpm type-check` that runs all of them via `pnpm -r run
-      type-check` — `packages/db` has no such script (its own
+    type-check` — `packages/db` has no such script (its own
       `tsconfig.json` has a `rootDir` that doesn't include the generated
       Prisma client, never exercised before since nothing built or
       typechecked it standalone) and `pnpm -r run` skips packages missing
@@ -647,7 +647,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       dummy values for `DATABASE_URL`/`NEXTAUTH_SECRET`/`NEXTAUTH_URL`/
       `INTEGRATION_CONFIG_ENCRYPTION_KEY`/`SMTP_ENCRYPTION_KEY` directly as
       job env — verified locally with no `.env` file present that `prisma
-      generate` (needs `DATABASE_URL` to resolve, doesn't connect) and
+    generate` (needs `DATABASE_URL` to resolve, doesn't connect) and
       `next build` (fully static/dynamic-route analysis, no live DB query at
       build time) both succeed on dummy values alone, so CI never needs a
       real database.
@@ -656,7 +656,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `docs/deployment.md` — targeting Docker + self-host/VPS, not a
       specific managed host. The two apps needed different treatment.
       `apps/web` gets a standard multi-stage build using Next's `output:
-      "standalone"` (added to `next.config.mjs`, with
+    "standalone"` (added to `next.config.mjs`, with
       `outputFileTracingRoot` pointed at the monorepo root so pnpm-workspace
       packages trace correctly) — the runtime image ships only the traced
       server bundle, no devDependencies. `apps/worker` can't do the same:
@@ -680,7 +680,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       across build and run. Second, `apps/web/Dockerfile` unconditionally
       copied a `public/` directory the app doesn't have; removed that COPY.
       Both app containers run as an unprivileged user; the one-off `prisma
-      migrate deploy` step (documented, not run automatically on every
+    migrate deploy` step (documented, not run automatically on every
       start) needs `--user root` since a non-root user can't write
       `node_modules` state files migrate occasionally touches — the
       long-running worker process itself never runs that way. Build-time
@@ -752,7 +752,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       since this alert must still reach the operator even if a customer's
       own SMTP config is broken) — both optional, either, neither, or both.
       New `apps/worker/src/watchdog.ts` checks every two minutes whether
-      either cycle kind's last *successful* (zero-failure) run is older
+      either cycle kind's last _successful_ (zero-failure) run is older
       than 3x its configured interval — the same multiplier
       `deriveWorkerStatus` already uses for its own "stopped" heartbeat
       check — and sends (and, on recovery, un-sends) an alert through
@@ -893,7 +893,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       and on `/settings/integrations/[provider]` (badge plus banner).
       Scope limit, per this step's non-goal: only an actual 403 is caught.
       A permission change that makes the provider silently return
-      *narrower* results (e.g. Jira JQL dropping a project the user can no
+      _narrower_ results (e.g. Jira JQL dropping a project the user can no
       longer browse) is still undetectable without per-resource probing or
       volume heuristics.
       Tests: new `packages/{jira,intercom}/test/client.test.ts` plus 403
@@ -917,7 +917,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Headers: new `apps/web/security-headers.mjs` (plain `.mjs` so
       `next.config.mjs` imports it directly), applied to every path through
       `headers()`: CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options:
-      nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
+    nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
       restrictive `Permissions-Policy`, and HSTS (two years,
       `includeSubDomains`) in production only. `poweredByHeader` is off.
       CSP: `default-src 'self'`, `frame-ancestors 'none'`,
@@ -986,7 +986,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       existing full CSV export route, `error.tsx`/`not-found.tsx` boundaries,
       `loading.tsx` on the routes still missing one).
       Export: an "Export full report" button beside the dashboard's
-      *SLA Analytics* heading (`ProjectAnalyticsSection.tsx`). It is a plain
+      _SLA Analytics_ heading (`ProjectAnalyticsSection.tsx`). It is a plain
       `<a download>` to `/api/reports/commitments`, not `next/link`, because
       the route answers with a CSV attachment. The export is still built in
       memory, not streamed; this is recorded as a known limitation in
@@ -1033,7 +1033,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `README.md` goes from an empty stub to: what the product does and what
       it connects to, the repo layout, local setup (Node 22/pnpm 10, `.env`
       at the repo root with the three generated secrets, `docker compose up
-      -d postgres`, Prisma generate + `migrate:dev`, `web:dev` +
+    -d postgres`, Prisma generate + `migrate:dev`, `web:dev` +
       `worker:dev`, first sign-up and the bring-your-own-OAuth-app step),
       tests, a pointer to `docs/deployment.md`, and where each doc set lives,
       with a note to keep the guide and in-app docs updated together.
@@ -1046,19 +1046,17 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       query semantics (nested relation filters, composite unique lookups,
       `findFirst` guards before updates), so an in-memory fake would mostly
       test itself. It seeds two orgs with identical data shapes and distinct
-      markers, then, as org A:
-      - Reads: dashboard, case list, case detail (org B's case ID returns
-        null), compliance report helper and the CSV export route, findings,
-        SLA policies, calendars, customers, and the integrations page. Each
-        must contain A's marker and never B's, case-insensitively.
-      - Writes naming B's rows: customer-calendar assignment with B's
-        customer or B's calendar (404, nothing changed), policy override on
-        B's policy (404, no new version), the engineering-leg target, email
-        settings (saved to A only, and B can't read them), Jira disconnect
-        (B stays connected), and a Zendesk webhook for B's integration sent
-        with A's secret (401, nothing ingested). Each write test also runs
-        the same call against A's own rows, so a 404 can't pass just
-        because the route is broken.
+      markers, then, as org A: - Reads: dashboard, case list, case detail (org B's case ID returns
+      null), compliance report helper and the CSV export route, findings,
+      SLA policies, calendars, customers, and the integrations page. Each
+      must contain A's marker and never B's, case-insensitively. - Writes naming B's rows: customer-calendar assignment with B's
+      customer or B's calendar (404, nothing changed), policy override on
+      B's policy (404, no new version), the engineering-leg target, email
+      settings (saved to A only, and B can't read them), Jira disconnect
+      (B stays connected), and a Zendesk webhook for B's integration sent
+      with A's secret (401, nothing ingested). Each write test also runs
+      the same call against A's own rows, so a 404 can't pass just
+      because the route is broken.
       Verified by breaking three org filters on purpose (case list,
       dashboard's open-commitment query, `setCustomerCalendar`'s calendar
       check): each made its test fail, and restoring them made it pass.
@@ -1069,21 +1067,18 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       migrate step before `pnpm test`, so the suite runs on every PR. The
       README documents the local setup.
       Backups: `scripts/backup.sh` and `scripts/restore.sh`, scheduled with
-      host cron, plus a "Backups" runbook in `docs/deployment.md`.
-      - `backup.sh` runs `pg_dump` in custom format inside the `postgres`
-        container, so no credentials go on the host's command line. It writes
-        to a `.partial` file with owner-only permissions and checks it with
-        `pg_restore --list` before renaming. Only after a good dump does it
-        prune dumps older than `RETENTION_DAYS` (default 14), so a broken
-        dump never rotates good ones out.
-      - `restore.sh` checks the dump, asks for the database name (or
-        `--yes`), takes a safety backup, and stops `web`/`worker`. It then
-        restores with `--clean --single-transaction --exit-on-error` and
-        restarts the apps on exit, even if the restore failed.
-      - The runbook covers backing up `.env.prod` separately (dumps are
-        useless for encrypted secrets without the keys), off-host copies,
-        managed-Postgres users, post-restore migrations and reconnects, and a
-        quarterly restore drill into a scratch database.
+      host cron, plus a "Backups" runbook in `docs/deployment.md`. - `backup.sh` runs `pg_dump` in custom format inside the `postgres`
+      container, so no credentials go on the host's command line. It writes
+      to a `.partial` file with owner-only permissions and checks it with
+      `pg_restore --list` before renaming. Only after a good dump does it
+      prune dumps older than `RETENTION_DAYS` (default 14), so a broken
+      dump never rotates good ones out. - `restore.sh` checks the dump, asks for the database name (or
+      `--yes`), takes a safety backup, and stops `web`/`worker`. It then
+      restores with `--clean --single-transaction --exit-on-error` and
+      restarts the apps on exit, even if the restore failed. - The runbook covers backing up `.env.prod` separately (dumps are
+      useless for encrypted secrets without the keys), off-host copies,
+      managed-Postgres users, post-restore migrations and reconnects, and a
+      quarterly restore drill into a scratch database.
       Verified against the local dev Postgres: backup, then restore into a
       scratch database with matching row counts in every table checked;
       restore over existing data; a truncated dump rejected; a wrong
@@ -1103,32 +1098,26 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Done: migrated rather than documented, since the change was small. The
       customer registers a GitHub App (Pull requests: read, Contents: read)
       instead of an OAuth App, installs it on the chosen repo, and saves its
-      client id/secret in the same Configure dialog. No schema change.
-      - `oauth.ts` no longer sends `scope`, since a GitHub App's user token
-        gets its permissions from the App. It now records `refresh_token` and
-        `expires_in`, and adds `refreshAccessToken`. A `bad_refresh_token`
-        (returned with HTTP 200) sets `requiresReauth`.
-      - `tokenLifecycle.ts` follows Jira's pattern: refresh ahead of expiry,
-        refresh on 401, a single-flight map per process, and a DB
-        compare-and-swap across instances. GitHub refresh tokens are
-        single-use, so if a refresh fails with `bad_refresh_token` but the
-        row has already moved on, it uses the newer tokens instead of marking
-        reauth. `markReauthRequired` became `refreshAfterUnauthorized`.
-      - `runGithubBackfill` now takes the OAuth config, like Jira. The worker
-        cycle and the web backfill route pass it.
-      - New `GithubClient.verifyRepositoryAccess`. Search only covers repos
-        the App is installed on, so a typo or a missing installation would
-        otherwise sync nothing and look healthy. The callback checks access
-        before saving and returns a 400 that names the likely cause. Every
-        backfill checks again first, so an uninstalled App shows up as
-        `permission_denied` instead of zero pull requests.
-      - Backward compatible: existing classic OAuth App tokens have no
-        `expiresAt` or `refreshToken`, so they keep working and are never
-        refreshed until the org switches and reconnects.
-      - Docs: the in-app GitHub page now covers GitHub App setup and
-        permissions, plus a migration note for classic OAuth App
-        connections. The customer guide §22 and FAQ, the README, the FAQ
-        page, and the settings card's help link are updated too.
+      client id/secret in the same Configure dialog. No schema change. - `oauth.ts` no longer sends `scope`, since a GitHub App's user token
+      gets its permissions from the App. It now records `refresh_token` and
+      `expires_in`, and adds `refreshAccessToken`. A `bad_refresh_token`
+      (returned with HTTP 200) sets `requiresReauth`. - `tokenLifecycle.ts` follows Jira's pattern: refresh ahead of expiry,
+      refresh on 401, a single-flight map per process, and a DB
+      compare-and-swap across instances. GitHub refresh tokens are
+      single-use, so if a refresh fails with `bad_refresh_token` but the
+      row has already moved on, it uses the newer tokens instead of marking
+      reauth. `markReauthRequired` became `refreshAfterUnauthorized`. - `runGithubBackfill` now takes the OAuth config, like Jira. The worker
+      cycle and the web backfill route pass it. - New `GithubClient.verifyRepositoryAccess`. Search only covers repos
+      the App is installed on, so a typo or a missing installation would
+      otherwise sync nothing and look healthy. The callback checks access
+      before saving and returns a 400 that names the likely cause. Every
+      backfill checks again first, so an uninstalled App shows up as
+      `permission_denied` instead of zero pull requests. - Backward compatible: existing classic OAuth App tokens have no
+      `expiresAt` or `refreshToken`, so they keep working and are never
+      refreshed until the org switches and reconnects. - Docs: the in-app GitHub page now covers GitHub App setup and
+      permissions, plus a migration note for classic OAuth App
+      connections. The customer guide §22 and FAQ, the README, the FAQ
+      page, and the settings card's help link are updated too.
       Verified: `@sla/github` tests (new cases for refresh, rotation, the
       single-use token race, and repo verification), the full `pnpm test`,
       web/worker `type-check`, and the web `build`. The docs page was checked
@@ -1169,41 +1158,33 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       app password flagged at the top of `production.md`.
       Non-goal: rewriting git history. Rotation makes the old values worthless,
       so history rewriting isn't needed.
-      Progress (2026-09-16). Repo side done; the actual rotation is still open:
-      - `git rm --cached .env.prod` is staged (not committed). The file stays
-        on disk. `.gitignore` also covers `.env.prod.*` (rotation backups),
-        with an exception for `.env.prod.example`.
-      - New `.env.prod.example` with `change-me` placeholders. This fixes a
-        broken link: `docs/deployment.md` already told people to copy this
-        file, but it didn't exist.
-      - New `scripts/rotate-secrets.sh` rewrites `POSTGRES_PASSWORD` (and
-        the password in `DATABASE_URL`), `NEXTAUTH_SECRET`, and both
-        encryption keys in place. It never prints the new values, asks for
-        confirmation (or `--yes`), and keeps an owner-only backup of the old
-        file. With `--apply-to-db` it first runs `ALTER USER` in the running
-        `postgres` container, with the SQL sent over stdin, since Postgres
-        ignores `POSTGRES_PASSWORD` on an existing volume. Tested on scratch
-        copies: abort path, quoted and unquoted values, a missing key, other
-        lines left unchanged, and 32-byte keys that differ from each other.
-        `--apply-to-db` is untested because Docker wasn't running.
-      - `docs/deployment.md` now creates `.env.prod` on the host with the
-        script and has a "Rotating secrets" runbook covering what each
-        rotation costs, pre-rotation dumps needing the old keys, and
-        third-party credentials. The in-app deployment page matches.
-      - What the audit found: the committed file is on `origin/main` (the
-        repo is private). Its `POSTGRES_PASSWORD` was a weak dictionary
-        default, and its `OPS_ALERT_SMTP_PASSWORD` is the same Gmail app
-        password as in the local `.env`, so it's a live credential.
-        `NEXTAUTH_SECRET` and both encryption keys differ from `.env`, so dev
-        is unaffected. No value changed across the three commits that
-        touched the file.
+      Progress (2026-09-16). Repo side done; the actual rotation is still open: - `git rm --cached .env.prod` is staged (not committed). The file stays
+      on disk. `.gitignore` also covers `.env.prod.*` (rotation backups),
+      with an exception for `.env.prod.example`. - New `.env.prod.example` with `change-me` placeholders. This fixes a
+      broken link: `docs/deployment.md` already told people to copy this
+      file, but it didn't exist. - New `scripts/rotate-secrets.sh` rewrites `POSTGRES_PASSWORD` (and
+      the password in `DATABASE_URL`), `NEXTAUTH_SECRET`, and both
+      encryption keys in place. It never prints the new values, asks for
+      confirmation (or `--yes`), and keeps an owner-only backup of the old
+      file. With `--apply-to-db` it first runs `ALTER USER` in the running
+      `postgres` container, with the SQL sent over stdin, since Postgres
+      ignores `POSTGRES_PASSWORD` on an existing volume. Tested on scratch
+      copies: abort path, quoted and unquoted values, a missing key, other
+      lines left unchanged, and 32-byte keys that differ from each other.
+      `--apply-to-db` is untested because Docker wasn't running. - `docs/deployment.md` now creates `.env.prod` on the host with the
+      script and has a "Rotating secrets" runbook covering what each
+      rotation costs, pre-rotation dumps needing the old keys, and
+      third-party credentials. The in-app deployment page matches. - What the audit found: the committed file is on `origin/main` (the
+      repo is private). Its `POSTGRES_PASSWORD` was a weak dictionary
+      default, and its `OPS_ALERT_SMTP_PASSWORD` is the same Gmail app
+      password as in the local `.env`, so it's a live credential.
+      `NEXTAUTH_SECRET` and both encryption keys differ from `.env`, so dev
+      is unaffected. No value changed across the three commits that
+      touched the file.
       Still to do by the owner. The agent was not permitted to write secret
-      values:
-      1. `scripts/rotate-secrets.sh .env.prod`, with `--apply-to-db` if a
-         prod database volume already exists.
-      2. Revoke that Gmail app password in the Google account, create a new
-         one, and put it in both `.env` and `.env.prod`.
-      3. Commit the staged removal together with the new files.
+      values: 1. `scripts/rotate-secrets.sh .env.prod`, with `--apply-to-db` if a
+      prod database volume already exists. 2. Revoke that Gmail app password in the Google account, create a new
+      one, and put it in both `.env` and `.env.prod`. 3. Commit the staged removal together with the new files.
 
 - [x] **40 — Concierge CSV analysis (validation Week 3, due 21 Sep)**
       `plans/05` Week 3: take a prospect's Zendesk ticket export (with audit
@@ -1211,19 +1192,15 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       findings document within 48 hours, with no OAuth, database, or UI. The
       plan assumed a throwaway script. Most of it already exists as tested
       code, so build a thin CLI (e.g. `apps/concierge` or `scripts/concierge`)
-      around it:
-      - CSV parsers that map rows to the `NormalizedEvent` shapes the Zendesk
-        and Jira normalizers already produce (state, actor, `occurredAt`).
-      - Correlation on the export's link field, deterministic tier only, with
-        link coverage reported the same way the product does.
-      - The pure `packages/core` functions (`evaluateCommitment`,
-        `deriveLegSpans`, `sumLegMinutes`, calendar), run against targets and
-        business hours passed as CLI flags, since exports carry no policy
-        definitions.
-      - Output: a Markdown/HTML findings page reusing the
-        `/onboarding/findings` framing (breaches, time by leg, where Zendesk's
-        own timer disagrees with the engine, escalations aging in
-        engineering).
+      around it: - CSV parsers that map rows to the `NormalizedEvent` shapes the Zendesk
+      and Jira normalizers already produce (state, actor, `occurredAt`). - Correlation on the export's link field, deterministic tier only, with
+      link coverage reported the same way the product does. - The pure `packages/core` functions (`evaluateCommitment`,
+      `deriveLegSpans`, `sumLegMinutes`, calendar), run against targets and
+      business hours passed as CLI flags, since exports carry no policy
+      definitions. - Output: a Markdown/HTML findings page reusing the
+      `/onboarding/findings` framing (breaches, time by leg, where Zendesk's
+      own timer disagrees with the engine, escalations aging in
+      engineering).
       Verify against a synthetic export built from the existing test fixtures,
       then get one real export before promising 48-hour turnaround. The real
       CSV column layout is the unknown here, so keep the parsers lenient and
@@ -1231,40 +1208,34 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       Non-goals: an upload UI, storing prospect data anywhere but the local
       machine, SLA-policy import from CSV.
       Done (2026-09-17): `apps/concierge`, run with
-      `pnpm --filter @sla/concierge analyze -- …` (usage in its README).
-      - Four CSVs in: Zendesk tickets, Zendesk audits (one row per status
-        change), Jira issues, and Jira changelog (one row per transition).
-        Rows are rebuilt into the API shapes and run through the product's
-        own `deriveNormalizedEventsForTicket`/`deriveNormalizedEventsForIssue`,
-        deep-imported so no Prisma client loads. Columns are matched by
-        alias, never position. Unreadable rows are dropped and counted per
-        file and reason.
-      - Jira CSVs have status names, not ids. Categories come from
-        `--jira-status`, then the export's own category columns, then Jira's
-        stock names. Stock-name mappings are listed in the report for the
-        prospect to confirm. Unknown statuses are dropped and named.
-      - Correlation: a ticket id in a Zendesk column, a ticket URL on
-        `--zendesk-subdomain` (`parseZendeskTicketId`), or a Jira key on the
-        ticket. Coverage reads "Linked X of Y Jira issues that reference a
-        Zendesk ticket", with unlinked issues broken down by reason.
-      - Engine: `--resolution` (per priority) becomes `SLAPolicyVersion`s
-        with the importer's `PAUSE_ON_STATES`/`WARN_AT_PERCENT`, and
-        `--business-hours`/`--timezone`/`--holidays` become the calendar.
-        Every ticket is evaluated, so escalated breach rates can be compared
-        with support-only ones. There's also an optional
-        `--engineering-target`.
-      - Report (Markdown, HTML or JSON): headline in the onboarding findings
-        framing, link coverage, time by leg, the leg holding each ticket
-        when its clock crossed the target (bisected over
-        `computeElapsedWorkingMinutes`, so pauses count), disagreements with
-        a Zendesk breach column when present, open escalations aging in
-        engineering, largest breaches, top accounts, and assumptions plus
-        dropped rows. Files are written `0600`, and
-        `apps/concierge/data/` is gitignored for prospect exports.
-      - Deliberate gaps: first response isn't evaluated, since exports have
-        no reply events. Link time is taken as the Jira issue's creation. A
-        solved ticket with no audit rows is left unevaluated rather than
-        breaching to `--as-of`.
+      `pnpm --filter @sla/concierge analyze -- …` (usage in its README). - Four CSVs in: Zendesk tickets, Zendesk audits (one row per status
+      change), Jira issues, and Jira changelog (one row per transition).
+      Rows are rebuilt into the API shapes and run through the product's
+      own `deriveNormalizedEventsForTicket`/`deriveNormalizedEventsForIssue`,
+      deep-imported so no Prisma client loads. Columns are matched by
+      alias, never position. Unreadable rows are dropped and counted per
+      file and reason. - Jira CSVs have status names, not ids. Categories come from
+      `--jira-status`, then the export's own category columns, then Jira's
+      stock names. Stock-name mappings are listed in the report for the
+      prospect to confirm. Unknown statuses are dropped and named. - Correlation: a ticket id in a Zendesk column, a ticket URL on
+      `--zendesk-subdomain` (`parseZendeskTicketId`), or a Jira key on the
+      ticket. Coverage reads "Linked X of Y Jira issues that reference a
+      Zendesk ticket", with unlinked issues broken down by reason. - Engine: `--resolution` (per priority) becomes `SLAPolicyVersion`s
+      with the importer's `PAUSE_ON_STATES`/`WARN_AT_PERCENT`, and
+      `--business-hours`/`--timezone`/`--holidays` become the calendar.
+      Every ticket is evaluated, so escalated breach rates can be compared
+      with support-only ones. There's also an optional
+      `--engineering-target`. - Report (Markdown, HTML or JSON): headline in the onboarding findings
+      framing, link coverage, time by leg, the leg holding each ticket
+      when its clock crossed the target (bisected over
+      `computeElapsedWorkingMinutes`, so pauses count), disagreements with
+      a Zendesk breach column when present, open escalations aging in
+      engineering, largest breaches, top accounts, and assumptions plus
+      dropped rows. Files are written `0600`, and
+      `apps/concierge/data/` is gitignored for prospect exports. - Deliberate gaps: first response isn't evaluated, since exports have
+      no reply events. Link time is taken as the Jira issue's creation. A
+      solved ticket with no audit rows is left unevaluated rather than
+      breaching to `--as-of`.
       Verified: 33 tests in `apps/concierge/test` against a synthetic
       four-file export with hand-computed expectations (breaches, pauses,
       leg minutes, breach leg, coverage reasons, business hours, engineering
@@ -1275,95 +1246,83 @@ is due around 5 Oct. So step 40 has a date on it; the rest don't.
       add column aliases on the first one before promising 48-hour
       turnaround.
 
-- [ ] **41 — Live verification pass on flows that were only unit-tested**
+- [x] **41 — Live verification pass on flows that were only unit-tested**
       Several steps above explicitly record what they didn't verify end to end.
       Close each one against the real service, then fix the code or record the
-      result on the original step:
-      - Step 38: a real GitHub App connect, an 8-hour token refresh, and
-        whether `Contents: read` can be dropped.
-      - Step 30: how Zendesk actually renders `{{ticket.updated_at}}` in a
-        webhook body, and whether the freshness check accepts it. If it
-        doesn't, every Zendesk webhook currently fails closed with `401`.
-      - Step 35: the signed-in surfaces (dashboard export button, in-app
-        error/not-found boundaries, loading skeletons) viewed in a real
-        session.
-      - Step 28: `docker-compose.prod.yml` on an actual VPS behind a TLS
-        reverse proxy, including `X-Forwarded-For` reaching the rate limiter
-        and `NEXTAUTH_URL` matching the CSRF origin check.
+      result on the original step: - Step 38: a real GitHub App connect, an 8-hour token refresh, and
+      whether `Contents: read` can be dropped. - Step 30: how Zendesk actually renders `{{ticket.updated_at}}` in a
+      webhook body, and whether the freshness check accepts it. If it
+      doesn't, every Zendesk webhook currently fails closed with `401`. - Step 35: the signed-in surfaces (dashboard export button, in-app
+      error/not-found boundaries, loading skeletons) viewed in a real
+      session. - Step 28: `docker-compose.prod.yml` on an actual VPS behind a TLS
+      reverse proxy, including `X-Forwarded-For` reaching the rate limiter
+      and `NEXTAUTH_URL` matching the CSRF origin check.
       This is the pre-pilot gate: do it before the first paid pilot goes live,
       not before outreach.
       Progress (2026-09-17). Everything checkable without a real Zendesk
-      account, GitHub App or VPS is done, and it turned up two real bugs:
-      - Step 30, **fixed**. Zendesk's placeholder reference documents
-        `{{ticket.updated_at}}` as a date only ("May18", no year in the
-        current year). `Date.parse("May 18")` gives 2001, so every
-        delivery set up as instructed would have failed with `401`. The
-        in-app docs page was worse: its trigger body had no `timestamp`
-        at all. The documented ISO placeholder is
-        `{{ticket.updated_at_with_timestamp}}` (`2013-12-12T05:35Z`, UTC,
-        minute precision, so up to 60s old inside the 5-minute window).
-        `WebhookInfo.tsx`, `/docs/integrations/zendesk` and customer
-        guide §6 now use it. `extractZendeskWebhookTimestamp` only accepts
-        strings starting with `YYYY-MM-DD`, so a loose date is rejected
-        instead of parsed. The route's `401` names the placeholder to use.
-        New tests cover the documented renderings. Still unconfirmed live:
-        a real trigger firing against the endpoint.
-      - Step 28/30, **fixed**. `getClientIp` (and `authorize()`'s copy)
-        keyed on the *leftmost* `X-Forwarded-For` entry, which the client
-        controls. nginx and Traefik append to whatever the client sent.
-        Live check against `next dev`: 13 sign-in POSTs with a rotating
-        header never hit the 10-per-window limit; a fixed header got `429`
-        from the 11th. Both now use `clientIpFromHeaders`, which reads from
-        the right and skips `TRUSTED_PROXY_COUNT - 1` entries (default 1).
-        `docker-compose.prod.yml` now binds `web` to
-        `${WEB_BIND:-127.0.0.1}`; before, it was published on every
-        interface, so anyone could skip the proxy and forge the header.
-        `docs/deployment.md` and `.env.prod.example` explain both settings
-        and the nginx header lines. Re-tested behind real `nginx:alpine`
-        and `caddy:2-alpine` (`tls internal`) containers in front of the
-        dev server: a rotating spoofed header is now limited after 10.
-      - Step 28, CSRF origin through a TLS proxy: through Caddy on
-        `https://localhost:8443`, `POST`/`PUT`/`PATCH` from that origin get
-        past the check (validation `400` / `405`), `https://evil.example`
-        gets `403`, and the session cookie works through the proxy.
-      - Step 35, checked with curl as a throwaway org (deleted afterwards):
-        the dashboard renders "Export full report" as
-        `<a href="/api/reports/commitments" download>`; the export returns
-        `200 text/csv` with `Content-Disposition: attachment`; cases and
-        every settings page return `200`. `/cases/<unknown id>` renders the
-        in-app not-found with `noindex`, but with HTTP `200`, not `404`:
-        `cases/[caseId]/loading.tsx` starts streaming before `notFound()`
-        runs, which is Next's documented behavior and harmless here.
-      - Step 35 visually, **fixed a bug**. Checked in the browser pane
-        with temporary 8-second pages under `dashboard`, `cases`,
-        `cases/[caseId]` and `settings`, plus a throwing page (all
-        removed afterwards). All four skeletons and the in-app error
-        boundary (digest reference, "Try again", "Back to dashboard")
-        render inside the sidebar shell. But the slow pages never got
-        past their skeleton. `SlaAutoRefreshProvider` called
-        `router.refresh()` every `activePollIntervalMs - 2000` (3s by
-        default), and each refresh supersedes the one in flight. Any
-        signed-in page whose server render takes longer than the
-        interval (slow DB, large org) would hang on its skeleton for as
-        long as it stayed open. The provider now skips ticks until the
-        last refresh's RSC response has completed (a `PerformanceObserver`
-        on `_rsc` resource entries, capped at 60s) and while the tab is
-        hidden. `useTransition` was tried first and doesn't work: it
-        settles once the layout commits, while the slow segment is still
-        behind its fallback. Re-checked: the 8s page loads (refreshes at
-        3.2s→11.2s, then 12.2s), and the fast dashboard keeps its 3s
-        cadence. It also no longer logs to the console on every tick.
-      Still open, needs the owner:
-      - Step 30 live: one real Zendesk trigger delivery.
-      - Step 38: a real GitHub App connect, an 8-hour token refresh, and
-        dropping `Contents: read`. GitHub's permission tables put
-        repository lookups under the mandatory Metadata permission and
-        timelines under Issues/Pull requests; no query here reads file
-        contents, so dropping it is likely safe, but only a live App run
-        can confirm.
-      - Step 28 on a real VPS: the production image (secure cookies, HSTS,
-        `NEXTAUTH_URL` as the public https origin) behind a real
-        certificate.
+      account, GitHub App or VPS is done, and it turned up two real bugs: - Step 30, **fixed**. Zendesk's placeholder reference documents
+      `{{ticket.updated_at}}` as a date only ("May18", no year in the
+      current year). `Date.parse("May 18")` gives 2001, so every
+      delivery set up as instructed would have failed with `401`. The
+      in-app docs page was worse: its trigger body had no `timestamp`
+      at all. The documented ISO placeholder is
+      `{{ticket.updated_at_with_timestamp}}` (`2013-12-12T05:35Z`, UTC,
+      minute precision, so up to 60s old inside the 5-minute window).
+      `WebhookInfo.tsx`, `/docs/integrations/zendesk` and customer
+      guide §6 now use it. `extractZendeskWebhookTimestamp` only accepts
+      strings starting with `YYYY-MM-DD`, so a loose date is rejected
+      instead of parsed. The route's `401` names the placeholder to use.
+      New tests cover the documented renderings. Still unconfirmed live:
+      a real trigger firing against the endpoint. - Step 28/30, **fixed**. `getClientIp` (and `authorize()`'s copy)
+      keyed on the _leftmost_ `X-Forwarded-For` entry, which the client
+      controls. nginx and Traefik append to whatever the client sent.
+      Live check against `next dev`: 13 sign-in POSTs with a rotating
+      header never hit the 10-per-window limit; a fixed header got `429`
+      from the 11th. Both now use `clientIpFromHeaders`, which reads from
+      the right and skips `TRUSTED_PROXY_COUNT - 1` entries (default 1).
+      `docker-compose.prod.yml` now binds `web` to
+      `${WEB_BIND:-127.0.0.1}`; before, it was published on every
+      interface, so anyone could skip the proxy and forge the header.
+      `docs/deployment.md` and `.env.prod.example` explain both settings
+      and the nginx header lines. Re-tested behind real `nginx:alpine`
+      and `caddy:2-alpine` (`tls internal`) containers in front of the
+      dev server: a rotating spoofed header is now limited after 10. - Step 28, CSRF origin through a TLS proxy: through Caddy on
+      `https://localhost:8443`, `POST`/`PUT`/`PATCH` from that origin get
+      past the check (validation `400` / `405`), `https://evil.example`
+      gets `403`, and the session cookie works through the proxy. - Step 35, checked with curl as a throwaway org (deleted afterwards):
+      the dashboard renders "Export full report" as
+      `<a href="/api/reports/commitments" download>`; the export returns
+      `200 text/csv` with `Content-Disposition: attachment`; cases and
+      every settings page return `200`. `/cases/<unknown id>` renders the
+      in-app not-found with `noindex`, but with HTTP `200`, not `404`:
+      `cases/[caseId]/loading.tsx` starts streaming before `notFound()`
+      runs, which is Next's documented behavior and harmless here. - Step 35 visually, **fixed a bug**. Checked in the browser pane
+      with temporary 8-second pages under `dashboard`, `cases`,
+      `cases/[caseId]` and `settings`, plus a throwing page (all
+      removed afterwards). All four skeletons and the in-app error
+      boundary (digest reference, "Try again", "Back to dashboard")
+      render inside the sidebar shell. But the slow pages never got
+      past their skeleton. `SlaAutoRefreshProvider` called
+      `router.refresh()` every `activePollIntervalMs - 2000` (3s by
+      default), and each refresh supersedes the one in flight. Any
+      signed-in page whose server render takes longer than the
+      interval (slow DB, large org) would hang on its skeleton for as
+      long as it stayed open. The provider now skips ticks until the
+      last refresh's RSC response has completed (a `PerformanceObserver`
+      on `_rsc` resource entries, capped at 60s) and while the tab is
+      hidden. `useTransition` was tried first and doesn't work: it
+      settles once the layout commits, while the slow segment is still
+      behind its fallback. Re-checked: the 8s page loads (refreshes at
+      3.2s→11.2s, then 12.2s), and the fast dashboard keeps its 3s
+      cadence. It also no longer logs to the console on every tick.
+      Still open, needs the owner: - Step 30 live: one real Zendesk trigger delivery. - Step 38: a real GitHub App connect, an 8-hour token refresh, and
+      dropping `Contents: read`. GitHub's permission tables put
+      repository lookups under the mandatory Metadata permission and
+      timelines under Issues/Pull requests; no query here reads file
+      contents, so dropping it is likely safe, but only a live App run
+      can confirm. - Step 28 on a real VPS: the production image (secure cookies, HSTS,
+      `NEXTAUTH_URL` as the public https origin) behind a real
+      certificate.
 
 - [ ] **42 — Enforce the single-instance worker**
       The worker is only safe as one instance (`production.md`: in-process

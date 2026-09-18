@@ -1,0 +1,104 @@
+/**
+ * `POST /api/settings/worker` (Step 0.2, S-1): only a platform operator
+ * (an email listed in `PLATFORM_ADMIN_EMAILS`, checked server-side — not a
+ * `UserRole`) may change worker settings. A signed-in org owner who is not
+ * a platform operator must get `403`, and the write path must never be
+ * reached for them.
+ *
+ * Fully mocked (`@sla/db`, `next-auth`, `@/lib/auth`) — no Postgres needed,
+ * since the operator check runs before anything touches the database.
+ */
+import type { Session } from "next-auth";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const auth = vi.hoisted(() => ({ session: null as Session | null }));
+const db = vi.hoisted(() => ({ saveWorkerSettings: vi.fn() }));
+
+vi.mock("next-auth", () => ({ getServerSession: vi.fn(async () => auth.session) }));
+// The real options module pulls in bcrypt and the credentials provider;
+// the route only passes it through to the mocked getServerSession.
+vi.mock("@/lib/auth", () => ({ authOptions: {} }));
+vi.mock("@sla/db", () => ({
+  getPrismaClient: vi.fn(),
+  saveWorkerSettings: db.saveWorkerSettings,
+  deriveWorkerStatus: vi.fn(),
+  WorkerSettingsValidationError: class WorkerSettingsValidationError extends Error {},
+}));
+
+function sessionFor(email: string, role: "owner" | "member"): Session {
+  return {
+    expires: new Date(Date.now() + 3_600_000).toISOString(),
+    user: {
+      id: "user-1",
+      organizationId: "org-1",
+      email,
+      name: null,
+      image: null,
+      role,
+      createdAt: new Date(),
+    },
+  };
+}
+
+function postRequest() {
+  return new Request("http://localhost/api/settings/worker", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ activePollIntervalMs: 300_000, reconciliationIntervalMs: 3_600_000 }),
+  });
+}
+
+describe("POST /api/settings/worker", () => {
+  const originalEnv = process.env.PLATFORM_ADMIN_EMAILS;
+
+  beforeEach(() => {
+    vi.resetModules();
+    db.saveWorkerSettings.mockReset();
+    auth.session = null;
+  });
+
+  afterEach(() => {
+    process.env.PLATFORM_ADMIN_EMAILS = originalEnv;
+  });
+
+  it("rejects a non-operator org owner with 403 and never writes", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = "ops@watchtower.test";
+    auth.session = sessionFor("owner@tenant.test", "owner");
+
+    const { POST } = await import("../src/app/api/settings/worker/route");
+    const response = await POST(postRequest());
+
+    expect(response.status).toBe(403);
+    expect(db.saveWorkerSettings).not.toHaveBeenCalled();
+  });
+
+  it("rejects a signed-out request with 401", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = "ops@watchtower.test";
+    auth.session = null;
+
+    const { POST } = await import("../src/app/api/settings/worker/route");
+    const response = await POST(postRequest());
+
+    expect(response.status).toBe(401);
+    expect(db.saveWorkerSettings).not.toHaveBeenCalled();
+  });
+
+  it("allows a platform operator, matched case-insensitively", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = "Ops@Watchtower.test";
+    auth.session = sessionFor("ops@watchtower.test", "member");
+    db.saveWorkerSettings.mockResolvedValue({
+      activePollIntervalMs: 300_000,
+      reconciliationIntervalMs: 3_600_000,
+      lastActivePollAt: null,
+      nextActivePollAt: null,
+      lastReconciliationAt: null,
+      nextReconciliationAt: null,
+    });
+
+    const { POST } = await import("../src/app/api/settings/worker/route");
+    const response = await POST(postRequest());
+
+    expect(response.status).toBe(200);
+    expect(db.saveWorkerSettings).toHaveBeenCalledTimes(1);
+  });
+});

@@ -602,7 +602,8 @@ enum CommitmentStatus {
 /// scheduling, so this config is deliberately global rather than living on
 /// `Organization`. `activePollIntervalMs`/`reconciliationIntervalMs` start
 /// out equal to the `WORKER_ACTIVE_POLL_MS`/`WORKER_RECONCILIATION_MS` env
-/// vars (bootstrap defaults for a fresh install); once an owner saves a
+/// vars (bootstrap defaults for a fresh install); once a platform operator
+/// (see `PLATFORM_ADMIN_EMAILS`, `apps/web/src/lib/authz.ts`) saves a
 /// change from the Monitoring settings page, this row is authoritative and
 /// the env vars are no longer consulted.
 model WorkerSettings {

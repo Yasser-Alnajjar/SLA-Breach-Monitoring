@@ -2,22 +2,22 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { deriveWorkerStatus, getPrismaClient, saveWorkerSettings, WorkerSettingsValidationError } from "@sla/db";
 import { authOptions } from "@/lib/auth";
-import { requireOwner } from "@/lib/authz";
+import { isPlatformOperator, requirePlatformOperator } from "@/lib/authz";
 import { getWorkerMonitoringData } from "@/lib/worker-settings-data";
 
-/** Viewable by any signed-in organization member — see `requireOwner` for why only the write path is gated. */
+/** Viewable by any signed-in organization member — see `requirePlatformOperator` for why only the write path is gated. */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const prisma = getPrismaClient();
-  const data = await getWorkerMonitoringData(prisma, session.user.role === "owner");
+  const data = await getWorkerMonitoringData(prisma, isPlatformOperator(session));
   return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  const denied = requireOwner(session);
+  const denied = requirePlatformOperator(session);
   if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as

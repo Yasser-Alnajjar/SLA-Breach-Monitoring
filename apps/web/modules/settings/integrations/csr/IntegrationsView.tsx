@@ -41,9 +41,33 @@ const descriptionClass = "text-sm leading-6 text-muted-foreground";
 const providerToneClasses = {
   success: "bg-success/10 text-success",
   primary: "bg-primary/10 text-primary",
+  support: "bg-leg-support/10 text-leg-support",
   engineering: "bg-leg-engineering/10 text-leg-engineering",
-  interactive: "bg-interactive/15 text-foreground",
+  waiting: "bg-leg-waiting/10 text-leg-waiting",
+  unknown: "bg-leg-unknown/10 text-leg-unknown",
+  running: "bg-clock-running/10 text-clock-running",
+  paused: "bg-clock-paused/10 text-clock-paused",
   warning: "bg-warning/10 text-warning",
+  destructive: "bg-destructive/10 text-destructive",
+  interactive: "bg-interactive/15 text-foreground",
+  muted: "bg-muted/60 text-muted-foreground",
+  accent: "bg-accent/60 text-accent-foreground",
+} as const;
+
+const providerToneBorders = {
+  success: "border-success/20",
+  primary: "border-primary/20",
+  support: "border-leg-support/20",
+  engineering: "border-leg-engineering/20",
+  waiting: "border-leg-waiting/20",
+  unknown: "border-leg-unknown/20",
+  running: "border-clock-running/20",
+  paused: "border-clock-paused/20",
+  warning: "border-warning/20",
+  destructive: "border-destructive/20",
+  interactive: "border-interactive/15",
+  muted: "border-border/60",
+  accent: "border-accent/40",
 } as const;
 
 type ProviderTone = keyof typeof providerToneClasses;
@@ -107,7 +131,12 @@ function IntegrationCard({
 }) {
   return (
     <Reveal delay={delay}>
-      <Card className="flex h-full flex-col gap-5 p-6 transition-shadow duration-300 hover:shadow-elevated">
+      <Card
+        className={cn(
+          "flex h-full flex-col gap-5 p-6 transition-shadow duration-300 hover:shadow-elevated border-e-8!",
+          providerToneBorders[tone],
+        )}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span
@@ -453,7 +482,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           <IntegrationCard
             delay={0.15}
             icon={<MessageSquare className="size-4" />}
-            tone="interactive"
+            tone="warning"
             title="Slack"
             status={
               slackConfig.configured &&

@@ -138,7 +138,7 @@ is covered in [docs/deployment.md](docs/deployment.md).
 - **In-app docs** at `/docs` in the running web app
   (`apps/web/src/app/docs`) give a per-page guide for end users, with one
   page per integration.
-- **[implementation-plans/roadmap.md](implementation-plans/roadmap.md)**
+- **[implementation-plans/ROADMAP_Product.md](implementation-plans/ROADMAP_Product.md)**
   records what has been built, step by step, and why.
 
 When behavior changes, update `docs/customer-guide.md` and the matching

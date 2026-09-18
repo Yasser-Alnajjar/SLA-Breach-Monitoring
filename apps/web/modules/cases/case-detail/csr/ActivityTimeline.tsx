@@ -1,0 +1,187 @@
+"use client";
+
+import {
+  ArrowRightLeft,
+  CheckCircle2,
+  CirclePlus,
+  HelpCircle,
+  Link2,
+  ListTree,
+  MessageSquare,
+  MessageSquareReply,
+  Unlink,
+} from "lucide-react";
+import type { ReactNode } from "react";
+
+import { Reveal } from "@/components/shared/reveal";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  formatActor,
+  formatDateTime,
+  formatNormalizedState,
+  NORMALIZED_STATE_DESCRIPTIONS,
+} from "@/lib/format";
+import { NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
+import { INTEGRATION_PROVIDER_LABELS } from "@/lib/types/integrations";
+import type { CaseDetailData, TimelineEventDetail } from "@/lib/types/cases";
+
+const EVENT_TYPE_ICON: Record<string, ReactNode> = {
+  case_created: <CirclePlus className="size-3" />,
+  state_changed: <ArrowRightLeft className="size-3" />,
+  issue_linked: <Link2 className="size-3" />,
+  issue_unlinked: <Unlink className="size-3" />,
+  case_closed: <CheckCircle2 className="size-3" />,
+  agent_replied: <MessageSquareReply className="size-3" />,
+  customer_replied: <MessageSquare className="size-3" />,
+};
+
+const PROVIDER_LABELS = INTEGRATION_PROVIDER_LABELS as Record<string, string>;
+
+function StateBadge({ state }: { state: string }) {
+  return (
+    <Badge
+      variant={NORMALIZED_STATE_VARIANT[state] ?? "default"}
+      className="text-nowrap"
+    >
+      {formatNormalizedState(state)}
+    </Badge>
+  );
+}
+
+function TimelineEventBody({ event }: { event: TimelineEventDetail }) {
+  if (event.type === "state_changed" && event.fromState && event.toState) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+        <StateBadge state={event.fromState} />
+        <span className="text-muted-foreground">→</span>
+        <StateBadge state={event.toState} />
+      </div>
+    );
+  }
+
+  if (event.type === "case_created" && event.toState) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+        <span>Opened as</span>
+        <StateBadge state={event.toState} />
+      </div>
+    );
+  }
+
+  const eventTypeText: Record<string, string> = {
+    issue_linked: "Issue linked",
+    issue_unlinked: "Issue unlinked",
+    case_closed: "Case closed",
+    agent_replied: "Agent replied",
+    customer_replied: "Customer replied",
+  };
+
+  return (
+    <span className="text-sm font-medium">
+      {eventTypeText[event.type] ?? event.type}
+    </span>
+  );
+}
+
+function TimelineGlossary() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="What do these states mean?"
+          className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <HelpCircle className="size-4" />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        className="w-full max-w-xs sm:max-w-md lg:max-w-xl"
+      >
+        <div className="text-xs leading-5 text-muted-foreground">
+          These are normalized states used by this app across Zendesk, Jira,
+          Linear, and other providers.
+        </div>
+
+        <ul className="mt-3 space-y-2.5">
+          {Object.entries(NORMALIZED_STATE_DESCRIPTIONS).map(
+            ([state, description]) => (
+              <li key={state} className="flex items-start gap-2">
+                <StateBadge state={state} />
+                <span className="text-xs leading-5 text-muted-foreground">
+                  {description}
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function ActivityTimeline({ data }: { data: CaseDetailData }) {
+  return (
+    <Reveal delay={0.05}>
+      <Card className="min-w-0">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <ListTree className="size-4 text-muted-foreground" />
+          <CardTitle className="text-base">Activity</CardTitle>
+          <TimelineGlossary />
+        </CardHeader>
+
+        <CardContent>
+          {data.timeline.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
+            <ol className="max-h-128 overflow-y-auto border-t border-border">
+              {data.timeline.map((event, index) => (
+                <li
+                  key={event.id}
+                  className="relative py-4 ps-8 first:pt-5 last:pb-1"
+                >
+                  {index < data.timeline.length - 1 && (
+                    <span
+                      aria-hidden
+                      className="absolute bottom-0 left-2.5 top-10 w-px bg-border h-full"
+                    />
+                  )}
+
+                  <span className="absolute left-0 top-5 grid size-5 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+                    {EVENT_TYPE_ICON[event.type] ?? (
+                      <span className="size-1.5 rounded-full bg-current" />
+                    )}
+                  </span>
+
+                  <TimelineEventBody event={event} />
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <time className="tabular-nums">
+                      {formatDateTime(event.occurredAt)}
+                    </time>
+
+                    <span aria-hidden>·</span>
+
+                    <span>{formatActor(event.actor)}</span>
+
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      {PROVIDER_LABELS[event.system] ?? event.system}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+    </Reveal>
+  );
+}

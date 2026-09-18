@@ -75,10 +75,42 @@ function isStatusChangeEvent(
   );
 }
 
-function isPublicCommentEvent(
+export function isPublicCommentEvent(
   event: ZendeskAudit["events"][number],
 ): event is { id: number; type: "Comment"; public: true; author_id?: number } {
   return event.type === "Comment" && event.public === true;
+}
+
+/** One public comment's text and author, read straight off an audit event — for conversation display only, never for SLA math. */
+export interface ZendeskCommentBody {
+  authorId: number | null;
+  body: string;
+}
+
+/**
+ * Every public Comment event in one audit, in the audit's own event order,
+ * with its text extracted (Zendesk's `plain_body`, falling back to `body` —
+ * both already plain text, never `html_body`). A Comment event with no
+ * usable text (attachment-only, blank) is left out. This reads exactly the
+ * same `public: true` events `deriveNormalizedEventsForTicket` turns into
+ * `agent_replied`/`customer_replied`, just keeping their content instead of
+ * discarding it.
+ */
+export function publicCommentBodiesInAudit(audit: ZendeskAudit): ZendeskCommentBody[] {
+  const results: ZendeskCommentBody[] = [];
+  for (const raw of audit.events) {
+    // Read the untyped fields before the `isPublicCommentEvent` guard
+    // narrows `raw`'s type — its asserted type carries no index signature.
+    const plainBody = raw.plain_body;
+    const bodyField = raw.body;
+    const authorIdField = raw.author_id;
+    if (!isPublicCommentEvent(raw)) continue;
+    const body = typeof plainBody === "string" ? plainBody : typeof bodyField === "string" ? bodyField : "";
+    if (body.trim() === "") continue;
+    const authorId = typeof authorIdField === "number" ? authorIdField : audit.author_id;
+    results.push({ authorId: typeof authorId === "number" ? authorId : null, body });
+  }
+  return results;
 }
 
 export interface AuditRecord {

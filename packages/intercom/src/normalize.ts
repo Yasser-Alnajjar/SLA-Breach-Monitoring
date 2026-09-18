@@ -75,12 +75,30 @@ export function isCustomerReplyPart(part: IntercomConversationPart): boolean {
   return resolveIntercomActor(part.author) === "customer" && isVisibleMessagePart(part);
 }
 
-function isVisibleMessagePart(part: IntercomConversationPart): boolean {
+export function isVisibleMessagePart(part: IntercomConversationPart): boolean {
   return (
     CUSTOMER_VISIBLE_REPLY_PART_TYPES.has(part.part_type) &&
     typeof part.body === "string" &&
     part.body.trim() !== ""
   );
+}
+
+/** One reply part's HTML body and author name, for conversation display only — never for SLA math. */
+export interface IntercomMessageBody {
+  authorName: string | null;
+  /** HTML, same as `IntercomConversationPart.body` — the caller strips markup before rendering. */
+  bodyHtml: string;
+}
+
+/**
+ * A reply part's content, when it's a visible customer/agent message
+ * (`isVisibleMessagePart` — the same test `isAgentReplyPart`/
+ * `isCustomerReplyPart` use). Null for notes, transitions, and other part
+ * types that never become `agent_replied`/`customer_replied`.
+ */
+export function extractIntercomMessageBody(part: IntercomConversationPart): IntercomMessageBody | null {
+  if (!isVisibleMessagePart(part)) return null;
+  return { authorName: part.author?.name?.trim() || null, bodyHtml: part.body as string };
 }
 
 /** Channels Intercom uses when an automation/workflow made the change, not a person. */

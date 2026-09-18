@@ -2,6 +2,8 @@ export {
   deriveNormalizedEventsForConversation,
   deriveCaseClosedAt,
   deriveIntercomSubject,
+  extractIntercomMessageBody,
+  isVisibleMessagePart,
   normalizeIntercomPriority,
   normalizeIntercomState,
   resolveIntercomActor,
@@ -12,6 +14,7 @@ export {
 export type {
   ConversationPartRecord,
   DerivedNormalizedEvent,
+  IntercomMessageBody,
   NormalizationResult,
 } from "./normalize";
 export {

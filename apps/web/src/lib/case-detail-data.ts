@@ -19,13 +19,24 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
-import type { ZendeskCredentials } from "@sla/zendesk";
-import { buildIntercomConversationUrl, type IntercomCredentials } from "@sla/intercom";
+import {
+  publicCommentBodiesInAudit,
+  type ZendeskAudit,
+  type ZendeskCommentBody,
+  type ZendeskCredentials,
+} from "@sla/zendesk";
+import {
+  buildIntercomConversationUrl,
+  extractIntercomMessageBody,
+  type IntercomConversationPart,
+  type IntercomCredentials,
+} from "@sla/intercom";
 import type { JiraCredentials } from "@sla/jira";
 import type {
   CaseDetailData,
   CaseLinkDetail,
   CommitmentDetail,
+  ConversationMessageDetail,
   LegTotal,
   TimelineEventDetail,
 } from "./types/cases";
@@ -179,6 +190,15 @@ export async function getCaseDetailData(
   // exactly as the evaluations below consumed them.
   const domainEvents: NormalizedEvent[] = sortNormalizedEvents(
     eventRows.map(toNormalizedEventDomain),
+  );
+
+  // Presentation-only: reads each reply's source text out of RawEvent, never
+  // altering domainEvents or anything derived from it below.
+  const conversation = await buildConversationMessages(
+    prisma,
+    caseRow,
+    domainEvents,
+    zendeskIntegration?.id ?? null,
   );
 
   const commitments: CommitmentDetail[] = caseRow.commitments
@@ -412,6 +432,170 @@ export async function getCaseDetailData(
     runningIntervals,
     pausedIntervals,
     timeline,
+    conversation,
     links,
   };
+}
+
+function isReplyEvent(
+  event: NormalizedEvent,
+): event is NormalizedEvent & { actor: "customer" | "agent"; type: "agent_replied" | "customer_replied" } {
+  return event.type === "agent_replied" || event.type === "customer_replied";
+}
+
+/**
+ * The case's full public conversation: every `agent_replied`/
+ * `customer_replied` event (already in `domainEvents`' deterministic order,
+ * with SLA relevance irrelevant to inclusion — an event that fed no
+ * commitment still appears here) paired with the message text its source
+ * RawEvent carries. Private/internal notes are out of scope: they're never
+ * derived into a NormalizedEvent to begin with (see `isPublicCommentEvent`
+ * in @sla/zendesk, `isVisibleMessagePart` in @sla/intercom), so there is no
+ * normalized record to read one from yet.
+ */
+async function buildConversationMessages(
+  prisma: PrismaClient,
+  caseRow: { externalId: string; system: string; requesterName: string | null },
+  domainEvents: NormalizedEvent[],
+  zendeskIntegrationId: string | null,
+): Promise<ConversationMessageDetail[]> {
+  const replyEvents = domainEvents.filter(isReplyEvent);
+  if (replyEvents.length === 0) return [];
+
+  const rawEventRows = await prisma.rawEvent.findMany({
+    where: { id: { in: [...new Set(replyEvents.map((e) => e.sourceRawEventId))] } },
+    select: { id: true, payload: true },
+  });
+  const payloadById = new Map(rawEventRows.map((row) => [row.id, row.payload]));
+
+  if (caseRow.system === "zendesk") {
+    return buildZendeskConversationMessages(prisma, caseRow, replyEvents, payloadById, zendeskIntegrationId);
+  }
+  if (caseRow.system === "intercom") {
+    return buildIntercomConversationMessages(replyEvents, payloadById);
+  }
+  // Jira/Linear/GitHub cases never carry agent_replied/customer_replied
+  // events (only zendesk.ts/intercom.ts's normalizers ever derive them), so
+  // replyEvents would already be empty here — this branch is unreachable in
+  // practice, kept only so a case with a mixed-provider event stream (a
+  // linked issue's events on a Zendesk/Intercom case) can't fall through
+  // silently if that ever changes.
+  return [];
+}
+
+async function buildZendeskConversationMessages(
+  prisma: PrismaClient,
+  caseRow: { externalId: string; requesterName: string | null },
+  replyEvents: (NormalizedEvent & { actor: "customer" | "agent"; type: "agent_replied" | "customer_replied" })[],
+  payloadById: Map<string, unknown>,
+  zendeskIntegrationId: string | null,
+): Promise<ConversationMessageDetail[]> {
+  // The ticket's own requester id, so a customer message can be attributed
+  // to the case's already-known `requesterName` — never guessed for anyone
+  // else. Zendesk's audit sideload only ever stores a comment author's role
+  // (see `mapUserToRawEvent`'s privacy-minimization comment in
+  // @sla/zendesk), never their name, so any other author stays unnamed.
+  let requesterId: number | null = null;
+  if (zendeskIntegrationId) {
+    const ticketRow = await prisma.rawEvent.findFirst({
+      where: {
+        integrationId: zendeskIntegrationId,
+        providerEventId: { startsWith: `ticket:${caseRow.externalId}:` },
+      },
+      orderBy: { fetchedAt: "desc" },
+      select: { payload: true },
+    });
+    const ticketPayload = ticketRow?.payload as { requester_id?: number | null } | undefined;
+    requesterId = ticketPayload?.requester_id ?? null;
+  }
+
+  // Group replies by the audit they came from, in each audit's own
+  // sourceSequence order — the order `deriveNormalizedEventsForTicket`
+  // walked that audit's events in.
+  const groups = new Map<string, typeof replyEvents>();
+  for (const event of replyEvents) {
+    const group = groups.get(event.sourceRawEventId);
+    if (group) group.push(event);
+    else groups.set(event.sourceRawEventId, [event]);
+  }
+
+  const bodyByEventId = new Map<string, ZendeskCommentBody>();
+  for (const [rawEventId, group] of groups) {
+    const audit = payloadById.get(rawEventId) as ZendeskAudit | undefined;
+    if (!audit) continue;
+    const comments = publicCommentBodiesInAudit(audit);
+    const ordered = [...group].sort((a, b) => (a.sourceSequence ?? 0) - (b.sourceSequence ?? 0));
+    // An audit almost always carries exactly one public comment; when it
+    // carries more, both lists were built by walking that audit's events in
+    // the same order, so pairing them index-wise recovers the right text
+    // for each. A length mismatch (e.g. a comment on the ticket's own
+    // creation audit, excluded from `agent_replied`/`customer_replied` but
+    // not from this raw scan) pairs as far as the shorter list goes, rather
+    // than guessing or throwing.
+    ordered.forEach((event, index) => {
+      const comment = comments[index];
+      if (comment) bodyByEventId.set(event.id, comment);
+    });
+  }
+
+  return replyEvents.flatMap((event) => {
+    const comment = bodyByEventId.get(event.id);
+    if (!comment) return [];
+    const authorName =
+      event.actor === "customer" && comment.authorId != null && comment.authorId === requesterId
+        ? caseRow.requesterName
+        : null;
+    return [
+      {
+        id: event.id,
+        occurredAt: event.occurredAt,
+        actor: event.actor,
+        type: event.type,
+        authorName,
+        body: comment.body,
+      },
+    ];
+  });
+}
+
+function buildIntercomConversationMessages(
+  replyEvents: (NormalizedEvent & { actor: "customer" | "agent"; type: "agent_replied" | "customer_replied" })[],
+  payloadById: Map<string, unknown>,
+): ConversationMessageDetail[] {
+  return replyEvents.flatMap((event) => {
+    const part = payloadById.get(event.sourceRawEventId) as IntercomConversationPart | undefined;
+    if (!part) return [];
+    const message = extractIntercomMessageBody(part);
+    if (!message) return [];
+    return [
+      {
+        id: event.id,
+        occurredAt: event.occurredAt,
+        actor: event.actor,
+        type: event.type,
+        authorName: message.authorName,
+        body: htmlToPlainText(message.bodyHtml),
+      },
+    ];
+  });
+}
+
+/**
+ * Intercom message bodies are HTML. This strips markup down to plain text
+ * for display — the conversation view never uses `dangerouslySetInnerHTML`,
+ * so third-party HTML is never interpreted as markup.
+ */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>|<\/div>|<\/li>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

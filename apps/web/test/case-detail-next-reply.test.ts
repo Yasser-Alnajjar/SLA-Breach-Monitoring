@@ -107,6 +107,7 @@ function fakePrisma(
       }),
     },
     normalizedEvent: { findMany: async () => events },
+    rawEvent: { findMany: async () => [], findFirst: async () => null },
     integration: { findUnique: async () => null },
     organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
     sLAPolicyVersion: { findMany: async () => [policyRow] },

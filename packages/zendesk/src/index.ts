@@ -1,7 +1,9 @@
 export {
   deriveNormalizedEventsForTicket,
+  isPublicCommentEvent,
   latestSnapshotById,
   normalizeZendeskStatus,
+  publicCommentBodiesInAudit,
   resolveActor,
   runZendeskNormalization,
   sortAuditsChronologically,
@@ -20,6 +22,7 @@ export type {
   AuditRecord,
   DerivedNormalizedEvent,
   NormalizationResult,
+  ZendeskCommentBody,
   ZendeskUserRoles,
 } from "./normalize";
 export {

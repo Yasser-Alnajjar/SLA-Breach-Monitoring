@@ -4,6 +4,7 @@ import {
   deriveCaseClosedAt,
   deriveIntercomSubject,
   deriveNormalizedEventsForConversation,
+  extractIntercomMessageBody,
   normalizeIntercomPriority,
   normalizeIntercomState,
   resolveIntercomActor,
@@ -510,5 +511,35 @@ describe("Next Reply cycles from derived conversation events", () => {
       [iso(300), iso(400), "raw_p07", ["raw_p04", "raw_p06"]],
       [iso(500), null, null, ["raw_p09"]],
     ]);
+  });
+});
+
+describe("extractIntercomMessageBody", () => {
+  it("extracts a visible reply part's HTML body and author name", () => {
+    const message = extractIntercomMessageBody(
+      part({ id: "p1", part_type: "comment", body: "<p>hello there</p>", author: { type: "user", id: "u1", name: "Jane Customer" } }).part,
+    );
+    expect(message).toEqual({ authorName: "Jane Customer", bodyHtml: "<p>hello there</p>" });
+  });
+
+  it("returns null author name when the part carries none", () => {
+    const message = extractIntercomMessageBody(
+      part({ id: "p1", part_type: "comment", body: "<p>hi</p>", author: { type: "admin", id: "a1" } }).part,
+    );
+    expect(message).toEqual({ authorName: null, bodyHtml: "<p>hi</p>" });
+  });
+
+  it("returns null for a private note, even though it carries a body", () => {
+    const message = extractIntercomMessageBody(
+      part({ id: "p1", part_type: "note", body: "<p>internal only</p>", author: { type: "admin", id: "a1" } }).part,
+    );
+    expect(message).toBeNull();
+  });
+
+  it("returns null for a part with no body (e.g. a bare assignment)", () => {
+    const message = extractIntercomMessageBody(
+      part({ id: "p1", part_type: "assignment", body: null, author: { type: "admin", id: "a1" } }).part,
+    );
+    expect(message).toBeNull();
   });
 });

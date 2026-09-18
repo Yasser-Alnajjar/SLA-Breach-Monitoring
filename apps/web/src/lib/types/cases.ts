@@ -81,6 +81,37 @@ export interface TimelineEventDetail {
   toState: NormalizedState | null;
 }
 
+/**
+ * One public message in the case's conversation — an `agent_replied` or
+ * `customer_replied` `NormalizedEvent` with its source text attached. Never
+ * built from an inference on a name or email: `actor` is carried straight
+ * through from the already-resolved `NormalizedEvent.actor` (Zendesk role /
+ * Intercom author type), the same field the SLA engine itself trusts.
+ *
+ * Excludes private/internal notes: they are never derived into
+ * `NormalizedEvent` in the first place (see `isPublicCommentEvent` in
+ * @sla/zendesk and `isVisibleMessagePart` in @sla/intercom), so there is no
+ * normalized record of them to surface here yet.
+ */
+export interface ConversationMessageDetail {
+  /** The source `NormalizedEvent.id` — stable within one render, not across normalization re-runs. */
+  id: string;
+  occurredAt: string;
+  actor: "customer" | "agent";
+  type: "agent_replied" | "customer_replied";
+  /**
+   * The message's own author name, when the source system carries one
+   * (Intercom always does; Zendesk only when the author is provably the
+   * case's requester — Zendesk otherwise never persists a comment author's
+   * name, only their role). Null falls back to a generic "Customer"/"Agent"
+   * label in the UI — never guessed from an email or the case's requester
+   * name when that link can't be confirmed.
+   */
+  authorName: string | null;
+  /** Plain text, safe to render without HTML interpretation. */
+  body: string;
+}
+
 export interface LegTotal {
   leg: Leg;
   minutes: number;
@@ -136,5 +167,7 @@ export interface CaseDetailData {
   runningIntervals: { start: string; end: string }[];
   pausedIntervals: PausedInterval[];
   timeline: TimelineEventDetail[];
+  /** Every public customer/agent message, in the same deterministic order as `timeline` — see `ConversationMessageDetail`. */
+  conversation: ConversationMessageDetail[];
   links: CaseLinkDetail[];
 }

@@ -3,11 +3,10 @@
  * the ticket) must never be merged in the UI: a requester is never shown as
  * if it were the customer, and a case with no customer never renders a
  * dangling "Customer: —". `formatCaseIdentity` is the single place
- * CaseDetailView decides what to show for a case's identity line — see its
- * two call sites in CaseDetailView.tsx.
+ * CaseHeader decides what to show for a case's identity line.
  */
 import { describe, expect, it } from "vitest";
-import { formatCaseIdentity } from "@modules/cases/case-detail/csr/CaseDetailView";
+import { formatCaseIdentity } from "@modules/cases/case-detail/csr/CaseHeader";
 
 describe("formatCaseIdentity", () => {
   it("shows both, with the requester clearly labeled, when a customer and a requester both exist", () => {

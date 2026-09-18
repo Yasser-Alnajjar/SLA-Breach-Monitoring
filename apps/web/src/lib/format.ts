@@ -261,3 +261,8 @@ const CASE_LINK_METHOD_LABELS: Record<string, string> = {
 export function formatCaseLinkMethod(method: string): string {
   return CASE_LINK_METHOD_LABELS[method] ?? method;
 }
+
+/** The ticket source's display name — the only two systems a Case's own source (as opposed to a linked issue) can be. */
+export function formatTicketSource(system: "zendesk" | "intercom" | "jira" | "linear" | "github"): string {
+  return system === "intercom" ? "Intercom" : "Zendesk";
+}

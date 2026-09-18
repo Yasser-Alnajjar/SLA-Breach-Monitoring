@@ -1,0 +1,282 @@
+/**
+ * Case detail conversation view: the Case detail page must show every
+ * public customer/agent message in chronological order, distinguishing
+ * Customer from Agent off the already-resolved `NormalizedEvent.actor` —
+ * never off a name or email — and must never surface a message that has no
+ * normalized record (private/internal notes are never derived into a
+ * NormalizedEvent in the first place; see @sla/zendesk's
+ * `isPublicCommentEvent`). This is presentation/data-access only: it must
+ * never change which commitments exist or how they're evaluated.
+ */
+import type { PrismaClient } from "@sla/db";
+import { describe, expect, it } from "vitest";
+import { getCaseDetailData } from "@/lib/case-detail-data";
+
+const OPENED = new Date("2026-09-17T09:00:00.000Z");
+const AS_OF = new Date("2026-09-17T15:00:00.000Z");
+
+const TICKET_RAW_ID = "raw-ticket-1";
+const REQUESTER_ID = 501;
+const OTHER_END_USER_ID = 777; // a CC'd contact, not the requester
+const AGENT_ID = 900;
+
+function ticketRawEvent(overrides: Partial<{ requester_id: number | null }> = {}) {
+  return {
+    id: TICKET_RAW_ID,
+    payload: {
+      id: 1,
+      requester_id: REQUESTER_ID,
+      ...overrides,
+    },
+  };
+}
+
+/** One Zendesk audit RawEvent row carrying a single Comment event. */
+function auditRawEvent(
+  rawEventId: string,
+  overrides: {
+    authorId: number;
+    body: string;
+    public?: boolean;
+    createdAt?: string;
+  },
+) {
+  return {
+    id: rawEventId,
+    payload: {
+      id: Number(rawEventId.replace(/\D/g, "")) || 0,
+      ticket_id: 1,
+      created_at: overrides.createdAt ?? "2026-09-17T09:00:00Z",
+      author_id: overrides.authorId,
+      events: [
+        {
+          id: 1,
+          type: "Comment",
+          public: overrides.public ?? true,
+          body: overrides.body,
+          author_id: overrides.authorId,
+        },
+      ],
+    },
+  };
+}
+
+function normalizedEvent(overrides: {
+  id: string;
+  type: string;
+  occurredAt: Date;
+  actor?: string;
+  sourceRawEventId: string;
+  sourceSequence?: number;
+}) {
+  return {
+    id: overrides.id,
+    caseId: "case-1",
+    type: overrides.type,
+    occurredAt: overrides.occurredAt,
+    actor: overrides.actor ?? "agent",
+    system: "zendesk",
+    fromState: null,
+    toState: null,
+    sourceRawEventId: overrides.sourceRawEventId,
+    sourceSequence: overrides.sourceSequence ?? 0,
+  };
+}
+
+function fakePrisma(options: {
+  events: ReturnType<typeof normalizedEvent>[];
+  rawEvents: ReturnType<typeof auditRawEvent>[];
+  ticket?: ReturnType<typeof ticketRawEvent> | null;
+  requesterName?: string | null;
+}): PrismaClient {
+  return {
+    case: {
+      findFirst: async () => ({
+        id: "case-1",
+        organizationId: "org-1",
+        externalId: "1",
+        system: "zendesk",
+        subject: "Login trouble",
+        priority: "high",
+        tier: null,
+        channel: "web",
+        openedAt: OPENED,
+        closedAt: null,
+        customer: { name: "Acme Corp" },
+        requesterName: options.requesterName ?? "Jane Requester",
+        caseLinks: [],
+        commitments: [],
+      }),
+    },
+    normalizedEvent: { findMany: async () => options.events },
+    rawEvent: {
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        options.rawEvents.filter((row) => where.id.in.includes(row.id)),
+      findFirst: async () => (options.ticket === null ? null : options.ticket ?? ticketRawEvent()),
+    },
+    integration: {
+      findUnique: async ({ where }: { where: { organizationId_provider: { provider: string } } }) =>
+        where.organizationId_provider.provider === "zendesk" ? { id: "int-zendesk-1", credentials: null } : null,
+    },
+    organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
+    sLAPolicyVersion: { findMany: async () => [] },
+    businessCalendarVersion: { findMany: async () => [] },
+  } as unknown as PrismaClient;
+}
+
+describe("getCaseDetailData: conversation", () => {
+  it("shows a customer public comment", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-1",
+        type: "customer_replied",
+        occurredAt: new Date("2026-09-17T09:10:00.000Z"),
+        actor: "customer",
+        sourceRawEventId: "raw-2",
+      }),
+    ];
+    const rawEvents = [auditRawEvent("raw-2", { authorId: REQUESTER_ID, body: "Hello, I need help" })];
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation).toEqual([
+      {
+        id: "ev-1",
+        occurredAt: "2026-09-17T09:10:00.000Z",
+        actor: "customer",
+        type: "customer_replied",
+        authorName: "Jane Requester",
+        body: "Hello, I need help",
+      },
+    ]);
+  });
+
+  it("shows an agent public reply", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-1",
+        type: "agent_replied",
+        occurredAt: new Date("2026-09-17T09:15:00.000Z"),
+        actor: "agent",
+        sourceRawEventId: "raw-3",
+      }),
+    ];
+    const rawEvents = [auditRawEvent("raw-3", { authorId: AGENT_ID, body: "Sure, I'm checking this" })];
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation).toEqual([
+      {
+        id: "ev-1",
+        occurredAt: "2026-09-17T09:15:00.000Z",
+        actor: "agent",
+        type: "agent_replied",
+        // Zendesk never persists a comment author's name, only their role
+        // (see mapUserToRawEvent) — an agent's name is never available.
+        authorName: null,
+        body: "Sure, I'm checking this",
+      },
+    ]);
+  });
+
+  it("shows every message in the full exchange, in chronological order, not just SLA-relevant ones", async () => {
+    const exchange: { type: string; actor: string; body: string; time: string }[] = [
+      { type: "customer_replied", actor: "customer", body: "Hello, I need help", time: "2026-09-17T09:10:00.000Z" },
+      { type: "agent_replied", actor: "agent", body: "Sure, I'm checking this", time: "2026-09-17T09:15:00.000Z" },
+      { type: "customer_replied", actor: "customer", body: "Any update?", time: "2026-09-17T10:00:00.000Z" },
+      { type: "agent_replied", actor: "agent", body: "Yes, here's the update", time: "2026-09-17T10:05:00.000Z" },
+      { type: "customer_replied", actor: "customer", body: "Thanks", time: "2026-09-17T10:06:00.000Z" },
+    ];
+    const events = exchange.map((m, i) =>
+      normalizedEvent({
+        id: `ev-${i}`,
+        type: m.type,
+        actor: m.actor,
+        occurredAt: new Date(m.time),
+        sourceRawEventId: `raw-${i}`,
+        sourceSequence: i,
+      }),
+    );
+    const rawEvents = exchange.map((m, i) =>
+      auditRawEvent(`raw-${i}`, { authorId: m.actor === "customer" ? REQUESTER_ID : AGENT_ID, body: m.body, createdAt: m.time }),
+    );
+
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation.map((m) => m.body)).toEqual(exchange.map((m) => m.body));
+    expect(data!.conversation.map((m) => m.actor)).toEqual(exchange.map((m) => m.actor));
+  });
+
+  it("distinguishes Customer from Agent off the resolved actor, not off the author's name", async () => {
+    // A CC'd end-user (not the ticket's requester) replies — actor is still
+    // "customer" (already resolved upstream), but the display name is left
+    // null rather than guessed from the requester's name.
+    const events = [
+      normalizedEvent({
+        id: "ev-1",
+        type: "customer_replied",
+        actor: "customer",
+        occurredAt: new Date("2026-09-17T09:10:00.000Z"),
+        sourceRawEventId: "raw-2",
+      }),
+    ];
+    const rawEvents = [auditRawEvent("raw-2", { authorId: OTHER_END_USER_ID, body: "Also following up" })];
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation[0]!.actor).toBe("customer");
+    expect(data!.conversation[0]!.authorName).toBeNull();
+  });
+
+  it("never surfaces a private/internal note — it has no normalized record to read one from", async () => {
+    // No NormalizedEvent was ever derived for the private note (matching
+    // the real normalizer's behavior), so nothing references raw-private —
+    // even if its RawEvent happens to be present, it's never looked up.
+    const events = [
+      normalizedEvent({
+        id: "ev-1",
+        type: "agent_replied",
+        actor: "agent",
+        occurredAt: new Date("2026-09-17T09:15:00.000Z"),
+        sourceRawEventId: "raw-3",
+      }),
+    ];
+    const rawEvents = [
+      auditRawEvent("raw-3", { authorId: AGENT_ID, body: "Sure, I'm checking this" }),
+      auditRawEvent("raw-private", { authorId: AGENT_ID, body: "internal-only escalation note", public: false }),
+    ];
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation).toHaveLength(1);
+    expect(data!.conversation.some((m) => m.body.includes("internal-only"))).toBe(false);
+  });
+
+  it("keeps two same-instant messages in a deterministic order (by sourceSequence), not DB fetch order", async () => {
+    const sameInstant = new Date("2026-09-17T10:00:00.000Z");
+    const customerMsg = normalizedEvent({
+      id: "ev-customer",
+      type: "customer_replied",
+      actor: "customer",
+      occurredAt: sameInstant,
+      sourceRawEventId: "raw-a",
+      sourceSequence: 5,
+    });
+    const agentMsg = normalizedEvent({
+      id: "ev-agent",
+      type: "agent_replied",
+      actor: "agent",
+      occurredAt: sameInstant,
+      sourceRawEventId: "raw-b",
+      sourceSequence: 6,
+    });
+    const rawEvents = [
+      auditRawEvent("raw-a", { authorId: REQUESTER_ID, body: "customer text", createdAt: sameInstant.toISOString() }),
+      auditRawEvent("raw-b", { authorId: AGENT_ID, body: "agent text", createdAt: sameInstant.toISOString() }),
+    ];
+
+    // Fed out of chronological/sequence order, as an unordered DB fetch might return them.
+    const dataA = await getCaseDetailData(fakePrisma({ events: [agentMsg, customerMsg], rawEvents }), "org-1", "case-1", AS_OF);
+    const dataB = await getCaseDetailData(fakePrisma({ events: [customerMsg, agentMsg], rawEvents }), "org-1", "case-1", AS_OF);
+
+    expect(dataA!.conversation.map((m) => m.id)).toEqual(["ev-customer", "ev-agent"]);
+    expect(dataB!.conversation.map((m) => m.id)).toEqual(["ev-customer", "ev-agent"]);
+  });
+
+  it("returns an empty conversation, and still resolves the case, when there are no reply events", async () => {
+    const data = await getCaseDetailData(fakePrisma({ events: [], rawEvents: [] }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation).toEqual([]);
+    expect(data!.case.id).toBe("case-1");
+  });
+});

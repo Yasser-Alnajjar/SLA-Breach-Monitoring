@@ -4,6 +4,7 @@ import {
   deriveCaseClosedAt,
   deriveNormalizedEventsForTicket,
   normalizeZendeskStatus,
+  publicCommentBodiesInAudit,
   resolveActor,
   sortAuditsChronologically,
   UnknownZendeskStatusError,
@@ -983,5 +984,78 @@ describe("Next Reply cycles from derived ticket events", () => {
 
     const unanswered = toCoreEvents(deriveNormalizedEventsForTicket(openTicket, [firstReply, agentAudit(3), customerAudit(4)], "raw_ticket"));
     expect(cycles(unanswered)).toEqual([["2026-01-01T09:30:00.000Z", null, ["raw_4"]]]);
+  });
+});
+
+describe("publicCommentBodiesInAudit", () => {
+  it("extracts a public comment's text and author id", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 900,
+      events: [{ id: 9, type: "Comment", public: true, body: "Any update?", author_id: 900 }],
+    });
+    expect(result).toEqual([{ authorId: 900, body: "Any update?" }]);
+  });
+
+  it("prefers plain_body over body when both are present", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 900,
+      events: [
+        { id: 9, type: "Comment", public: true, body: "<p>hi</p>", plain_body: "hi", author_id: 900 },
+      ],
+    });
+    expect(result).toEqual([{ authorId: 900, body: "hi" }]);
+  });
+
+  it("falls back to the audit's own author_id when the event carries none", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 501,
+      events: [{ id: 9, type: "Comment", public: true, body: "hello" }],
+    });
+    expect(result).toEqual([{ authorId: 501, body: "hello" }]);
+  });
+
+  it("excludes private notes and non-comment events", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 900,
+      events: [
+        { id: 9, type: "Comment", public: false, body: "internal note", author_id: 900 },
+        { id: 10, type: "Notification", author_id: 900 },
+      ],
+    });
+    expect(result).toEqual([]);
+  });
+
+  it("excludes a public comment with no usable text", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 900,
+      events: [{ id: 9, type: "Comment", public: true, body: "   ", author_id: 900 }],
+    });
+    expect(result).toEqual([]);
+  });
+
+  it("preserves audit event order for multiple public comments in one audit", () => {
+    const result = publicCommentBodiesInAudit({
+      ticket_id: 42,
+      created_at: "2026-01-01T09:40:00Z",
+      author_id: 900,
+      events: [
+        { id: 9, type: "Comment", public: true, body: "first", author_id: 900 },
+        { id: 10, type: "Comment", public: true, body: "second", author_id: 501 },
+      ],
+    });
+    expect(result).toEqual([
+      { authorId: 900, body: "first" },
+      { authorId: 501, body: "second" },
+    ]);
   });
 });

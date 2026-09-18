@@ -21,6 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import {
   formatActor,
   formatDateTime,
@@ -129,6 +130,14 @@ function TimelineGlossary() {
 }
 
 export function ActivityTimeline({ data }: { data: CaseDetailData }) {
+  const lastEvent = data.timeline[data.timeline.length - 1];
+  // Keyed off the newest event's id (not just the count) so a poll that
+  // replaces the same number of events with different content — or the very
+  // first event ever arriving — still re-pins to the bottom.
+  const { containerRef, onScroll } = useStickToBottom<HTMLOListElement>(
+    lastEvent?.id ?? "",
+  );
+
   return (
     <Reveal delay={0.05}>
       <Card className="min-w-0">
@@ -142,7 +151,11 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
           {data.timeline.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
-            <ol className="max-h-128 overflow-y-auto border-t border-border">
+            <ol
+              ref={containerRef}
+              onScroll={onScroll}
+              className="max-h-128 overflow-y-auto border-t border-border"
+            >
               {data.timeline.map((event, index) => (
                 <li
                   key={event.id}

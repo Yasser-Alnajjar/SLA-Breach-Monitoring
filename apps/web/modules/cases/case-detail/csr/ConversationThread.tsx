@@ -5,6 +5,7 @@ import { MessageSquare } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import { formatActor, formatDateTime } from "@/lib/format";
 import type { CaseDetailData, ConversationMessageDetail } from "@/lib/types/cases";
 
@@ -57,6 +58,14 @@ function ConversationMessageBubble({
 }
 
 export function ConversationThread({ data }: { data: CaseDetailData }) {
+  const lastMessage = data.conversation[data.conversation.length - 1];
+  // Keyed off the newest message's id (not just the count) so a poll that
+  // replaces the same number of messages with different content — or the
+  // very first message ever arriving — still re-pins to the bottom.
+  const { containerRef, onScroll } = useStickToBottom<HTMLOListElement>(
+    lastMessage?.id ?? "",
+  );
+
   return (
     <Reveal delay={0.1}>
       <Card className="min-w-0">
@@ -71,7 +80,11 @@ export function ConversationThread({ data }: { data: CaseDetailData }) {
               No customer or agent messages yet.
             </p>
           ) : (
-            <ol className="max-h-128 space-y-3 overflow-y-auto">
+            <ol
+              ref={containerRef}
+              onScroll={onScroll}
+              className="max-h-128 space-y-3 overflow-y-auto"
+            >
               {data.conversation.map((message) => (
                 <ConversationMessageBubble key={message.id} message={message} />
               ))}

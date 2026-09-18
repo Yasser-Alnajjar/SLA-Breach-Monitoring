@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { IUser } from "@/lib/types/user";
 import {
   DropdownMenu,
@@ -8,9 +9,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings } from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarHeader,
@@ -18,18 +24,83 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarFooter,
   SidebarSeparator,
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { isActivePath, NAV_ITEMS } from "./nav-items";
+import { isNavItemActive, NAV_ITEMS, type NavItem } from "./nav-items";
 import Link from "next/link";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { signOut } from "next-auth/react";
 import { BrandMark } from "../shared/brand-mark";
+
+function NavGroupItem({
+  item,
+  pathname,
+}: {
+  item: NavItem & { items: NavItem[] };
+  pathname: string;
+}) {
+  const isGroupRouteActive = isNavItemActive(pathname, item.href);
+  const [open, setOpen] = useState(isGroupRouteActive);
+  const Icon = item.icon;
+
+  useEffect(() => {
+    if (isGroupRouteActive) setOpen(true);
+  }, [isGroupRouteActive]);
+
+  return (
+    <Collapsible
+      asChild
+      open={open}
+      onOpenChange={setOpen}
+      className="group/collapsible"
+    >
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+          <Link href={item.href}>
+            <Icon />
+            <span>{item.label}</span>
+          </Link>
+        </SidebarMenuButton>
+
+        <CollapsibleTrigger asChild>
+          <SidebarMenuAction>
+            <ChevronDown className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+            <span className="sr-only">Toggle {item.label}</span>
+          </SidebarMenuAction>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {item.items.map((child) => {
+              const ChildIcon = child.icon;
+              const childActive = isNavItemActive(pathname, child.href);
+
+              return (
+                <SidebarMenuSubItem key={child.href}>
+                  <SidebarMenuSubButton asChild isActive={childActive}>
+                    <Link href={child.href}>
+                      <ChildIcon />
+                      <span>{child.label}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+}
 
 export function initialsOf(name: string | null, email: string): string {
   if (name) {
@@ -66,7 +137,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => {
-                const active = isActivePath(pathname, item.href);
+                if (item.items?.length) {
+                  return (
+                    <NavGroupItem
+                      key={item.href}
+                      item={item as NavItem & { items: NavItem[] }}
+                      pathname={pathname}
+                    />
+                  );
+                }
+
+                const active = isNavItemActive(pathname, item.href);
                 const Icon = item.icon;
 
                 return (

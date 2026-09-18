@@ -452,6 +452,13 @@ function isReplyEvent(
  * derived into a NormalizedEvent to begin with (see `isPublicCommentEvent`
  * in @sla/zendesk, `isVisibleMessagePart` in @sla/intercom), so there is no
  * normalized record to read one from yet.
+ *
+ * For Zendesk, this is prepended with the ticket's own opening
+ * message (see `buildZendeskConversationMessages`) — the description an
+ * email-created ticket carries, which `deriveNormalizedEventsForTicket`
+ * deliberately never turns into an `agent_replied`/`customer_replied` event
+ * (comments on the creation audit never count, so first-response/next-reply
+ * SLA math can't see it either — this stays purely a display concern).
  */
 async function buildConversationMessages(
   prisma: PrismaClient,
@@ -460,6 +467,11 @@ async function buildConversationMessages(
   zendeskIntegrationId: string | null,
 ): Promise<ConversationMessageDetail[]> {
   const replyEvents = domainEvents.filter(isReplyEvent);
+
+  if (caseRow.system === "zendesk") {
+    return buildZendeskConversationMessages(prisma, caseRow, domainEvents, replyEvents, zendeskIntegrationId);
+  }
+
   if (replyEvents.length === 0) return [];
 
   const rawEventRows = await prisma.rawEvent.findMany({
@@ -468,9 +480,6 @@ async function buildConversationMessages(
   });
   const payloadById = new Map(rawEventRows.map((row) => [row.id, row.payload]));
 
-  if (caseRow.system === "zendesk") {
-    return buildZendeskConversationMessages(prisma, caseRow, replyEvents, payloadById, zendeskIntegrationId);
-  }
   if (caseRow.system === "intercom") {
     return buildIntercomConversationMessages(replyEvents, payloadById);
   }
@@ -486,8 +495,8 @@ async function buildConversationMessages(
 async function buildZendeskConversationMessages(
   prisma: PrismaClient,
   caseRow: { externalId: string; requesterName: string | null },
+  domainEvents: NormalizedEvent[],
   replyEvents: (NormalizedEvent & { actor: "customer" | "agent"; type: "agent_replied" | "customer_replied" })[],
-  payloadById: Map<string, unknown>,
   zendeskIntegrationId: string | null,
 ): Promise<ConversationMessageDetail[]> {
   // The ticket's own requester id, so a customer message can be attributed
@@ -496,6 +505,14 @@ async function buildZendeskConversationMessages(
   // (see `mapUserToRawEvent`'s privacy-minimization comment in
   // @sla/zendesk), never their name, so any other author stays unnamed.
   let requesterId: number | null = null;
+  // The ticket's own opening message (its `description`), derived from the
+  // ticket snapshot rather than a comment — see the module doc comment on
+  // `buildConversationMessages`. Never sourced from a synthesized comment or
+  // written back to RawEvent/NormalizedEvent; this is purely a display-time
+  // read of data `mapTicketToRawEvent` already persisted.
+  let initialMessage: ConversationMessageDetail | null = null;
+  const caseCreatedEvent = domainEvents.find((event) => event.type === "case_created");
+
   if (zendeskIntegrationId) {
     const ticketRow = await prisma.rawEvent.findFirst({
       where: {
@@ -505,9 +522,40 @@ async function buildZendeskConversationMessages(
       orderBy: { fetchedAt: "desc" },
       select: { payload: true },
     });
-    const ticketPayload = ticketRow?.payload as { requester_id?: number | null } | undefined;
+    const ticketPayload = ticketRow?.payload as
+      | { requester_id?: number | null; description?: string | null }
+      | undefined;
     requesterId = ticketPayload?.requester_id ?? null;
+
+    const description = ticketPayload?.description?.trim();
+    // Only "customer"/"agent" match ConversationMessageDetail.actor — a
+    // ticket opened by a system channel (trigger/automation/rule) has no
+    // Customer/Agent bubble to attach its description to, so it's skipped
+    // rather than mislabeled.
+    if (description && caseCreatedEvent && (caseCreatedEvent.actor === "customer" || caseCreatedEvent.actor === "agent")) {
+      initialMessage = {
+        // Namespaced off the case_created event's own id (a cuid, unique per
+        // case) — never a raw Zendesk comment/audit event id, so this can
+        // never collide with a real agent_replied/customer_replied message.
+        id: `${caseCreatedEvent.id}:description`,
+        occurredAt: caseCreatedEvent.occurredAt,
+        actor: caseCreatedEvent.actor,
+        type: caseCreatedEvent.actor === "agent" ? "agent_replied" : "customer_replied",
+        authorName: caseCreatedEvent.actor === "customer" ? caseRow.requesterName : null,
+        body: description,
+      };
+    }
   }
+
+  if (replyEvents.length === 0) {
+    return initialMessage ? [initialMessage] : [];
+  }
+
+  const rawEventRows = await prisma.rawEvent.findMany({
+    where: { id: { in: [...new Set(replyEvents.map((e) => e.sourceRawEventId))] } },
+    select: { id: true, payload: true },
+  });
+  const payloadById = new Map(rawEventRows.map((row) => [row.id, row.payload]));
 
   // Group replies by the audit they came from, in each audit's own
   // sourceSequence order — the order `deriveNormalizedEventsForTicket`
@@ -538,7 +586,7 @@ async function buildZendeskConversationMessages(
     });
   }
 
-  return replyEvents.flatMap((event) => {
+  const messages = replyEvents.flatMap((event) => {
     const comment = bodyByEventId.get(event.id);
     if (!comment) return [];
     const authorName =
@@ -556,6 +604,8 @@ async function buildZendeskConversationMessages(
       },
     ];
   });
+
+  return initialMessage ? [initialMessage, ...messages] : messages;
 }
 
 function buildIntercomConversationMessages(

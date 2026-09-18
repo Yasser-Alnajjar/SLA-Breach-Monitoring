@@ -20,7 +20,9 @@ const REQUESTER_ID = 501;
 const OTHER_END_USER_ID = 777; // a CC'd contact, not the requester
 const AGENT_ID = 900;
 
-function ticketRawEvent(overrides: Partial<{ requester_id: number | null }> = {}) {
+function ticketRawEvent(
+  overrides: Partial<{ requester_id: number | null; description: string | null }> = {},
+) {
   return {
     id: TICKET_RAW_ID,
     payload: {
@@ -278,5 +280,175 @@ describe("getCaseDetailData: conversation", () => {
     const data = await getCaseDetailData(fakePrisma({ events: [], rawEvents: [] }), "org-1", "case-1", AS_OF);
     expect(data!.conversation).toEqual([]);
     expect(data!.case.id).toBe("case-1");
+  });
+});
+
+describe("getCaseDetailData: conversation — email-created ticket's initial description", () => {
+  const CASE_CREATED_AT = new Date("2026-09-17T09:00:00.000Z");
+
+  it("shows the ticket description as the first Customer message when the ticket has no replies yet", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-created",
+        type: "case_created",
+        actor: "customer",
+        occurredAt: CASE_CREATED_AT,
+        sourceRawEventId: TICKET_RAW_ID,
+      }),
+    ];
+    const data = await getCaseDetailData(
+      fakePrisma({
+        events,
+        rawEvents: [],
+        ticket: ticketRawEvent({ description: "My login is broken, please help." }),
+      }),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.conversation).toEqual([
+      {
+        id: "ev-created:description",
+        occurredAt: CASE_CREATED_AT.toISOString(),
+        actor: "customer",
+        type: "customer_replied",
+        authorName: "Jane Requester",
+        body: "My login is broken, please help.",
+      },
+    ]);
+  });
+
+  it("puts the initial description first, ahead of subsequent Agent/Customer replies", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-created",
+        type: "case_created",
+        actor: "customer",
+        occurredAt: CASE_CREATED_AT,
+        sourceRawEventId: TICKET_RAW_ID,
+      }),
+      normalizedEvent({
+        id: "ev-1",
+        type: "agent_replied",
+        actor: "agent",
+        occurredAt: new Date("2026-09-17T09:15:00.000Z"),
+        sourceRawEventId: "raw-3",
+      }),
+      normalizedEvent({
+        id: "ev-2",
+        type: "customer_replied",
+        actor: "customer",
+        occurredAt: new Date("2026-09-17T09:30:00.000Z"),
+        sourceRawEventId: "raw-4",
+      }),
+    ];
+    const rawEvents = [
+      auditRawEvent("raw-3", { authorId: AGENT_ID, body: "Sure, I'm checking this", createdAt: "2026-09-17T09:15:00Z" }),
+      auditRawEvent("raw-4", { authorId: REQUESTER_ID, body: "Any update?", createdAt: "2026-09-17T09:30:00Z" }),
+    ];
+    const data = await getCaseDetailData(
+      fakePrisma({
+        events,
+        rawEvents,
+        ticket: ticketRawEvent({ description: "My login is broken, please help." }),
+      }),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.conversation.map((m) => ({ actor: m.actor, body: m.body }))).toEqual([
+      { actor: "customer", body: "My login is broken, please help." },
+      { actor: "agent", body: "Sure, I'm checking this" },
+      { actor: "customer", body: "Any update?" },
+    ]);
+    // The synthetic id is namespaced off the case_created event's own id, so
+    // it can never collide with a real agent_replied/customer_replied id.
+    expect(data!.conversation[0]!.id).toBe("ev-created:description");
+  });
+
+  it("does not duplicate the initial message, and never adds one when the ticket has no description", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-created",
+        type: "case_created",
+        actor: "customer",
+        occurredAt: CASE_CREATED_AT,
+        sourceRawEventId: TICKET_RAW_ID,
+      }),
+      normalizedEvent({
+        id: "ev-1",
+        type: "agent_replied",
+        actor: "agent",
+        occurredAt: new Date("2026-09-17T09:15:00.000Z"),
+        sourceRawEventId: "raw-3",
+      }),
+    ];
+    const rawEvents = [auditRawEvent("raw-3", { authorId: AGENT_ID, body: "Sure, I'm checking this" })];
+    const data = await getCaseDetailData(
+      fakePrisma({ events, rawEvents, ticket: ticketRawEvent({ description: null }) }),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.conversation).toHaveLength(1);
+    expect(data!.conversation[0]!.body).toBe("Sure, I'm checking this");
+  });
+
+  it("skips the initial message when the ticket was opened by a system channel (no Customer/Agent bubble to attach it to)", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-created",
+        type: "case_created",
+        actor: "system",
+        occurredAt: CASE_CREATED_AT,
+        sourceRawEventId: TICKET_RAW_ID,
+      }),
+    ];
+    const data = await getCaseDetailData(
+      fakePrisma({ events, rawEvents: [], ticket: ticketRawEvent({ description: "Auto-generated ticket body" }) }),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.conversation).toEqual([]);
+  });
+
+  it("does not add the initial description to the Activity Timeline, and leaves SLA-relevant data untouched", async () => {
+    const events = [
+      normalizedEvent({
+        id: "ev-created",
+        type: "case_created",
+        actor: "customer",
+        occurredAt: CASE_CREATED_AT,
+        sourceRawEventId: TICKET_RAW_ID,
+      }),
+      normalizedEvent({
+        id: "ev-1",
+        type: "agent_replied",
+        actor: "agent",
+        occurredAt: new Date("2026-09-17T09:15:00.000Z"),
+        sourceRawEventId: "raw-3",
+      }),
+    ];
+    const rawEvents = [auditRawEvent("raw-3", { authorId: AGENT_ID, body: "Sure, I'm checking this" })];
+    const data = await getCaseDetailData(
+      fakePrisma({
+        events,
+        rawEvents,
+        ticket: ticketRawEvent({ description: "My login is broken, please help." }),
+      }),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    // The Conversation gained a synthetic entry, but the timeline is still
+    // built straight off the persisted NormalizedEvent rows — one per input
+    // event, no extra entry for the description.
+    expect(data!.timeline).toHaveLength(events.length);
+    expect(data!.timeline.map((e) => e.id)).toEqual(events.map((e) => e.id));
+    // No Commitment rows were configured in this fixture, so this is
+    // trivially empty either way — the point is that conversation-building
+    // has no path that could add or remove one.
+    expect(data!.commitments).toEqual([]);
   });
 });

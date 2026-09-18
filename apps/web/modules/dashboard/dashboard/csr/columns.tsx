@@ -49,12 +49,7 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
     accessorKey: "externalId",
     header: "Ticket",
     cell: ({ row }) => (
-      <Link
-        href={row.original.externalId}
-        className="text-muted-foreground hover:underline"
-      >
-        {`#${row.original.externalId}`}
-      </Link>
+      <span className="text-muted-foreground">#{row.original.externalId}</span>
     ),
   },
   {

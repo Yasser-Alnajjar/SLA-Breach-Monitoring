@@ -73,9 +73,10 @@ Examples:
 - Create the Phase branch from the current `main` only after the previous Phase has been completed and merged.
 - Do not start the next Phase branch while the current Phase is still open.
 - Keep the Phase branch focused on that Phase's tasks. Do not mix unrelated work into it.
-- A Phase branch must be pushed to the remote before the Phase can be considered complete.
-- The Phase branch must pass remote CI before it can be merged into `main`.
-- Merge the completed Phase branch into `main` before creating the next Phase branch.
+- Push the Phase branch to the remote as work progresses. Individual tasks do not require separate PRs.
+- When all tasks in the Phase are implemented and verified, open a PR from the Phase branch into `main`.
+- The Phase PR must pass remote CI and all required checks before it can be merged.
+- Merge the completed Phase PR into `main` before creating the next Phase branch.
 - After the merge, update the roadmap with the Phase completion date and final merge commit.
 - Never delete or recreate the roadmap to reflect Git progress; update this file in place.
 
@@ -88,18 +89,49 @@ phase/0-safe-foundation
   ↓
 implement Phase 0 tasks
   ↓
-push + remote CI
+commit + push as work progresses
   ↓
-merge → main
+all Phase 0 tasks complete and verified
+  ↓
+open PR → main
+  ↓
+remote CI + required checks
+  ↓
+merge PR → main
+  ↓
+Phase 0 = ✅
   ↓
 phase/1-correct-sla-commitments
   ↓
 implement Phase 1 tasks
   ↓
-push + remote CI
+commit + push as work progresses
   ↓
-merge → main
+all Phase 1 tasks complete and verified
   ↓
+open PR → main
+  ↓
+remote CI + required checks
+  ↓
+merge PR → main
+  ↓
+Phase 1 = ✅
+  ↓
+phase/2-reliable-zendesk-jira-connections
+  ↓
+implement Phase 2 tasks
+  ↓
+commit + push as work progresses
+  ↓
+all Phase 2 tasks complete and verified
+  ↓
+open PR → main
+  ↓
+remote CI + required checks
+  ↓
+merge PR → main
+  ↓
+Phase 2 = ✅
 ```
 
 #### Task completion verification

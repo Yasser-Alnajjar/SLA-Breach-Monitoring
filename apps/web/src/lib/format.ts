@@ -2,19 +2,28 @@ import type { CommitmentKind } from "@sla/core";
 
 /** Formats a signed minute count as "1d 2h 3m", dropping leading zero units. */
 export function formatMinutes(totalMinutes: number): string {
-  const abs = Math.round(Math.abs(totalMinutes));
-  const days = Math.floor(abs / 1440);
-  const hours = Math.floor((abs % 1440) / 60);
-  const minutes = abs % 60;
+  const totalSeconds = Math.round(Math.abs(totalMinutes) * 60);
+
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
 
   const parts: string[] = [];
+
   if (days > 0) parts.push(`${days}d`);
   if (days > 0 || hours > 0) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
+  if (days > 0 || hours > 0 || minutes > 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  // Show seconds only when there is sub-minute precision.
+  if (seconds > 0 || parts.length === 0) {
+    parts.push(`${seconds}s`);
+  }
 
   return (totalMinutes < 0 ? "-" : "") + parts.join(" ");
 }
-
 /**
  * Formats a signed second count for SLA timing: "1m 26s" under an hour, where
  * seconds matter, and "1d 2h 3m" (like `formatMinutes`) beyond it.
@@ -263,6 +272,8 @@ export function formatCaseLinkMethod(method: string): string {
 }
 
 /** The ticket source's display name — the only two systems a Case's own source (as opposed to a linked issue) can be. */
-export function formatTicketSource(system: "zendesk" | "intercom" | "jira" | "linear" | "github"): string {
+export function formatTicketSource(
+  system: "zendesk" | "intercom" | "jira" | "linear" | "github",
+): string {
   return system === "intercom" ? "Intercom" : "Zendesk";
 }

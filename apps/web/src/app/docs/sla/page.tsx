@@ -75,7 +75,8 @@ const statuses = [
     status: "Met",
     definition:
       "The case closed with elapsed working time still within target.",
-    trigger: "Case closes (Zendesk marks it solved) before target is exceeded.",
+    trigger:
+      "First response: an agent's first public reply before target is exceeded (a reply-less close is never met). Resolution: the case closes (Zendesk marks it solved) before target is exceeded.",
     variant: "success" as const,
   },
   {
@@ -131,7 +132,11 @@ export default function SlaPage() {
           <p className="leading-7 text-muted-foreground">
             When a case is created, its attributes — priority, customer, and
             (where populated) tier — are matched against your imported SLA
-            policies, and the most specific match wins: a policy that names this
+            policies in Zendesk&apos;s own policy order: the first policy in
+            that order whose conditions match wins, exactly as Zendesk itself
+            would apply them. A policy created directly in this product has no
+            Zendesk order to follow, so it and any other unordered policy fall
+            back to most-specific-match-wins: a policy that names this
             specific customer beats one that only names a priority, which beats
             a catch-all default policy. Ties are broken deterministically so the
             same inputs always produce the same match.
@@ -248,8 +253,13 @@ export default function SlaPage() {
           <p className="leading-7 text-muted-foreground">
             By default, a commitment pauses only while the case is in the
             normalized <strong>&quot;Pending customer&quot;</strong> state —
-            currently the one state configured to pause the clock, and it is not
-            adjustable per policy from the settings UI today.
+            currently the one configurable state that pauses the clock, and
+            it is not adjustable per policy from the settings UI today.
+            Putting a ticket <strong>on hold</strong> (Zendesk&apos;s internal
+            hold status) does not pause the resolution clock — that time
+            keeps counting. This is a deliberate choice for the current
+            implementation, not a gap: on-hold is for internal triage, not
+            customer waiting.
           </p>
 
           <Alert>
@@ -354,15 +364,35 @@ export default function SlaPage() {
           </h2>
 
           <p className="leading-7 text-muted-foreground">
-            If a Zendesk ticket is solved and later reopened, the
+            If a Zendesk ticket is solved and later reopened, the resolution
             commitment&apos;s clock is not reset. It resumes live evaluation
             from the original commitment start time, over the full event
             history — so a ticket that was marked met at solve time can read
             as breached once reopened and re-evaluated, if the total working
-            time now exceeds target. This includes the time the ticket spent
-            solved: the clock does not pause between the solve and the
-            reopen, so that interval counts toward the target the same as any
-            other open time. This is intentional, not a bug.
+            time now exceeds target. The time the ticket spent solved is
+            excluded: the clock pauses automatically between the solve and
+            the reopen, matching Zendesk&apos;s own behavior, so only time the
+            ticket was actually open counts toward the target.
+          </p>
+
+          <p className="leading-7 text-muted-foreground">
+            A first-response commitment is not affected by a reopen: once an
+            agent has replied, its result is final. Closing a ticket before
+            an agent ever replied publicly is not treated as a met first
+            response — it is reported as breached (once past target) rather
+            than shown as met the moment the case closes. On a ticket an
+            agent created on the customer&apos;s behalf, the first-response
+            clock does not start at ticket creation — it starts at the
+            customer&apos;s first message.
+          </p>
+
+          <p className="leading-7 text-muted-foreground">
+            Closing a case also ends any Next Reply cycle that was still
+            waiting on an agent&apos;s answer — an unanswered customer
+            message is not carried forward as an open obligation once the
+            ticket is closed. If the ticket is reopened and the customer
+            writes again, that starts a fresh Next Reply cycle from that new
+            message.
           </p>
         </section>
 

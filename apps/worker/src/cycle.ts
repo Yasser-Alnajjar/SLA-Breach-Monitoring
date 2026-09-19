@@ -6,7 +6,7 @@ import {
   type EvaluationPipelineResult,
   type EvaluationScope,
 } from "@sla/commitments";
-import { getIntegrationConfig, withOrganizationSlaLock, type PrismaClient } from "@sla/db";
+import { getIntegrationConfig, recordSlaImportSummary, withOrganizationSlaLock, type PrismaClient } from "@sla/db";
 import {
   GithubPermissionDeniedError,
   GithubReauthRequiredError,
@@ -42,6 +42,7 @@ import {
   runZendeskSlaPolicyImport,
   ZendeskPermissionDeniedError,
   ZendeskReauthRequiredError,
+  type SlaPolicyImportResult,
 } from "@sla/zendesk";
 import type { WorkerConfig } from "./config";
 import { captureException } from "./sentry";
@@ -245,6 +246,8 @@ export async function runCycle(
     // on Case/NormalizedEvent/Commitment. Runs even for an integration whose
     // ingest just failed: normalization is DB-local and still has whatever
     // RawEvents an earlier successful cycle already stored.
+    let slaPolicyImportResult: SlaPolicyImportResult | null = null;
+
     await withOrganizationSlaLock(prisma, organization.id, async () => {
       for (const integration of orderedIntegrations) {
         const ingestOutcome = ingestOutcomes.get(integration.id)!;
@@ -254,7 +257,7 @@ export async function runCycle(
           if (integration.provider === "zendesk") {
             await runZendeskNormalization(prisma, integration.id);
             await runZendeskBusinessCalendarImport(prisma, integration.id);
-            await runZendeskSlaPolicyImport(prisma, integration.id);
+            slaPolicyImportResult = await runZendeskSlaPolicyImport(prisma, integration.id);
           } else if (integration.provider === "jira") {
             await runJiraCorrelation(prisma, integration.id);
             await runJiraNormalization(prisma, integration.id);
@@ -333,6 +336,17 @@ export async function runCycle(
       try {
         const commitments = await runCommitmentPipeline(prisma, organization.id);
         result.commitmentsCreated += commitments.commitmentsCreated;
+
+        if (slaPolicyImportResult) {
+          await recordSlaImportSummary(prisma, organization.id, {
+            unsupportedConditions: slaPolicyImportResult.unsupportedConditions,
+            unsupportedMetrics: slaPolicyImportResult.unsupportedMetrics,
+            policiesWithNoUsableTargets: slaPolicyImportResult.policiesWithNoUsableTargets,
+            policiesWithUnresolvedSchedule: slaPolicyImportResult.policiesWithUnresolvedSchedule,
+            policiesArchived: slaPolicyImportResult.policiesArchived,
+            casesWithNoMatchingPolicy: commitments.casesWithNoMatchingPolicy,
+          });
+        }
       } catch (error) {
         result.failures.push({
           organizationId: organization.id,

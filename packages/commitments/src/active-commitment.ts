@@ -15,3 +15,16 @@ export const ACTIVE_COMMITMENT_WHERE: Prisma.CommitmentWhereInput = {
   closedAt: null,
   status: { not: "cancelled" },
 };
+
+/**
+ * Active commitments eligible for Active-Commitment Re-Resolution (D2: a
+ * breach is final). Narrower than `ACTIVE_COMMITMENT_WHERE` by one status: a
+ * still-open `breached` commitment (`closedAt: null`) keeps evaluating —
+ * `breachedByMinutes` must keep growing — but its policy/target is frozen
+ * the moment it first breaches, so a later re-resolution (e.g. a target
+ * increase) can never move it back to `on_track`/`at_risk` ("un-breach").
+ */
+export const RE_RESOLUTION_ELIGIBLE_WHERE: Prisma.CommitmentWhereInput = {
+  closedAt: null,
+  status: { notIn: ["cancelled", "breached"] },
+};

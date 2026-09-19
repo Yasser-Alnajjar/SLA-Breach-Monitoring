@@ -14,6 +14,7 @@ export {
   mapBusinessHoursScheduleToRawEvent,
   mapOrganizationToRawEvent,
   mapScheduleHolidaysToRawEvent,
+  mapSlaPolicyManifestToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
   mapUserToRawEvent,
@@ -56,7 +57,7 @@ export type { ZendeskClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runZendeskBackfill } from "./backfill";
 export type { BackfillResult } from "./backfill";
-export type { RawEventInput, ScheduleHolidaysSnapshot } from "./rawEvents";
+export type { RawEventInput, ScheduleHolidaysSnapshot, SlaPolicyManifest } from "./rawEvents";
 export type { ZendeskOAuthConfig } from "./oauth";
 export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, ZendeskOAuthError } from "./oauth";
 export {

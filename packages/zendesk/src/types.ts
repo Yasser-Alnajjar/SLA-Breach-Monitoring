@@ -164,6 +164,14 @@ export interface ZendeskSlaPolicy {
    * either way there's no specific schedule to import a calendar for.
    */
   schedule_id?: number | null;
+  /**
+   * Zendesk's own evaluation order for this policy relative to every other
+   * policy on the account — lower matches first (D6). Absent on very old
+   * accounts/snapshots fetched before this field was read; `position` on the
+   * imported `SLAPolicy` is then left `null` and falls back to specificity
+   * (`matchPolicyVersion`, packages/core).
+   */
+  position?: number;
   [key: string]: unknown;
 }
 

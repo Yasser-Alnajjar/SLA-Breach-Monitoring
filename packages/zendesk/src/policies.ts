@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@sla/db";
 import { policyVersionContentEquals, type CommitmentKind, type NormalizedState, type SLAPolicyMatch } from "@sla/core";
 import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
+import type { SlaPolicyManifest } from "./rawEvents";
 import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilter, ZendeskSlaPolicyMetric } from "./types";
 
 /**
@@ -49,8 +50,11 @@ function conditionValues(conditions: ZendeskSlaPolicyCondition[], field: string)
  * Zendesk's own evaluation. Organization conditions are translated to our
  * internal Customer ids via the Zendesk org id already recorded on Customer
  * (roadmap step 3) — an org with no Customer yet (never seen on a ticket)
- * cannot be matched and is silently excluded from `customerIds`, not
- * treated as an error.
+ * cannot be resolved. This must never fall back to "no organization
+ * restriction" (E-7): a filter that named at least one `organization_id`
+ * condition sets `match.customerIds` to an explicit empty array when none of
+ * those orgs resolve to a known Customer, which `matchPolicyVersion`
+ * (packages/core) treats as "matches no case" rather than "unrestricted".
  */
 export function extractMatchFromFilter(
   filter: ZendeskSlaPolicyFilter | undefined,
@@ -60,15 +64,23 @@ export function extractMatchFromFilter(
   const unsupportedConditions = conditions.filter((c) => !SUPPORTED_CONDITION_FIELDS.has(c.field)).length;
 
   const priorities = new Set(conditionValues(conditions, "priority"));
+  const organizationIdValues = conditionValues(conditions, "organization_id");
   const customerIds = new Set(
-    conditionValues(conditions, "organization_id")
+    organizationIdValues
       .map((zendeskOrgId) => customerIdsByZendeskOrgId.get(zendeskOrgId))
       .filter((id): id is string => id != null),
   );
 
   const match: SLAPolicyMatch = {};
   if (priorities.size > 0) match.priority = [...priorities];
-  if (customerIds.size > 0) match.customerIds = [...customerIds];
+  if (customerIds.size > 0) {
+    match.customerIds = [...customerIds];
+  } else if (organizationIdValues.length > 0) {
+    // The policy names at least one org, but none of them resolved to a
+    // known Customer — an explicit empty array (not "unset") so the policy
+    // matches no case rather than becoming an accidental match-all.
+    match.customerIds = [];
+  }
 
   return { match, unsupportedConditions };
 }
@@ -188,11 +200,12 @@ export async function upsertPolicyVersion(
   externalId: string,
   name: string,
   desired: PolicyVersionContent,
+  position: number | null = null,
 ): Promise<boolean> {
   const policy = await prisma.sLAPolicy.upsert({
     where: { organizationId_externalId: { organizationId, externalId } },
-    update: { name },
-    create: { organizationId, externalId, name },
+    update: { name, position },
+    create: { organizationId, externalId, name, position },
   });
 
   const [latestVersion, latestImportedVersion] = await Promise.all([
@@ -244,6 +257,8 @@ export interface SlaPolicyImportResult {
   policiesWithNoUsableTargets: number;
   /** Policies whose `schedule_id` points at a schedule not (yet) imported as a BusinessCalendar — fell back to the always-open default. */
   policiesWithUnresolvedSchedule: number;
+  /** Previously-imported policies archived because they no longer appear in the latest Zendesk sla_policies listing (E-9). */
+  policiesArchived: number;
 }
 
 /**
@@ -253,6 +268,13 @@ export interface SlaPolicyImportResult {
  * actually changed since the last import, so a manual override survives
  * until then. No fuzzy matching — a filter condition or metric this
  * importer doesn't understand is dropped and counted, never guessed at.
+ *
+ * Also archives (`SLAPolicy.archivedAt`) any previously-imported policy
+ * absent from the latest full sla_policies listing — deleted/deactivated in
+ * Zendesk (E-9). Archived policies are excluded from this and future
+ * imports' matching (`packages/commitments`'s pipeline/cycle-pipeline/
+ * re-resolution queries all filter `archivedAt: null`), but their versions
+ * and any commitments already frozen onto them are untouched.
  */
 export async function runZendeskSlaPolicyImport(
   prisma: PrismaClient,
@@ -268,6 +290,7 @@ export async function runZendeskSlaPolicyImport(
     unsupportedMetrics: 0,
     policiesWithNoUsableTargets: 0,
     policiesWithUnresolvedSchedule: 0,
+    policiesArchived: 0,
   };
 
   const rows = await prisma.rawEvent.findMany({
@@ -276,6 +299,36 @@ export async function runZendeskSlaPolicyImport(
     orderBy: { fetchedAt: "asc" },
   });
   const latestPolicies = latestSnapshotById<ZendeskSlaPolicy>(rows);
+
+  // The most recent full sla_policies listing (see backfillSlaPolicies /
+  // mapSlaPolicyManifestToRawEvent) — absent for an integration that hasn't
+  // run the manifest-writing backfill yet, in which case every known
+  // snapshot is still processed and nothing is archived (unchanged prior
+  // behavior).
+  const manifestRow = await prisma.rawEvent.findFirst({
+    where: { integrationId, providerEventId: { startsWith: "sla_policy_manifest:" } },
+    select: { payload: true },
+    orderBy: { fetchedAt: "desc" },
+  });
+  const liveZendeskIds = manifestRow
+    ? new Set((manifestRow.payload as unknown as SlaPolicyManifest).policyIds)
+    : null;
+
+  if (liveZendeskIds) {
+    const importedPolicies = await prisma.sLAPolicy.findMany({
+      where: { organizationId, externalId: { not: null }, archivedAt: null },
+      select: { id: true, externalId: true },
+    });
+    const toArchive = importedPolicies.filter((p) => !liveZendeskIds.has(Number(p.externalId!.split(":")[0])));
+    if (toArchive.length > 0) {
+      await prisma.sLAPolicy.updateMany({
+        where: { id: { in: toArchive.map((p) => p.id) } },
+        data: { archivedAt: new Date() },
+      });
+    }
+    result.policiesArchived = toArchive.length;
+  }
+
   if (latestPolicies.size === 0) return result;
 
   const customers = await prisma.customer.findMany({
@@ -287,7 +340,11 @@ export async function runZendeskSlaPolicyImport(
   const defaultCalendarVersion = await ensureDefaultCalendarVersion(prisma, organizationId);
   const calendarVersionsByScheduleId = await latestCalendarVersionsByZendeskScheduleId(prisma, organizationId);
 
-  for (const { value: policy } of latestPolicies.values()) {
+  const policyEntries = liveZendeskIds
+    ? [...latestPolicies.values()].filter(({ value }) => liveZendeskIds.has(value.id))
+    : [...latestPolicies.values()];
+
+  for (const { value: policy } of policyEntries) {
     result.policiesEvaluated += 1;
 
     const { match: filterMatch, unsupportedConditions } = extractMatchFromFilter(
@@ -316,11 +373,14 @@ export async function runZendeskSlaPolicyImport(
       const match: SLAPolicyMatch = { ...filterMatch };
       if (group.priority) match.priority = [group.priority];
 
-      const created = await upsertPolicyVersion(prisma, organizationId, externalId, policy.title, {
-        match,
-        targets: group.targets,
-        calendarVersionId,
-      });
+      const created = await upsertPolicyVersion(
+        prisma,
+        organizationId,
+        externalId,
+        policy.title,
+        { match, targets: group.targets, calendarVersionId },
+        policy.position ?? null,
+      );
       if (created) result.policyVersionsCreated += 1;
     }
   }

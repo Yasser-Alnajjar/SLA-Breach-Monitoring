@@ -79,6 +79,27 @@ export function mapSlaPolicyToRawEvent(policy: ZendeskSlaPolicy): RawEventInput 
   };
 }
 
+/** What the importer reads back to tell "no longer live in Zendesk" apart from "never fetched". */
+export interface SlaPolicyManifest {
+  policyIds: number[];
+}
+
+/**
+ * `backfillSlaPolicies` re-fetches the *entire* SLA policy list every run
+ * (unlike tickets/organizations, which are cursor-paginated deltas), so the
+ * full set of ids seen in one run is exactly the set of policies currently
+ * live in Zendesk. Recorded as its own snapshot, separate from the
+ * per-policy `sla_policy:` rows, so `runZendeskSlaPolicyImport` (E-9) can
+ * archive a `SLAPolicy` whose id no longer appears in the latest manifest —
+ * a deleted/deactivated Zendesk policy never has a "deletion event" of its
+ * own to react to, only the absence of its id from a fresh full listing.
+ */
+export function mapSlaPolicyManifestToRawEvent(policyIds: number[]): RawEventInput {
+  const payload: SlaPolicyManifest = { policyIds: [...policyIds].sort((a, b) => a - b) };
+  const sourceHash = computeSourceHash(payload);
+  return { providerEventId: `sla_policy_manifest:${sourceHash}`, sourceHash, payload };
+}
+
 export function mapBusinessHoursScheduleToRawEvent(schedule: ZendeskBusinessHoursSchedule): RawEventInput {
   const sourceHash = computeSourceHash(schedule);
   return {

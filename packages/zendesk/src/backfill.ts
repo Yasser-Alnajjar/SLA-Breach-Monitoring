@@ -6,6 +6,7 @@ import {
   mapBusinessHoursScheduleToRawEvent,
   mapOrganizationToRawEvent,
   mapScheduleHolidaysToRawEvent,
+  mapSlaPolicyManifestToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
   mapUserToRawEvent,
@@ -167,15 +168,21 @@ export async function runZendeskBackfill(
 
   async function backfillSlaPolicies(): Promise<void> {
     let nextPageUrl: string | undefined;
+    const seenPolicyIds: number[] = [];
 
     for (;;) {
       const page = await client.fetchSlaPoliciesPage(nextPageUrl);
       await writeRawEvents(page.sla_policies.map(mapSlaPolicyToRawEvent));
+      seenPolicyIds.push(...page.sla_policies.map((p) => p.id));
       result.slaPoliciesFetched += page.sla_policies.length;
 
       if (!page.next_page) break;
       nextPageUrl = page.next_page;
     }
+
+    // A full listing every run (see mapSlaPolicyManifestToRawEvent) — lets
+    // the importer tell "deleted in Zendesk" apart from "not fetched yet".
+    await writeRawEvents([mapSlaPolicyManifestToRawEvent(seenPolicyIds)]);
   }
 
   /**

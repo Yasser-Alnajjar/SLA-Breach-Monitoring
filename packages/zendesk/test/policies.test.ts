@@ -37,12 +37,29 @@ describe("extractMatchFromFilter", () => {
     expect(match).toEqual({ customerIds: ["cust_abc"] });
   });
 
-  it("silently excludes an organization_id with no known Customer", () => {
+  it("matches no case (never match-all) when an organization_id names an org with no known Customer (E-7)", () => {
     const { match } = extractMatchFromFilter(
       { all: [{ field: "organization_id", operator: "is", value: "999" }] },
       new Map(),
     );
-    expect(match).toEqual({});
+    expect(match).toEqual({ customerIds: [] });
+  });
+
+  it("still matches no case when some organization_id conditions resolve and others don't", () => {
+    const customerIdsByZendeskOrgId = new Map([["7", "cust_abc"]]);
+    const { match } = extractMatchFromFilter(
+      {
+        all: [
+          { field: "organization_id", operator: "is", value: 7 },
+          { field: "organization_id", operator: "is", value: "999" },
+        ],
+      },
+      customerIdsByZendeskOrgId,
+    );
+    // Both conditions are OR'd into one field-set (see the module doc
+    // comment): org 7 resolves, so the set is non-empty and unaffected by
+    // org 999's unresolved id.
+    expect(match).toEqual({ customerIds: ["cust_abc"] });
   });
 
   it("counts conditions on unsupported fields without throwing", () => {

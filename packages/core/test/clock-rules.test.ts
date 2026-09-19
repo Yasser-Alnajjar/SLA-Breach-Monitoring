@@ -34,13 +34,16 @@ describe("pauseStatesFor", () => {
     expect(pauseStatesFor("first_response", { ...policy, pauseOnStates: ALL_STATES })).toEqual([]);
   });
 
-  it("gives resolution exactly the policy's pause states", () => {
-    expect(pauseStatesFor("resolution", policy)).toEqual(["pending_customer"]);
-    expect(pauseStatesFor("resolution", { ...policy, pauseOnStates: [] })).toEqual([]);
-    expect(pauseStatesFor("resolution", { ...policy, pauseOnStates: ["pending_customer", "pending_internal"] })).toEqual([
-      "pending_customer",
-      "pending_internal",
-    ]);
+  it("gives resolution the policy's pause states plus `resolved` unconditionally (D3)", () => {
+    expect(pauseStatesFor("resolution", policy)).toEqual(["pending_customer", "resolved"]);
+    expect(pauseStatesFor("resolution", { ...policy, pauseOnStates: [] })).toEqual(["resolved"]);
+    expect(new Set(pauseStatesFor("resolution", { ...policy, pauseOnStates: ["pending_customer", "pending_internal"] }))).toEqual(
+      new Set(["pending_customer", "pending_internal", "resolved"]),
+    );
+  });
+
+  it("never duplicates `resolved` when the policy already pauses on it", () => {
+    expect(pauseStatesFor("resolution", { ...policy, pauseOnStates: ["resolved"] })).toEqual(["resolved"]);
   });
 
   it("gives next reply no pause states, whatever the policy configures", () => {
@@ -53,9 +56,11 @@ describe("commitmentPausesOn", () => {
     for (const state of ALL_STATES) expect(commitmentPausesOn("first_response", state, policy)).toBe(false);
   });
 
-  it("pauses resolution only on the policy's pause states", () => {
+  it("pauses resolution on the policy's pause states plus `resolved` (D3)", () => {
     for (const state of ALL_STATES) {
-      expect(commitmentPausesOn("resolution", state, policy)).toBe(state === "pending_customer");
+      expect(commitmentPausesOn("resolution", state, policy)).toBe(
+        state === "pending_customer" || state === "resolved",
+      );
     }
   });
 

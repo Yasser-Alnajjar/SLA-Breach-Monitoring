@@ -2,14 +2,17 @@ import type { Prisma, PrismaClient } from "@sla/db";
 import {
   createCommitment,
   matchPolicyVersion,
+  resolveFirstResponseStartedAt,
   type BusinessCalendarVersion,
   type CaseAttributes,
   type CommitmentKind,
+  type NormalizedEvent,
   type NormalizedState,
   type SLAPolicyMatch,
   type SLAPolicyVersion,
   type WeeklyWindow,
 } from "@sla/core";
+import { toNormalizedEventDomain } from "./evaluate-pipeline";
 
 /** The single-cycle kinds this pipeline creates. Also `runNextReplyCyclePipeline`'s anchor kinds (cycle-pipeline.ts). */
 export const COMMITMENT_KINDS: CommitmentKind[] = ["first_response", "resolution"];
@@ -42,6 +45,8 @@ export interface PolicyVersionRecord {
   calendarVersionId: string;
   warnAtPercent: number[];
   effectiveFrom: string;
+  /** D6/1.10 — the owning `SLAPolicy.position`; null for a manual policy or a pre-D6 import. */
+  policyPosition?: number | null;
 }
 
 /**
@@ -149,8 +154,8 @@ export async function runCommitmentPipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId } },
-    include: { calendarVersion: true },
+    where: { policy: { organizationId, archivedAt: null } },
+    include: { calendarVersion: true, policy: { select: { position: true } } },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -164,6 +169,7 @@ export async function runCommitmentPipeline(
     calendarVersionId: row.calendarVersionId,
     warnAtPercent: row.warnAtPercent,
     effectiveFrom: row.effectiveFrom.toISOString(),
+    policyPosition: row.policy.position,
   }));
   const policyVersionsById = new Map(allPolicyVersions.map((pv) => [pv.id, pv]));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
@@ -200,6 +206,28 @@ export async function runCommitmentPipeline(
       },
     },
   });
+
+  // D5b: agent-created tickets start their first-response clock at the first
+  // customer reply, not ticket creation (`resolveFirstResponseStartedAt`).
+  // Only fetched for cases that still need a first-response commitment.
+  const casesNeedingFirstResponse = cases.filter((c) =>
+    missingCommitmentKinds(c.commitments.map((cm) => cm.kind as CommitmentKind)).includes("first_response"),
+  );
+  const firstResponseEventsByCaseId = new Map<string, NormalizedEvent[]>();
+  if (casesNeedingFirstResponse.length > 0) {
+    const rows = await prisma.normalizedEvent.findMany({
+      where: {
+        caseId: { in: casesNeedingFirstResponse.map((c) => c.id) },
+        type: { in: ["case_created", "customer_replied"] },
+      },
+    });
+    for (const row of rows) {
+      const domainEvent = toNormalizedEventDomain(row);
+      const bucket = firstResponseEventsByCaseId.get(domainEvent.caseId);
+      if (bucket) bucket.push(domainEvent);
+      else firstResponseEventsByCaseId.set(domainEvent.caseId, [domainEvent]);
+    }
+  }
 
   // Calendar versions frozen onto existing commitments that aren't already
   // loaded (e.g. a customer override that has since moved to a newer version).
@@ -255,10 +283,22 @@ export async function runCommitmentPipeline(
         const policyVersion = policyVersionFor(kind);
         if (!policyVersion.targets.some((t) => t.kind === kind)) continue;
 
+        let startedAt = caseRow.openedAt.toISOString();
+        if (kind === "first_response") {
+          const resolved = resolveFirstResponseStartedAt(
+            firstResponseEventsByCaseId.get(caseRow.id) ?? [],
+            startedAt,
+          );
+          // Agent-created ticket, no customer reply yet (D5b): nothing to
+          // start the clock on — try again on a later run.
+          if (resolved === null) continue;
+          startedAt = resolved;
+        }
+
         const commitment = createCommitment(
           caseRow.id,
           kind,
-          caseRow.openedAt.toISOString(),
+          startedAt,
           policyVersion,
           calendarVersion,
         );

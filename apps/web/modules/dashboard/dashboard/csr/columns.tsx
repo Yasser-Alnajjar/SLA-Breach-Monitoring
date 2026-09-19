@@ -15,6 +15,8 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
       <DataTableColumnHeader column={column} title="Customer" />
     ),
     cell: ({ row }) => row.original.customerName ?? "—",
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "requesterName",
@@ -31,7 +33,9 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
   },
   {
     accessorKey: "subject",
-    header: "Case",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Case" />
+    ),
     cell: ({ row }) => (
       <Link
         href={caseCommitmentHref(
@@ -44,31 +48,47 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
         {row.original.subject ?? `#${row.original.externalId}`}
       </Link>
     ),
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "externalId",
-    header: "Ticket",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Ticket" />
+    ),
     cell: ({ row }) => (
       <span className="text-muted-foreground">#{row.original.externalId}</span>
     ),
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "kind",
-    header: "Commitment",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Commitment" />
+    ),
     cell: ({ row }) => (
       <span className="text-muted-foreground">
         {formatCommitmentKind(row.original.kind)}
       </span>
     ),
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "remainingMinutes",
-    header: "Remaining",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Remaining" />
+    ),
     cell: ({ row }) => {
       const minutes = row.original.remainingMinutes;
       const overdue = minutes < 0;
@@ -82,24 +102,34 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
       );
     },
     sortingFn: "basic",
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "currentLeg",
-    header: "Leg",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Leg" />
+    ),
     cell: ({ row }) => (
       <span className="text-muted-foreground">
         {formatLeg(row.original.currentLeg)}
       </span>
     ),
+    enableSorting: true,
+    enableColumnFilter: true,
   },
   {
     accessorKey: "minutesInCurrentLeg",
-    header: "Time in leg",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Time in leg" />
+    ),
     cell: ({ row }) => (
       <span className="text-muted-foreground">
         {formatMinutes(row.original.minutesInCurrentLeg)}
       </span>
     ),
+    enableSorting: true,
+    enableColumnFilter: true,
   },
 ];
 

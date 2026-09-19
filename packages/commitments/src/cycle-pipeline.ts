@@ -62,8 +62,8 @@ export async function runNextReplyCyclePipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId } },
-    include: { calendarVersion: true },
+    where: { policy: { organizationId, archivedAt: null } },
+    include: { calendarVersion: true, policy: { select: { position: true } } },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -77,6 +77,7 @@ export async function runNextReplyCyclePipeline(
     calendarVersionId: row.calendarVersionId,
     warnAtPercent: row.warnAtPercent,
     effectiveFrom: row.effectiveFrom.toISOString(),
+    policyPosition: row.policy.position,
   }));
   const policyVersionsById = new Map(allPolicyVersions.map((pv) => [pv.id, pv]));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);

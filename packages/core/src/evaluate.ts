@@ -1,5 +1,5 @@
 import { computeDeadline, workingMinutesBetween } from "./calendar";
-import { pauseStatesFor } from "./clock-rules";
+import { eventsForPauseFold, pauseStatesFor } from "./clock-rules";
 import { foldClockIntervals, sumRunningWorkingMinutes } from "./elapsed";
 import { compareNormalizedEvents } from "./ordering";
 import { deriveNextReplyCycles } from "./reply-cycles";
@@ -14,6 +14,7 @@ import type {
   NormalizedEvent,
   SLAPolicyVersion,
 } from "./types";
+import { TICKET_SOURCE_SYSTEMS } from "./ticket-source";
 import { stableHash } from "./util";
 
 /**
@@ -80,13 +81,6 @@ export function evaluateEngineeringLegTarget(
   };
 }
 
-/**
- * Ticket-source systems — the ones that create Cases and so own their
- * lifecycle (roadmap step 22 added Intercom beside Zendesk). Matches the
- * support-side systems `deriveLegSpans` in legs.ts already reads.
- */
-const TICKET_SOURCE_SYSTEMS = new Set<NormalizedEvent["system"]>(["zendesk", "intercom"]);
-
 /** Event types that carry the ticket source's own view of the case's lifecycle state. */
 const TICKET_LIFECYCLE_EVENT_TYPES = new Set<NormalizedEvent["type"]>([
   "case_created",
@@ -143,23 +137,99 @@ export function findCaseCloseEvent(
  * `case_closed` when the case was closed before any agent replied —
  * whichever came first. Null while neither has happened.
  *
+ * A same-instant "reply and close" (an agent reply and a close from the same
+ * source event) resolves to the reply, not the close, even though the
+ * source's own event order emits the transition first
+ * (`compareNormalizedEvents`) — same tie-break `deriveNextReplyCycles` uses
+ * for the identical situation, and for the identical reason: the reply is
+ * the one that actually happened.
+ *
+ * `evaluateCommitment` reads `completionEvent.type` to tell the two apart
+ * (D5): a reply-less close never reports `met` regardless of how much of the
+ * target's time remained — a promised response that never happened is a
+ * broken promise, not a satisfied one — while still finalizing the
+ * commitment (closing it out) rather than leaving it evaluating forever
+ * against a case nothing more will ever happen on.
+ *
  * Unlike a resolution, a first response happens once: a case reopened after
  * the reply (or after a reply-less close) never reopens its first-response
  * commitment, so this deliberately ignores later reopens rather than using
  * `findCaseCloseEvent`'s current-closure rule.
+ *
+ * `startedAt`, when given, excludes anything before it (D5b): for an
+ * agent-created ticket whose commitment clock starts at the first customer
+ * reply, an agent reply that happened *before* that customer ever wrote
+ * anything wasn't answering a request that existed yet, so it must never be
+ * read as completing the commitment — `evaluateCommitment` passes
+ * `commitment.startedAt` for exactly this reason. Callers deriving Next
+ * Reply cycles (`findNextReplyCompletionEvent`, `runNextReplyCyclePipeline`)
+ * omit it deliberately: cycle derivation needs the ticket's actual first
+ * reply, regardless of which commitment window it falls in.
  */
 export function findFirstResponseEvent(
   events: NormalizedEvent[],
   asOf: string,
+  startedAt?: string,
 ): NormalizedEvent | null {
   let first: NormalizedEvent | null = null;
   for (const event of events) {
     if (!TICKET_SOURCE_SYSTEMS.has(event.system)) continue;
     if (event.type !== "agent_replied" && event.type !== "case_closed") continue;
     if (event.occurredAt > asOf) continue;
-    if (!first || compareNormalizedEvents(event, first) < 0) first = event;
+    if (startedAt !== undefined && event.occurredAt < startedAt) continue;
+    if (!first || orderPreferringReply(event, first) < 0) first = event;
   }
   return first;
+}
+
+/**
+ * `compareNormalizedEvents`, except a same-instant `agent_replied` sorts
+ * before a `case_closed` — see `findFirstResponseEvent`'s "reply and close"
+ * note. Same rule as `orderForCycleFold` in reply-cycles.ts, kept separate
+ * since the two live in different modules and neither depends on the other.
+ */
+function orderPreferringReply(a: NormalizedEvent, b: NormalizedEvent): number {
+  if (Date.parse(a.occurredAt) === Date.parse(b.occurredAt)) {
+    if (a.type === "agent_replied" && b.type === "case_closed") return -1;
+    if (a.type === "case_closed" && b.type === "agent_replied") return 1;
+  }
+  return compareNormalizedEvents(a, b);
+}
+
+/**
+ * When a first-response commitment's clock should start (D5b): ticket
+ * creation, unless the ticket itself was agent-created, in which case the
+ * clock starts at the first ticket-source `customer_replied` — a customer
+ * hasn't asked for anything yet, so the promise of a response can't start
+ * running against them before they've said a word.
+ *
+ * Returns `null` when the ticket was agent-created and no customer has
+ * replied yet: the caller must not create the commitment this run: there is
+ * nothing to start its clock on. A later run, once the customer replies,
+ * creates it.
+ *
+ * `events` should be the case's full event history; `caseCreatedAt` is the
+ * fallback used when no `case_created` event is found at all (older rows
+ * normalized before the event existed).
+ */
+export function resolveFirstResponseStartedAt(
+  events: NormalizedEvent[],
+  caseCreatedAt: string,
+): string | null {
+  const created = events
+    .filter((e) => TICKET_SOURCE_SYSTEMS.has(e.system) && e.type === "case_created")
+    .sort(compareNormalizedEvents)[0];
+  if (!created || created.actor !== "agent") return caseCreatedAt;
+
+  const firstCustomerReply = events
+    .filter(
+      (e) =>
+        TICKET_SOURCE_SYSTEMS.has(e.system) &&
+        e.type === "customer_replied" &&
+        compareNormalizedEvents(e, created) >= 0,
+    )
+    .sort(compareNormalizedEvents)[0];
+  return firstCustomerReply?.occurredAt ?? null;
 }
 
 /**
@@ -208,16 +278,22 @@ function findNextReplyCompletionEvent(
  * `next_reply` (`findNextReplyCompletionEvent` — requires `cycleKey`). Kinds
  * also differ in what pauses their clock (`pauseStatesFor`); all three share
  * the same elapsed-time fold.
+ *
+ * `startedAt` bounds `first_response` only (D5b — see `findFirstResponseEvent`):
+ * an agent reply from before the commitment's own clock started (an
+ * agent-created ticket's clock starts at the first customer reply, not
+ * ticket creation) never counts as completing it.
  */
 export function findCompletionEvent(
   kind: CommitmentKind,
   events: NormalizedEvent[],
   asOf: string,
   cycleKey?: string,
+  startedAt?: string,
 ): NormalizedEvent | null {
   switch (kind) {
     case "first_response":
-      return findFirstResponseEvent(events, asOf);
+      return findFirstResponseEvent(events, asOf, startedAt);
     case "resolution":
       return findCaseCloseEvent(events, asOf);
     case "next_reply":
@@ -240,8 +316,9 @@ export function resolveClockCutoff(
   events: NormalizedEvent[],
   asOf: string,
   cycleKey?: string,
+  startedAt?: string,
 ): { completionEvent: NormalizedEvent | null; cutoff: string } {
-  const completionEvent = findCompletionEvent(kind, events, asOf, cycleKey);
+  const completionEvent = findCompletionEvent(kind, events, asOf, cycleKey, startedAt);
   const cutoff =
     completionEvent && completionEvent.occurredAt < asOf ? completionEvent.occurredAt : asOf;
   return { completionEvent, cutoff };
@@ -285,6 +362,7 @@ export function evaluateCommitment(
     caseEvents,
     asOf,
     commitment.cycleKey,
+    commitment.startedAt,
   );
 
   const eventsUpToCutoff = caseEvents.filter(
@@ -296,7 +374,7 @@ export function evaluateCommitment(
       : null;
 
   const fold = foldClockIntervals(
-    caseEvents,
+    eventsForPauseFold(commitment.kind, caseEvents),
     pauseStatesFor(commitment.kind, policyVersion),
     { start: commitment.startedAt, end: effectiveAsOf },
   );
@@ -306,10 +384,16 @@ export function evaluateCommitment(
   );
   const remainingMinutes = commitment.targetMinutes - elapsedWorkingMinutes;
 
+  // D5: a first-response commitment completed by a reply-less close is
+  // never "met" — a promised response that never came is a broken promise
+  // regardless of how much target time was left when the case closed.
+  const isReplylessClose =
+    commitment.kind === "first_response" && completionEvent?.type === "case_closed";
+
   let status: CommitmentStatus;
   let warnThresholdCrossed: number | undefined;
   if (completionEvent) {
-    status = remainingMinutes >= 0 ? "met" : "breached";
+    status = !isReplylessClose && remainingMinutes >= 0 ? "met" : "breached";
     if (status === "breached") warnThresholdCrossed = BREACH_NOTIFICATION_THRESHOLD;
   } else if (remainingMinutes <= 0) {
     status = "breached";

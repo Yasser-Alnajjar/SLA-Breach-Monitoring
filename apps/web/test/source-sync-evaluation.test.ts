@@ -15,7 +15,7 @@
  */
 import type { Session } from "next-auth";
 import type { Prisma, PrismaClient } from "@sla/db";
-import type { ZendeskAudit, ZendeskSlaPolicy, ZendeskTicket } from "@sla/zendesk";
+import type { ZendeskAudit, ZendeskSlaPolicy, ZendeskTicket, ZendeskUser } from "@sla/zendesk";
 import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink, JiraStatus } from "@sla/jira";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,6 +44,12 @@ vi.mock("@sla/zendesk", async (importOriginal) => {
         ...zendeskFixture.tickets.map((ticket) => actual.mapTicketToRawEvent(ticket)),
         ...zendeskFixture.audits.map(actual.mapAuditToRawEvent),
         ...zendeskFixture.slaPolicies.map(actual.mapSlaPolicyToRawEvent),
+        // D5b needs to tell a customer-created ticket from an agent-created
+        // one: without a role sideload, `resolveActor` falls back to
+        // guessing off `ticket.requester_id`, and the fixture's own status
+        // audits are all authored by the agent (500), which would otherwise
+        // misattribute ticket creation to the agent.
+        ...zendeskFixture.users.map(actual.mapUserToRawEvent),
       ];
       await writeFetch(prisma, integrationId, inputs, {
         tickets: { startTime: 1 },
@@ -116,39 +122,93 @@ function ticket(id: number, createdAt: string, updatedAt: string): ZendeskTicket
   };
 }
 
-function statusAudit(id: number, ticketId: number, createdAt: string, from: string, to: string): ZendeskAudit {
+function statusAudit(
+  id: number,
+  ticketId: number,
+  createdAt: string,
+  from: string,
+  to: string,
+  extraEvents: ZendeskAudit["events"] = [],
+): ZendeskAudit {
   return {
     id,
     ticket_id: ticketId,
     created_at: createdAt,
     author_id: 500,
     via: { channel: "web" },
-    events: [{ id: id * 10, type: "Change", field_name: "status", previous_value: from, value: to }],
+    events: [{ id: id * 10, type: "Change", field_name: "status", previous_value: from, value: to }, ...extraEvents],
   };
 }
 
 /**
- * 60-minute first-reply target on normal priority, calendar time — so each
- * ticket gets only a first-response commitment. No ticket has an agent reply,
- * so each first response completes at the solve.
- * - #101 (met): open → pending after 5m → solved at 9m. First response never
- *   pauses (clock-rules.ts), so the pending interval still counts: 9m.
- * - #102 (breached): open → solved after 90m.
- * - #103: open → pending after 10m → solved at 120m; linked to ENG-1, whose
- *   history is part of the event set its commitment is evaluated against.
+ * The ticket's own creation transition ("new" → "open"), authored by the
+ * requester (customer): without it, `deriveNormalizedEventsForTicket` falls
+ * back to the earliest status-change audit to decide `case_created`'s actor
+ * (D5b) — which would otherwise be the agent's own "open" → "pending"/"solved"
+ * transition below, misattributing these customer-submitted tickets as
+ * agent-created and blocking their first-response commitment from ever
+ * starting.
  */
-const zendeskFixture: { tickets: ZendeskTicket[]; audits: ZendeskAudit[]; slaPolicies: ZendeskSlaPolicy[] } = {
+function creationAudit(id: number, ticketId: number, createdAt: string): ZendeskAudit {
+  return {
+    id,
+    ticket_id: ticketId,
+    created_at: createdAt,
+    author_id: 900,
+    via: { channel: "web" },
+    events: [{ id: id * 10, type: "Change", field_name: "status", previous_value: "new", value: "open" }],
+  };
+}
+
+const publicComment = (id: number, authorId: number): ZendeskAudit["events"][number] => ({
+  id,
+  type: "Comment",
+  public: true,
+  author_id: authorId,
+  body: "On it.",
+});
+
+/**
+ * 60-minute first-reply target on normal priority, calendar time — so each
+ * ticket gets only a first-response commitment.
+ * - #101 (met): open → pending after 5m → agent replies and solves at 9m
+ *   (D5a: a reply-less close no longer completes first response — the agent's
+ *   own public comment on the solving audit does). First response never
+ *   pauses (clock-rules.ts), so the pending interval still counts: 9m.
+ * - #102 (breached): open → solved after 90m, no reply — still breaches by
+ *   elapsed time alone; a reply-less close simply never completes it.
+ * - #103: open → pending after 10m → solved at 120m, no reply; linked to
+ *   ENG-1, whose history is part of the event set its commitment is
+ *   evaluated against.
+ */
+const zendeskFixture: {
+  tickets: ZendeskTicket[];
+  audits: ZendeskAudit[];
+  slaPolicies: ZendeskSlaPolicy[];
+  users: ZendeskUser[];
+} = {
   tickets: [
     ticket(101, MET_OPENED, minutes(MET_OPENED, 9)),
     ticket(102, BREACHED_OPENED, minutes(BREACHED_OPENED, 90)),
     ticket(103, LINKED_OPENED, minutes(LINKED_OPENED, 120)),
   ],
   audits: [
+    creationAudit(1010, 101, MET_OPENED),
     statusAudit(1011, 101, minutes(MET_OPENED, 5), "open", "pending"),
-    statusAudit(1012, 101, minutes(MET_OPENED, 9), "pending", "solved"),
+    // Agent replies and solves in the same audit (D5a: the reply, not the
+    // close, is what completes first response).
+    statusAudit(1012, 101, minutes(MET_OPENED, 9), "pending", "solved", [publicComment(10121, 500)]),
+    creationAudit(1020, 102, BREACHED_OPENED),
     statusAudit(1021, 102, minutes(BREACHED_OPENED, 90), "open", "solved"),
+    creationAudit(1030, 103, LINKED_OPENED),
     statusAudit(1031, 103, minutes(LINKED_OPENED, 10), "open", "pending"),
     statusAudit(1032, 103, minutes(LINKED_OPENED, 120), "pending", "solved"),
+  ],
+  // Requester (900) is the customer; the status audits' author (500) is the
+  // agent solving the ticket (D5b).
+  users: [
+    { id: 900, role: "end-user" },
+    { id: 500, role: "agent" },
   ],
   slaPolicies: [
     {

@@ -270,14 +270,14 @@ describe("computeBreachedAt over the commitment's own window", () => {
 });
 
 /**
- * Characterization only — pins Resolution's *current* solved/reopen
- * behavior, which the explicit window deliberately leaves unchanged. The
- * fold doesn't treat `case_closed` as a state, so time spent solved counts as
- * running after a reopen, while a pause entered before the solve carries
- * through it. Whether that is right is a separate decision
- * (SLA_ENGINE_FIX_PLAN.md, Step 11.1); update these tests when it is made.
+ * D3 (1.4, decided): Resolution excludes time spent solved from a
+ * solve-to-reopen interval — matching Zendesk. `foldClockIntervals` reads
+ * `case_closed` as a state transition too (not just `state_changed`/
+ * `case_created`), and `resolution`'s clock rule pauses on `resolved`
+ * unconditionally, on top of the policy's own pause states
+ * (clock-rules.ts).
  */
-describe("Resolution solved -> reopened (current behavior, characterization)", () => {
+describe("Resolution solved -> reopened (D3)", () => {
   const resolution = () => commitmentStartingAt("resolution", "09:00");
 
   it("stops at the solve while the case stays solved", () => {
@@ -287,16 +287,18 @@ describe("Resolution solved -> reopened (current behavior, characterization)", (
     expect(evaluation).toMatchObject({ status: "met", elapsedWorkingMinutes: 60, clock: { state: "stopped" } });
   });
 
-  it("counts the solved interval as running once the case is reopened", () => {
+  it("excludes the solved interval from running time once the case is reopened", () => {
     const events = [
       event("09:00", "case_created", "open"),
       event("10:00", "case_closed", "resolved"),
       event("15:00", "state_changed", "open"),
     ];
 
+    // Running: 09:00-10:00 (60m) + 15:00-16:00 (60m) = 120m — the 09:30-15:00
+    // solved interval is excluded (D3), not counted as it was before.
     const evaluation = evaluateCommitment(resolution(), events, policy, alwaysOpen, at("16:00"));
-    expect(evaluation).toMatchObject({ status: "breached", elapsedWorkingMinutes: 420, clock: { state: "running" } });
-    expect(computeBreachedAt(resolution(), events, policy, alwaysOpen, at("16:00"))).toBe(at("14:00"));
+    expect(evaluation).toMatchObject({ status: "on_track", elapsedWorkingMinutes: 120, clock: { state: "running" } });
+    expect(computeBreachedAt(resolution(), events, policy, alwaysOpen, at("16:00"))).toBeNull();
   });
 
   it("keeps a pause entered before the solve through the solved interval after a reopen", () => {

@@ -4,7 +4,7 @@ export { policyVersionContentEquals } from "./policy-versions";
 export type { PolicyVersionContent } from "./policy-versions";
 export { computeDeadline, workingMinutesBetween } from "./calendar";
 export { computeElapsedWorkingMinutes } from "./elapsed";
-export { commitmentPausesOn, pauseStatesFor } from "./clock-rules";
+export { commitmentPausesOn, eventsForPauseFold, pauseStatesFor } from "./clock-rules";
 export { deriveLegSpans, validateLegSpans, sumLegMinutes, legAtTime } from "./legs";
 export type { DeriveLegSpansOptions } from "./legs";
 export { deriveNextReplyCycles, nextReplyCycleKey } from "./reply-cycles";
@@ -17,6 +17,7 @@ export {
   findCaseCloseEvent,
   findCompletionEvent,
   findFirstResponseEvent,
+  resolveFirstResponseStartedAt,
   evaluateEngineeringLegTarget,
   BREACH_NOTIFICATION_THRESHOLD,
   ENGINEERING_LEG_WARN_AT_PERCENT,

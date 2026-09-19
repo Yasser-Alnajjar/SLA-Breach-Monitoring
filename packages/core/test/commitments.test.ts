@@ -52,6 +52,18 @@ const p1Tier1Policy: SLAPolicyVersion = {
   effectiveFrom: "2026-09-01T00:00:00.000Z",
 };
 
+const otherPolicy: SLAPolicyVersion = {
+  id: "policy-other-v1",
+  policyId: "policy-other",
+  version: 1,
+  match: { priority: ["P1"] },
+  targets: [{ kind: "resolution", minutes: 90 }],
+  pauseOnStates: [],
+  calendarVersionId: calendar.id,
+  warnAtPercent: [80],
+  effectiveFrom: "2026-09-01T00:00:00.000Z",
+};
+
 describe("matchPolicyVersion", () => {
   it("matches the most specific policy first", () => {
     const caseAttributes: CaseAttributes = {
@@ -85,6 +97,38 @@ describe("matchPolicyVersion", () => {
     const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P3" };
     const match = matchPolicyVersion(caseAttributes, [p1Policy, p1Tier1Policy]);
     expect(match).toBeNull();
+  });
+
+  describe("D6: imported Zendesk position outranks specificity", () => {
+    it("prefers the lower position even when it's less specific", () => {
+      const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier1" };
+      const lowPositionGeneric: SLAPolicyVersion = { ...genericPolicy, id: "generic-pos-1", policyPosition: 1 };
+      const higherPositionSpecific: SLAPolicyVersion = { ...p1Tier1Policy, id: "specific-pos-5", policyPosition: 5 };
+      const match = matchPolicyVersion(caseAttributes, [higherPositionSpecific, lowPositionGeneric]);
+      expect(match?.id).toBe("generic-pos-1");
+    });
+
+    it("a positioned version always outranks an unpositioned one, regardless of specificity", () => {
+      const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier1" };
+      const positioned: SLAPolicyVersion = { ...genericPolicy, id: "positioned", policyPosition: 3 };
+      const unpositionedSpecific: SLAPolicyVersion = { ...p1Tier1Policy, id: "unpositioned", policyPosition: null };
+      expect(matchPolicyVersion(caseAttributes, [unpositionedSpecific, positioned])?.id).toBe("positioned");
+      // Order-independent.
+      expect(matchPolicyVersion(caseAttributes, [positioned, unpositionedSpecific])?.id).toBe("positioned");
+    });
+
+    it("falls back to specificity when positions tie (fanned-out priority groups of one Zendesk policy)", () => {
+      const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier1" };
+      const genericSamePos: SLAPolicyVersion = { ...genericPolicy, id: "same-pos-generic", policyPosition: 2 };
+      const specificSamePos: SLAPolicyVersion = { ...p1Tier1Policy, id: "same-pos-specific", policyPosition: 2 };
+      expect(matchPolicyVersion(caseAttributes, [genericSamePos, specificSamePos])?.id).toBe("same-pos-specific");
+    });
+
+    it("falls back to specificity when neither candidate has a position (manual policies, or pre-D6 imports)", () => {
+      const caseAttributes: CaseAttributes = { caseId: "case-1", priority: "P1", tier: "tier1" };
+      const match = matchPolicyVersion(caseAttributes, [genericPolicy, p1Policy, p1Tier1Policy]);
+      expect(match?.id).toBe("policy-p1-tier1");
+    });
   });
 });
 
@@ -143,30 +187,27 @@ describe("createCommitment", () => {
 
 describe("resolveCommitmentPolicyChange", () => {
   it("reports no change when the matched policy version is the commitment's current one", () => {
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "resolution", policyVersionId: genericPolicy.id },
-      genericPolicy,
-    );
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, genericPolicy.policyId, genericPolicy);
     expect(resolution).toEqual({ changed: false, hasTarget: true });
   });
 
-  it("reports a change generically — the comparison never inspects which CaseAttributes field moved", () => {
-    // p1Policy and p1Tier1Policy differ by priority+tier match criteria, not
-    // by anything resolveCommitmentPolicyChange itself looks at: it only
-    // ever compares ids.
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "resolution", policyVersionId: p1Policy.id },
-      p1Tier1Policy,
-    );
+  it("D1: reports no change for a new version of the SAME policy — an override, re-import, or policy-UI edit never re-resolves", () => {
+    // p1Policy and p1Tier1Policy share policyId "policy" and differ only by
+    // version and match criteria — exactly what a policy edit looks like.
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, p1Policy.policyId, p1Tier1Policy);
+    expect(resolution).toEqual({ changed: false, hasTarget: true });
+  });
+
+  it("reports a change generically when a genuinely different policy now matches — the comparison never inspects which CaseAttributes field moved", () => {
+    // genericPolicy and otherPolicy have different policyIds: a real switch,
+    // not merely a new version of the commitment's current policy.
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, genericPolicy.policyId, otherPolicy);
     expect(resolution).toEqual({ changed: true, hasTarget: true });
   });
 
-  it("flags a missing target when the newly matched policy has no target for the commitment's kind", () => {
-    const noNextReply: SLAPolicyVersion = { ...p1Policy, id: "policy-no-next-reply" };
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "next_reply", policyVersionId: genericPolicy.id },
-      noNextReply,
-    );
+  it("flags a missing target when the newly matched (different) policy has no target for the commitment's kind", () => {
+    const noNextReply: SLAPolicyVersion = { ...otherPolicy, id: "policy-no-next-reply" };
+    const resolution = resolveCommitmentPolicyChange({ kind: "next_reply" }, genericPolicy.policyId, noNextReply);
     expect(resolution).toEqual({ changed: true, hasTarget: false });
   });
 });

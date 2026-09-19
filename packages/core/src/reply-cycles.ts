@@ -1,11 +1,6 @@
 import { compareNormalizedEvents } from "./ordering";
+import { TICKET_SOURCE_SYSTEMS } from "./ticket-source";
 import type { EvaluationEventRef, NextReplyCycle, NormalizedEvent } from "./types";
-
-/**
- * Ticket-source systems — the only ones whose replies are customer-facing
- * conversation. Same set as `TICKET_SOURCE_SYSTEMS` in evaluate.ts.
- */
-const TICKET_SOURCE_SYSTEMS = new Set<NormalizedEvent["system"]>(["zendesk", "intercom"]);
 
 export interface DeriveNextReplyCyclesOptions {
   /** Events after this instant are ignored. */
@@ -45,10 +40,22 @@ export function nextReplyCycleKey(anchor: EvaluationEventRef): string {
  * - the next `agent_replied` answers every customer reply in the open cycle
  *   and completes it; an agent reply with no cycle open does nothing, so
  *   consecutive agent replies never create cycles;
+ * - a `case_closed` while a cycle is open (D4) drops it — it is cancelled,
+ *   not completed: it never appears in the returned cycles at all, which is
+ *   what lets the persistence layer's own "derived key disappeared" rule
+ *   (`planCycleCommitments`) cancel any commitment already created for it,
+ *   with no separate cancellation path needed here. A reopen carries no
+ *   event of its own in this fold — it falls out for free, since the next
+ *   `customer_replied` after the close finds no cycle open and starts a
+ *   fresh one.
+ * - a same-instant "reply and close" (an agent reply and a close from the
+ *   same source event — Intercom's `close` part type with a body, or a
+ *   Zendesk macro that solves with a public comment) answers the cycle
+ *   before the close is considered, even though the source's own event
+ *   order emits the transition first (`compareNormalizedEvents`): the reply
+ *   is the answer, and the paired close must not instead cancel it.
  * - every other event — state changes (including `pending_customer`, since
- *   Next Reply never pauses), closes and reopens, linked-issue activity — is
- *   ignored. A close does not complete a cycle: an unanswered customer reply
- *   stays unanswered.
+ *   Next Reply never pauses), linked-issue activity — is ignored.
  *
  * Private notes and bot/automation messages never reach this function as
  * reply events; the normalizers don't emit them.
@@ -67,11 +74,11 @@ export function deriveNextReplyCycles(
   const replies = events
     .filter(
       (e) =>
-        (e.type === "customer_replied" || e.type === "agent_replied") &&
+        (e.type === "customer_replied" || e.type === "agent_replied" || e.type === "case_closed") &&
         TICKET_SOURCE_SYSTEMS.has(e.system) &&
         Date.parse(e.occurredAt) <= asOfMs,
     )
-    .sort(compareNormalizedEvents);
+    .sort(orderForCycleFold);
 
   const cycles: NextReplyCycle[] = [];
   let open: NextReplyCycle | null = null;
@@ -99,6 +106,11 @@ export function deriveNextReplyCycles(
       continue;
     }
 
+    if (event.type === "case_closed") {
+      open = null;
+      continue;
+    }
+
     if (!open) continue;
     open.completedAt = toIso(event.occurredAt);
     open.completion = toEventRef(event);
@@ -109,6 +121,22 @@ export function deriveNextReplyCycles(
 
   if (open) cycles.push(open);
   return cycles;
+}
+
+/**
+ * `compareNormalizedEvents`, except a same-instant `agent_replied` sorts
+ * before a `case_closed` — the opposite of the source's own event order
+ * (which emits a "reply and close" part's transition first). Only this
+ * fold needs the flip: the reply must answer the cycle before the paired
+ * close is considered, or a reply-and-close would cancel the very cycle it
+ * just answered instead of completing it.
+ */
+function orderForCycleFold(a: NormalizedEvent, b: NormalizedEvent): number {
+  if (Date.parse(a.occurredAt) === Date.parse(b.occurredAt)) {
+    if (a.type === "agent_replied" && b.type === "case_closed") return -1;
+    if (a.type === "case_closed" && b.type === "agent_replied") return 1;
+  }
+  return compareNormalizedEvents(a, b);
 }
 
 function toIso(timestamp: string): string {

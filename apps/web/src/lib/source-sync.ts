@@ -1,4 +1,4 @@
-import { withOrganizationSlaLock, type PrismaClient } from "@sla/db";
+import { recordSlaImportSummary, withOrganizationSlaLock, type PrismaClient } from "@sla/db";
 import {
   runCommitmentPipeline,
   runCommitmentReResolutionPipeline,
@@ -118,6 +118,19 @@ export async function projectAndEvaluateSourceSyncs(
 
     const commitments = await runCommitmentPipeline(prisma, organizationId);
     const reResolution = await runCommitmentReResolutionPipeline(prisma, organizationId, { asOf });
+
+    if (zendeskResult) {
+      const { unsupportedConditions, unsupportedMetrics, policiesWithNoUsableTargets, policiesWithUnresolvedSchedule, policiesArchived } =
+        zendeskResult.slaPolicyImport;
+      await recordSlaImportSummary(prisma, organizationId, {
+        unsupportedConditions,
+        unsupportedMetrics,
+        policiesWithNoUsableTargets,
+        policiesWithUnresolvedSchedule,
+        policiesArchived,
+        casesWithNoMatchingPolicy: commitments.casesWithNoMatchingPolicy,
+      });
+    }
     const nextReplyCycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
     const evaluation =
       pendingProviders.length === 0

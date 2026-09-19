@@ -1,0 +1,125 @@
+/**
+ * Phase 1.10 / D6: imported Zendesk policies match in Zendesk's own
+ * `position` order — a lower position wins, ahead of specificity — instead
+ * of the old specificity-only ranking. `runZendeskSlaPolicyImport` now
+ * writes each policy's `position` onto `SLAPolicy`, and `matchPolicyVersion`
+ * (packages/core) ranks a positioned candidate above an unpositioned one and
+ * a lower position above a higher one, before falling back to specificity.
+ *
+ * Real Postgres, like zendesk-sla-policy-archive.test.ts. Needs a migrated
+ * database at TEST_DATABASE_URL whose name contains "test"; skipped when unset.
+ */
+import type { PrismaClient } from "@sla/db";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+
+describe.skipIf(!TEST_DATABASE_URL)("Zendesk SLA policy position matching (real Postgres)", () => {
+  let prisma: PrismaClient;
+  let zendesk: typeof import("@sla/zendesk");
+  let commitments: typeof import("@sla/commitments");
+
+  let organizationId: string;
+  let integrationId: string;
+
+  beforeAll(async () => {
+    const name = new URL(TEST_DATABASE_URL!).pathname.replace(/^\//, "");
+    if (!/test/i.test(name)) {
+      throw new Error(`TEST_DATABASE_URL points at database "${name}"; this suite truncates every table.`);
+    }
+    process.env.DATABASE_URL = TEST_DATABASE_URL;
+    prisma = (await import("@sla/db")).getPrismaClient();
+    zendesk = await import("@sla/zendesk");
+    commitments = await import("@sla/commitments");
+  });
+
+  beforeEach(async () => {
+    const tables = await prisma.$queryRaw<{ tablename: string }[]>`
+      SELECT tablename FROM pg_tables
+      WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+    await prisma.$executeRawUnsafe(
+      `TRUNCATE TABLE ${tables.map((t) => `"public"."${t.tablename}"`).join(", ")} CASCADE`,
+    );
+
+    const organization = await prisma.organization.create({ data: { name: "Position Org" } });
+    organizationId = organization.id;
+    const integration = await prisma.integration.create({
+      data: { organizationId, provider: "zendesk", credentials: { subdomain: "demo" } },
+    });
+    integrationId = integration.id;
+  });
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  async function writePolicySnapshot(
+    id: number,
+    title: string,
+    position: number | undefined,
+    filter?: { all?: { field: string; operator: string; value: string }[] },
+  ) {
+    const hash = `h-${id}-${position ?? "none"}`;
+    await prisma.rawEvent.create({
+      data: {
+        integrationId,
+        providerEventId: `sla_policy:${id}:${hash}`,
+        sourceHash: hash,
+        payload: {
+          id,
+          title,
+          position,
+          filter,
+          policy_metrics: [{ priority: null, metric: "first_reply_time", target: 60, business_hours: false }],
+        },
+      },
+    });
+  }
+
+  it("stores the imported policy's Zendesk position", async () => {
+    await writePolicySnapshot(1, "Standard", 3);
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+
+    const policy = await prisma.sLAPolicy.findFirstOrThrow({ where: { organizationId } });
+    expect(policy.position).toBe(3);
+  });
+
+  it("leaves position null when Zendesk's payload doesn't carry one", async () => {
+    await writePolicySnapshot(1, "Standard", undefined);
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+
+    const policy = await prisma.sLAPolicy.findFirstOrThrow({ where: { organizationId } });
+    expect(policy.position).toBeNull();
+  });
+
+  it("matches by position, not specificity: a lower-position catch-all wins over a higher-position specific policy", async () => {
+    // "Urgent" is more specific (priority: urgent) but sits at a HIGHER
+    // (later-evaluated) Zendesk position than the unrestricted "Catch-all".
+    await writePolicySnapshot(1, "Catch-all", 1);
+    await writePolicySnapshot(2, "Urgent", 2, {
+      all: [{ field: "priority", operator: "is", value: "urgent" }],
+    });
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+
+    const zCase = await prisma.case.create({
+      data: { organizationId, externalId: "case-1", priority: "urgent", openedAt: new Date("2026-09-17T10:00:00.000Z") },
+    });
+    await commitments.runCommitmentPipeline(prisma, organizationId);
+
+    const created = await prisma.commitment.findFirstOrThrow({ where: { caseId: zCase.id } });
+    const matchedPolicy = await prisma.sLAPolicy.findFirstOrThrow({
+      where: { versions: { some: { id: created.policyVersionId } } },
+    });
+    expect(matchedPolicy.name).toBe("Catch-all");
+  });
+
+  it("re-importing updates position when Zendesk's own order changes", async () => {
+    await writePolicySnapshot(1, "Standard", 1);
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+    expect((await prisma.sLAPolicy.findFirstOrThrow({ where: { organizationId } })).position).toBe(1);
+
+    await writePolicySnapshot(1, "Standard", 4);
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+    expect((await prisma.sLAPolicy.findFirstOrThrow({ where: { organizationId } })).position).toBe(4);
+  });
+});

@@ -12,12 +12,17 @@ const realDatabaseSuites = [
   "apps/web/test/event-ordering-persistence.test.ts",
   "apps/web/test/zendesk-requester-name.test.ts",
   "apps/web/test/commitment-re-resolution.test.ts",
+  "apps/web/test/sla-e2e-matrix.test.ts",
   "apps/web/test/next-reply-commitment-persistence.test.ts",
   "apps/web/test/next-reply-cycle-pipeline.test.ts",
   "apps/web/test/next-reply-policy-import-e2e.test.ts",
   "apps/web/test/sla-policy-override-route.test.ts",
   "apps/web/test/organization-lock.test.ts",
   "apps/web/test/evaluate-pipeline-conditional-write.test.ts",
+  "apps/web/test/zendesk-sla-policy-archive.test.ts",
+  "apps/web/test/sla-import-summary.test.ts",
+  "apps/web/test/zendesk-sla-policy-position.test.ts",
+  "apps/web/test/sla-golden-scenarios.test.ts",
 ];
 
 export default defineConfig({

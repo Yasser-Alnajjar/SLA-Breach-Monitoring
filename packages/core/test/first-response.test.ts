@@ -5,6 +5,7 @@ import {
   evaluateCommitment,
   findCompletionEvent,
   findFirstResponseEvent,
+  resolveFirstResponseStartedAt,
 } from "../src/evaluate";
 import type {
   BusinessCalendarVersion,
@@ -167,6 +168,45 @@ describe("first response vs. resolution on the same case", () => {
     expect(evaluate("first_response", noReply, "16:30").status).toBe("breached");
     expect(evaluate("resolution", noReply, "16:30").status).toBe("at_risk");
   });
+
+  it("a reply-less close (D5) finalizes first response as breached, never met, even inside the target", () => {
+    // Close well past the 120m target: still breached, and now finalized
+    // (stopped) at the close rather than running forever.
+    const noReply = scenario.filter((e) => e.type !== "agent_replied");
+    const evaluation = evaluate("first_response", noReply, "23:00");
+    expect(evaluation).toMatchObject({ status: "breached", clock: { state: "stopped" } });
+  });
+
+  it("a reply-less close inside the target is still breached, not met (D5)", () => {
+    // Closed at 30m — well inside the 120m target — with no agent reply ever.
+    const events = [
+      event("10:00", "case_created", "new", { actor: "customer" }),
+      event("10:30", "case_closed", "resolved"),
+    ];
+    const evaluation = evaluate("first_response", events, "10:30");
+    expect(evaluation).toMatchObject({
+      status: "breached",
+      elapsedWorkingMinutes: 30,
+      clock: { state: "stopped" },
+    });
+  });
+});
+
+describe("on-hold does not pause resolution (D7, MVP)", () => {
+  it("keeps the resolution clock running through pending_internal, unlike pending_customer", () => {
+    const events: NormalizedEvent[] = [
+      event("10:00", "case_created", "new", { actor: "customer" }),
+      event("10:30", "state_changed", "pending_internal"),
+      event("11:00", "state_changed", "open", { actor: "agent" }),
+    ];
+    // pauseOnStates is the MVP default (pending_customer only) — on-hold is
+    // deliberately absent, not merely "this policy happens not to list it".
+    const evaluation = evaluate("resolution", events, "12:00");
+    expect(evaluation).toMatchObject({
+      elapsedWorkingMinutes: 120,
+      clock: { state: "running", pausedSince: null, pauseCause: null },
+    });
+  });
 });
 
 describe("Pending before the first agent reply", () => {
@@ -208,6 +248,14 @@ describe("findFirstResponseEvent", () => {
     const solved = event("11:00", "case_closed", "resolved");
     const events = [event("10:00", "case_created", "open"), solved, event("12:00", "agent_replied", null)];
     expect(findFirstResponseEvent(events, at("13:00"))).toBe(solved);
+  });
+
+  it("prefers a same-instant agent reply over its paired close (reply and close, D5)", () => {
+    const close = event("11:00", "case_closed", "resolved", { sourceSequence: 1 });
+    const reply = event("11:00", "agent_replied", null, { sourceSequence: 2 });
+    // Source order lists the transition first (matching how the normalizers
+    // emit a "reply and close"), but the reply must still win.
+    expect(findFirstResponseEvent([event("10:00", "case_created", "open"), close, reply], at("12:00"))).toBe(reply);
   });
 
   it("stays complete after the case is reopened", () => {
@@ -260,5 +308,78 @@ describe("customer replies", () => {
   it("leave first response completed by the later agent reply", () => {
     const reply = event("12:00", "agent_replied", null);
     expect(findFirstResponseEvent([...withCustomerReplies, reply], at("13:00"))).toBe(reply);
+  });
+});
+
+describe("resolveFirstResponseStartedAt (D5b)", () => {
+  it("starts at ticket creation for a customer-created ticket", () => {
+    const events = [event("10:00", "case_created", "new", { actor: "customer" })];
+    expect(resolveFirstResponseStartedAt(events, at("10:00"))).toBe(at("10:00"));
+  });
+
+  it("starts at the first customer reply for an agent-created ticket", () => {
+    const events = [
+      event("10:00", "case_created", "new", { actor: "agent" }),
+      event("11:00", "customer_replied", null, { actor: "customer" }),
+    ];
+    expect(resolveFirstResponseStartedAt(events, at("10:00"))).toBe(at("11:00"));
+  });
+
+  it("returns null for an agent-created ticket with no customer reply yet", () => {
+    const events = [event("10:00", "case_created", "new", { actor: "agent" })];
+    expect(resolveFirstResponseStartedAt(events, at("10:00"))).toBeNull();
+  });
+
+  it("ignores a customer reply from a linked engineering issue", () => {
+    const events = [
+      event("10:00", "case_created", "new", { actor: "agent" }),
+      event("11:00", "customer_replied", null, { actor: "customer", system: "jira" }),
+    ];
+    expect(resolveFirstResponseStartedAt(events, at("10:00"))).toBeNull();
+  });
+
+  it("falls back to caseCreatedAt when no case_created event exists (pre-existing rows)", () => {
+    expect(resolveFirstResponseStartedAt([], at("10:00"))).toBe(at("10:00"));
+  });
+});
+
+describe("evaluateCommitment respects the D5b-delayed clock start", () => {
+  // Agent-created ticket: an agent reply before the customer ever wrote
+  // anything, then the customer's first message. Per D5b the commitment's
+  // clock starts at 11:00, not ticket creation.
+  const preClockEvents: NormalizedEvent[] = [
+    event("10:00", "case_created", "new"),
+    event("10:15", "agent_replied", null),
+    event("11:00", "customer_replied", null, { actor: "customer" }),
+  ];
+  const delayedCommitment = () =>
+    createCommitment("case-1", "first_response", at("11:00"), policy, alwaysOpen);
+
+  it("does not treat an agent reply from before the clock started as completing the commitment", () => {
+    const evaluation = evaluateCommitment(delayedCommitment(), preClockEvents, policy, alwaysOpen, at("11:15"));
+    expect(evaluation).toMatchObject({
+      status: "on_track",
+      elapsedWorkingMinutes: 15,
+      clock: { state: "running" },
+    });
+  });
+
+  it("completes normally on the first agent reply that actually follows the customer's message", () => {
+    const events = [...preClockEvents, event("11:20", "agent_replied", null)];
+    const evaluation = evaluateCommitment(delayedCommitment(), events, policy, alwaysOpen, at("11:25"));
+    expect(evaluation).toMatchObject({
+      status: "met",
+      elapsedWorkingMinutes: 20,
+      clock: { state: "stopped" },
+    });
+  });
+
+  it("still finds the pre-clock reply when no startedAt bound is given (Next Reply cycle derivation)", () => {
+    // findFirstResponseEvent is also used, unbounded, to split first-response
+    // from next-reply cycles (evaluate.ts's findNextReplyCompletionEvent,
+    // cycle-pipeline.ts) — that usage must keep seeing the ticket's actual
+    // first reply, regardless of this commitment's own D5b-delayed window.
+    expect(findFirstResponseEvent(preClockEvents, at("11:15"))?.type).toBe("agent_replied");
+    expect(findFirstResponseEvent(preClockEvents, at("11:15"))?.occurredAt).toBe(at("10:15"));
   });
 });

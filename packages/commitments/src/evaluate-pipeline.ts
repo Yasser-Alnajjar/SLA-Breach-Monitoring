@@ -347,6 +347,7 @@ export async function runEvaluationPipeline(
   const evaluationsToCreate: Evaluation[] = [];
   const commitmentUpdates: {
     id: string;
+    policyVersionId: string;
     status: CommitmentStatus;
     closedAt: string | null;
   }[] = [];
@@ -410,6 +411,7 @@ export async function runEvaluationPipeline(
       if (evaluation.status !== row.status || terminal !== finalized) {
         commitmentUpdates.push({
           id: row.id,
+          policyVersionId: row.policyVersionId,
           status: evaluation.status,
           closedAt: terminal
             ? (row.closedAt?.toISOString() ?? evaluation.evaluatedAt)
@@ -439,9 +441,15 @@ export async function runEvaluationPipeline(
     result.evaluationsCreated = created.count;
   }
 
+  // Compare-and-set (E-2): a concurrent cancellation or re-resolution onto a
+  // different policy version between the read above and this write must
+  // never be clobbered by a status/closedAt computed from the stale row —
+  // `cancelled` is never overwritten, and the write only applies while the
+  // commitment is still on the policy version this evaluation was computed
+  // against.
   for (const update of commitmentUpdates) {
-    await prisma.commitment.update({
-      where: { id: update.id },
+    await prisma.commitment.updateMany({
+      where: { id: update.id, policyVersionId: update.policyVersionId, status: { not: "cancelled" } },
       data: {
         status: update.status,
         closedAt: update.closedAt ? new Date(update.closedAt) : null,

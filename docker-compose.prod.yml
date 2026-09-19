@@ -36,18 +36,6 @@ services:
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: unless-stopped
-    container_name: ngrok
-    depends_on:
-      - web
-    command:
-      - http
-      - web:3000
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?NGROK_AUTHTOKEN is required}
-
   worker:
     build:
       context: .
@@ -90,6 +78,7 @@ volumes:
   postgres-data:
 # docker volume ls | grep postgres-data
 # docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# add -f docker-compose.tunnel.yml to also start ngrok (needs NGROK_AUTHTOKEN set) — dev/staging only, never for production
 # docker compose -f docker-compose.prod.yml --env-file .env.prod \
 #   run --rm --user root worker \
 #   pnpm --filter @sla/db exec prisma migrate deploy

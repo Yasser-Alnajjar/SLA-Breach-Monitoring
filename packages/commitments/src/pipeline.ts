@@ -66,6 +66,19 @@ export function missingCommitmentKinds(existingKinds: CommitmentKind[]): Commitm
 }
 
 /**
+ * Deterministically picks the sibling/anchor commitment used to inherit a
+ * case's frozen policy and calendar version (E-1: `commitments[0]` off an
+ * unordered query picked whichever row Postgres happened to return first).
+ * Resolution outlives first_response and keeps re-resolving onto the
+ * currently applicable policy for as long as it stays open, so it is the
+ * fresher source of truth whenever both exist; first_response is the only
+ * option otherwise.
+ */
+export function pickAnchorCommitment<T extends { kind: CommitmentKind }>(commitments: T[]): T | undefined {
+  return commitments.find((c) => c.kind === "resolution") ?? commitments[0];
+}
+
+/**
  * Which `BusinessCalendarVersion` a new commitment anchors to (roadmap step
  * 24): a customer-specific override, when the case's customer has one,
  * otherwise whatever the matched `SLAPolicyVersion` already specifies. Same
@@ -210,7 +223,7 @@ export async function runCommitmentPipeline(
       const missingKinds = missingCommitmentKinds(caseRow.commitments.map((c) => c.kind as CommitmentKind));
       if (missingKinds.length === 0) continue;
 
-      const sibling = caseRow.commitments[0];
+      const sibling = pickAnchorCommitment(caseRow.commitments);
       let policyVersionFor: (kind: CommitmentKind) => SLAPolicyVersion;
       let calendarVersion: BusinessCalendarVersion;
       if (sibling) {

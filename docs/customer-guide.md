@@ -386,13 +386,13 @@ By default, a commitment pauses only while the case is in the **"Pending custome
 
 ### Reopened tickets
 
-If a Zendesk ticket is solved and later reopened, the resolution commitment's clock is **not** reset. It resumes live evaluation from where it left off, using the original commitment start time — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the working time consumed (including the time before the original solve) now exceeds target.
+If a Zendesk ticket is solved and later reopened, the resolution commitment's clock is **not** reset. It resumes live evaluation from the original commitment start time, over the full event history — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the total working time now exceeds target. This includes the time the ticket spent solved: the clock does not pause between the solve and the reopen, so that interval counts toward the target the same as any other open time.
 
 A first-response commitment is not affected by a reopen: once an agent has replied (or the ticket was solved before any reply), its result is final.
 
 ### Priority changes
 
-Changing a case's priority after its commitments have already been created has no effect on those commitments — a case gets exactly one first-response commitment and one resolution commitment, matched once, at creation, and both always share the same policy and calendar version. A later SLA policy change (Section 19) only affects commitments created after the change.
+Changing a case's priority, customer, or (where populated) tier is not ignored: on the next poll or webhook delivery, every commitment on that case that is still open (not yet met, and not terminally breached — see [Section 14](#14-at-risk-and-breached-states)) is re-matched against your current SLA policies, and moved onto whichever version now applies. The clock itself never resets — only the policy, target, and calendar version update, and elapsed time keeps being derived from the same original start time and event history. A commitment that has already completed (met, or breached and closed) keeps the policy version it finished under, permanently.
 
 ### Multiple SLA policies
 
@@ -402,7 +402,7 @@ When a case is created, its attributes (priority, customer, and — where popula
 
 ### Policy changes
 
-Editing a policy's target never rewrites history. It creates a new version of that policy; every commitment already created keeps the exact policy version (and calendar version) it was created under, permanently, so a policy correction never silently changes a number that's already been reported.
+Editing a policy's target never rewrites history in the sense of altering a past record, but it is **not** invisible to commitments already in progress: it creates a new version of that policy, and any currently open commitment still matched to that policy (by the same mechanism as [Priority changes](#priority-changes) above) moves onto the new version — its target, calendar version, and due date update, while its clock keeps running from its original start time. Only a commitment that has already completed (met, or breached and closed) keeps the exact policy version it finished under, permanently, so a policy correction never changes a number that's already been reported and closed out.
 
 ### Worked example
 

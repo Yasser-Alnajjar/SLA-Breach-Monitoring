@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@sla/core": "workspace:*",
-    "@sla/db": "workspace:*"
+    "@sla/db": "workspace:*",
+    "@sla/http-retry": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

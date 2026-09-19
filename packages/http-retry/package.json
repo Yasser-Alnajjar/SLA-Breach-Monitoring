@@ -1,5 +1,5 @@
 {
-  "name": "@sla/intercom",
+  "name": "@sla/http-retry",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,11 +9,6 @@
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc --noEmit",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@sla/core": "workspace:*",
-    "@sla/db": "workspace:*",
-    "@sla/http-retry": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

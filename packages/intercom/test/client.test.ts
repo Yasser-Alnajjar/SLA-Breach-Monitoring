@@ -33,14 +33,21 @@ describe("IntercomClient 403 handling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves other failures as a plain IntercomApiError", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, { type: "error.list", errors: [] })));
-    const client = new IntercomClient(baseCredentials);
+  it("leaves other failures as a plain IntercomApiError, after exhausting the shared retry budget on a 500", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, { type: "error.list", errors: [] })));
+      const client = new IntercomClient(baseCredentials);
 
-    const error = await client.fetchContact("contact-1").catch((e: unknown) => e);
+      const pending = client.fetchContact("contact-1").catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const error = await pending;
 
-    expect(error).toBeInstanceOf(IntercomApiError);
-    expect(error).not.toBeInstanceOf(IntercomPermissionDeniedError);
+      expect(error).toBeInstanceOf(IntercomApiError);
+      expect(error).not.toBeInstanceOf(IntercomPermissionDeniedError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -242,4 +242,48 @@ describe.skipIf(!TEST_DATABASE_URL)("runNextReplyCyclePipeline (real Postgres)",
     expect(await nextReplyRows(withTarget)).toHaveLength(1);
     expect(await nextReplyRows(unanchored)).toEqual([]);
   });
+
+  it("anchors on resolution, not first_response, when a case has both (E-1 regression)", async () => {
+    // First Response finished under the policy version with no next_reply
+    // target; Resolution was since re-resolved onto the version that has
+    // one. The anchor pick must be deterministic and favor the fresher,
+    // still-open Resolution commitment — not whichever row Postgres
+    // happens to return first.
+    const caseId = await createCase();
+    await seedConversation(caseId);
+    await prisma.commitment.create({
+      data: {
+        caseId,
+        kind: "first_response",
+        policyVersionId: policyWithoutTargetVersionId,
+        calendarVersionId,
+        startedAt: at("09:00"),
+        targetMinutes: 120,
+        dueAt: at("11:00"),
+        status: "met",
+        closedAt: at("09:30"),
+      },
+    });
+    await prisma.commitment.create({
+      data: {
+        caseId,
+        kind: "resolution",
+        policyVersionId: policyWithTargetVersionId,
+        calendarVersionId,
+        startedAt: at("09:00"),
+        targetMinutes: 480,
+        dueAt: at("17:00"),
+      },
+    });
+
+    const result = await commitments.runNextReplyCyclePipeline(prisma, organizationId, {
+      asOf: at("11:00").toISOString(),
+    });
+
+    expect(result.casesFailed).toEqual([]);
+    expect(result.cyclesCreated).toBe(1);
+    const rows = await nextReplyRows(caseId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ policyVersionId: policyWithTargetVersionId });
+  });
 });

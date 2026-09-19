@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@sla/db";
+import { withOrganizationSlaLock, type PrismaClient } from "@sla/db";
 import {
   runCommitmentPipeline,
   runCommitmentReResolutionPipeline,
@@ -34,10 +34,6 @@ import {
  */
 type SourceProvider = "zendesk" | "jira";
 
-// Generous on purpose: a route queued behind the other's projection waits
-// inside this transaction, and only the lock (no rows) is held meanwhile.
-const LOCK_WAIT_TIMEOUT_MS = 15 * 60_000;
-
 export interface SourceSyncProjectionResult {
   zendesk: {
     normalization: NormalizationResult;
@@ -57,28 +53,6 @@ export interface SourceSyncProjectionResult {
   /** Null while `pendingProviders` is non-empty — evaluation is deferred, not skipped. */
   evaluation: EvaluationPipelineResult | null;
   pendingProviders: SourceProvider[];
-}
-
-/**
- * Runs `work` while holding a per-organization Postgres advisory lock, so the
- * Zendesk and Jira backfill routes (which onboarding fires concurrently)
- * never project into Case/NormalizedEvent/Commitment at the same time. The
- * lock belongs to an otherwise idle transaction and is released when it
- * ends; `work` itself uses the regular client, since the pipelines open
- * their own transactions.
- */
-async function withSourceSyncLock<T>(
-  prisma: PrismaClient,
-  organizationId: string,
-  work: () => Promise<T>,
-): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`source-sync:${organizationId}`}, 0))`;
-      return work();
-    },
-    { maxWait: 10_000, timeout: LOCK_WAIT_TIMEOUT_MS },
-  );
 }
 
 /**
@@ -110,7 +84,7 @@ export async function projectAndEvaluateSourceSyncs(
   prisma: PrismaClient,
   organizationId: string,
 ): Promise<SourceSyncProjectionResult> {
-  return withSourceSyncLock(prisma, organizationId, async () => {
+  return withOrganizationSlaLock(prisma, organizationId, async () => {
     const integrations = await prisma.integration.findMany({
       where: { organizationId, provider: { in: ["zendesk", "jira"] }, status: { not: "disconnected" } },
       select: { id: true, provider: true, cursor: true },

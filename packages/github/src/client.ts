@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "@sla/http-retry";
 import type {
   GithubCredentials,
   GithubPageInfo,
@@ -131,23 +132,21 @@ export class GithubClient {
     variables: Record<string, unknown>,
     hasRetriedAuth = false,
   ): Promise<T> {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.credentials.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-
     // GitHub's secondary rate limits surface as 403 with a Retry-After
     // header, unlike Linear's plain 429 — a normal 403 (e.g. lost repo
     // access) carries no such header and falls through to the checks below.
-    if (response.status === 403 && response.headers.has("Retry-After")) {
-      const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "60");
-      await sleep(retryAfterSeconds * 1000);
-      return this.request<T>(query, variables, hasRetriedAuth);
-    }
+    const response = await fetchWithRetry(
+      () =>
+        fetch(API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.credentials.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query, variables }),
+        }),
+      { isRetryableStatus: (r) => r.status === 403 && r.headers.has("Retry-After") },
+    );
 
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
@@ -246,8 +245,4 @@ export class GithubClient {
     );
     return data.node?.timelineItems ?? emptyConnection<GithubTimelineItem>();
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

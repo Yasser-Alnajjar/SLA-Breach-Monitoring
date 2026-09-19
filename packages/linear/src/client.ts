@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "@sla/http-retry";
 import type {
   LinearAttachment,
   LinearAttachmentConnection,
@@ -128,20 +129,18 @@ export class LinearClient {
     variables: Record<string, unknown>,
     hasRetriedAuth = false,
   ): Promise<T> {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.credentials.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-
-    if (response.status === 429) {
-      const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "5");
-      await sleep(retryAfterSeconds * 1000);
-      return this.request<T>(query, variables, hasRetriedAuth);
-    }
+    const response = await fetchWithRetry(
+      () =>
+        fetch(API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.credentials.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query, variables }),
+        }),
+      { isRetryableStatus: (r) => r.status === 429 },
+    );
 
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
@@ -183,8 +182,4 @@ export class LinearClient {
     );
     return data.issue?.attachments ?? emptyConnection<LinearAttachment>();
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

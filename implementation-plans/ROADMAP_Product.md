@@ -13,9 +13,9 @@ _Update this section every time a task or phase changes state._
 
 |                          |                                                                                                                |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Now**                  | Phase 1 — Correct SLA Commitments · blocked on decisions D1, D1b, D3–D7                                        |
+| **Now**                  | Phase 1 — Correct SLA Commitments · 5 of 13 tasks done (1.1, 1.2, 1.9, 1.11, 1.12) · the rest blocked on decisions D3–D7 |
 | **Up next**              | Phase 2 — Reliable Zendesk + Jira Connections                                                                  |
-| **Blocked on decisions** | D1, D1b, D3, D4, D5, D6, D7 (Phase 1) · D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)                        |
+| **Blocked on decisions** | D3, D4, D5, D6, D7 (Phase 1) · D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)                        |
 | **Recently completed**   | Phase 0 — Safe Foundation, ✅ complete (2026-09-19) — see [Phase 0](#phase-0--safe-foundation)                 |
 | **Target**               | Production-ready MVP for **Zendesk + Jira** customers. Intercom, Linear and GitHub as Beta.                    |
 | **Estimate**             | 24 weeks plus 3 buffer (about 6–7 months)                                                                      |
@@ -25,7 +25,7 @@ _Update this section every time a task or phase changes state._
 | Phase                                                  | Product outcome                                                                       | Est. | Status                                            |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
 | [0](#phase-0--safe-foundation)                         | Safe foundation: no cross-tenant control, deterministic SLA state                     | 2 wk | ✅ Complete (2026-09-19)                          |
-| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | ⬜ Not started                                    |
+| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | 🔄 In progress (5/13 tasks, 2026-09-19)           |
 | [2](#phase-2--reliable-zendesk--jira-connections)      | Reliable Zendesk + Jira connections, verified live                                    | 3 wk | ⬜ Not started                                    |
 | [3](#phase-3--explainable-cases)                       | Explainable cases: timeline, commitment transparency, assignee, rich alerts           | 3 wk | ⬜ Not started                                    |
 | [4](#phase-4--sla-policy--calendar-management)         | SLA policy and calendar management inside Watchtower                                  | 4 wk | ⬜ Not started                                    |
@@ -187,8 +187,8 @@ Only mark `[x]` when the task is fully implemented and all required verification
 
 Decisions that change product behavior. Tick one when it is decided and write the outcome.
 
-- [ ] **D1** — Does a new version of the _same_ policy (override, Zendesk re-import, or an edit in the policy UI) change **active** commitments? Today: yes. _Recommended:_ no; only a switch to a _different_ policy re-resolves. → blocks 1.1, 4.4
-- [ ] **D1b** — Does a calendar change on its own (a customer calendar reassigned, or a calendar edited) move active commitments? Today: no. _Recommended:_ no, it applies to new commitments only. → blocks 1.1, 4.6
+- [x] **D1** — Does a new version of the _same_ policy (override, Zendesk re-import, or an edit in the policy UI) change **active** commitments? **Decided: no.** Only a switch to a _different_ policy re-resolves. → 1.1, blocks 4.4
+- [x] **D1b** — Does a calendar change on its own (a customer calendar reassigned, or a calendar edited) move active commitments? **Decided: no.** It applies to new commitments only. → 1.1, blocks 4.6
 - [x] **D2** — Is a breach final? **Decided: yes.** A target increase never un-breaches a commitment. → 1.2
 - [ ] **D3** — After a reopen, does the time spent solved count toward Resolution? Today: yes. _Recommended:_ match Zendesk's behavior (check it first). → blocks 1.4
 - [ ] **D4** — Does closing a case end an open Next Reply cycle? Today: no. _Recommended:_ cancel the cycle on close. → blocks 1.5
@@ -240,14 +240,16 @@ Decisions that change product behavior. Tick one when it is decided and write th
 
 ## Phase 1 — Correct SLA Commitments
 
-**Status:** ⬜ Not started · **Estimate:** 3 weeks · **Needs:** D1, D1b, D3–D7
+**Status:** 🔄 In progress (5/13 tasks done, 2026-09-19: 1.1, 1.2, 1.9, 1.11, 1.12) · **Estimate:** 3 weeks · **Needs:** D3–D7
 **Goal:** Every commitment type follows written, tested rules that agree with Zendesk.
 **Phase is done when:** all tasks are ticked, the golden scenarios run in CI, and the docs describe the final behavior. **Engine semantics are frozen after this phase.**
 
 **Re-resolution**
 
-- [ ] ⛔ D1 **1.1** Re-resolve active commitments only on the triggers D1 and D1b allow, and record a distinct reason code for each trigger. `P0 · Bug · A` · E-4
-- [ ] **1.2** A breach is final (D2): re-resolution skips commitments that are already breached. `P0 · Bug · A` · E-5
+- [x] **1.1** Re-resolve active commitments only on the triggers D1 and D1b allow, and record a distinct reason code for each trigger. `P0 · Bug · A` · E-4 (done 2026-09-19)
+  - Status (2026-09-19): D1/D1b both decided "no" — only a switch to a genuinely *different* policy re-resolves an active commitment; a new version of the same policy (override/re-import/UI edit) or a calendar change alone never does. `resolveCommitmentPolicyChange` (`packages/core/src/commitments.ts`) now compares the matched version's `policyId` against the commitment's *current* policy's id (not `policyVersionId`), so same-policy version bumps report `changed: false`. `runCommitmentReResolutionPipeline` (`packages/commitments/src/re-resolution-pipeline.ts`) builds a `policyVersionId → policyId` lookup (covering commitments frozen on an archived policy's version too) and passes the commitment's current `policyId` into the comparison. A calendar change alone never touches `matchPolicyVersion`'s result, so it already fell outside `changed` — codified with a new regression test. The single remaining trigger's audit reason was renamed from the vague `policy_driving_attribute_changed` to `policy_switched` (`POLICY_SWITCH_REASON`) to name what it now precisely means. New tests: `packages/core/test/commitments.test.ts` ("D1: reports no change for a new version of the SAME policy") and `apps/web/test/commitment-re-resolution.test.ts` ("D1/D1b: only a switch to a different policy re-resolves"). Full suite: 108 files / 1155 tests passing against real Postgres.
+- [x] **1.2** A breach is final (D2): re-resolution skips commitments that are already breached. `P0 · Bug · A` · E-5 (done 2026-09-19)
+  - Status (2026-09-19): added `RE_RESOLUTION_ELIGIBLE_WHERE` (`packages/commitments/src/active-commitment.ts`) — same as `ACTIVE_COMMITMENT_WHERE` (still used by evaluation, which must keep evaluating an open breach so `breachedByMinutes` keeps growing) but additionally excludes `status: "breached"`. `runCommitmentReResolutionPipeline` now selects candidate cases/commitments and guards its conditional update with this narrower filter, so a still-open breached commitment is never re-resolved (a target increase can no longer "un-breach" it). New regression test in `apps/web/test/commitment-re-resolution.test.ts` ("never touches a still-open (uncompleted) breached commitment"). Verified locally against a real Postgres (`TEST_DATABASE_URL`): full suite 106 files / 1146 tests passing.
 - [ ] **1.3** End-to-end test matrix, starting from Zendesk audit events and running through normalization, re-resolution, evaluation and notification. `P0 · Testing · A` · T-2
   - normal → high (Resolution 2h → 8h) · high → normal (8h → 2h) · normal → urgent
   - customer/organization change · the new policy has no target for this kind
@@ -266,10 +268,13 @@ Decisions that change product behavior. Tick one when it is decided and write th
 
 **Policy matching**
 
-- [ ] **1.9** A policy whose organization condition references an org we haven't seen yet must match **no** cases. Today it can end up matching every case. `P0 · Bug · A` · E-7
+- [x] **1.9** A policy whose organization condition references an org we haven't seen yet must match **no** cases. Today it can end up matching every case. `P0 · Bug · A` · E-7 (done 2026-09-19)
+  - Status (2026-09-19): `extractMatchFromFilter` (`packages/zendesk/src/policies.ts`) now sets `match.customerIds = []` (an explicit "matches nothing", per `matchPolicyVersion`/`matches` in `packages/core/src/commitments.ts`) whenever the filter names at least one `organization_id` condition but none of them resolve to a known Customer — previously it left `match.customerIds` unset, which `matches()` reads as "no org restriction" (match-all). Updated `packages/zendesk/test/policies.test.ts`'s test that had asserted the old (buggy) behavior, and added a case mixing one resolved and one unresolved org id in the same OR-set. Verified locally against a real Postgres: full suite 106 files / 1147 tests passing.
 - [ ] ⛔ D6 **1.10** Match imported policies by Zendesk `position`. `P1 · Bug · B` · E-6
-- [ ] **1.11** Archive policies that were deleted in Zendesk (new `SLAPolicy.archivedAt`), and exclude them from matching. `P1 · Bug · B` · E-9
-- [ ] **1.12** Store the import results per organization (unsupported conditions and metrics, unresolved schedules, cases with no matching policy) so the UI can show them. `P1 · Feature · B` · E-8, E-16
+- [x] **1.11** Archive policies that were deleted in Zendesk (new `SLAPolicy.archivedAt`), and exclude them from matching. `P1 · Bug · B` · E-9 (done 2026-09-19)
+  - Status (2026-09-19): added `SLAPolicy.archivedAt DateTime?` (migration `20260919005801_add_sla_policy_archived_at`). `backfillSlaPolicies` (`packages/zendesk/src/backfill.ts`) now also writes a `sla_policy_manifest:<hash>` RawEvent (`mapSlaPolicyManifestToRawEvent`) listing every policy id seen in that run's full listing — the only way to tell "deleted in Zendesk" apart from "not fetched yet", since deletion has no event of its own. `runZendeskSlaPolicyImport` reads the latest manifest and archives any previously-imported `SLAPolicy` whose id is missing from it (new `policiesArchived` field on `SlaPolicyImportResult`); absent a manifest (integration hasn't run the new backfill yet) nothing is archived, matching prior behavior. Archived policies are excluded from matching in all three places `SLAPolicyVersion` is queried for matching (`packages/commitments`'s `pipeline.ts`, `cycle-pipeline.ts`, `re-resolution-pipeline.ts`, all now filtering `policy: { archivedAt: null }`); `evaluate-pipeline.ts`'s by-id lookup for already-frozen commitments is untouched, so existing commitments on an archived policy still evaluate normally. New suite `apps/web/test/zendesk-sla-policy-archive.test.ts` (added to `realDatabaseSuites`). Verified locally against a real Postgres: full suite 107 files / 1150 tests passing; `apps/web`'s `tsc --noEmit` clean.
+- [x] **1.12** Store the import results per organization (unsupported conditions and metrics, unresolved schedules, cases with no matching policy) so the UI can show them. `P1 · Feature · B` · E-8, E-16 (done 2026-09-19)
+  - Status (2026-09-19): new `SlaImportSummary` model (migration `20260919010334_add_sla_import_summary`) — one row per organization, overwritten on every sync (a snapshot of the latest run, not a history). `recordSlaImportSummary` (`packages/db/src/sla-import-summary.ts`) upserts it from a plain `{unsupportedConditions, unsupportedMetrics, policiesWithNoUsableTargets, policiesWithUnresolvedSchedule, policiesArchived, casesWithNoMatchingPolicy}` input, explicitly listing fields rather than spreading a pipeline result (the raw `SlaPolicyImportResult`/commitment-pipeline results carry extra fields Prisma would reject). Wired into both places a Zendesk sync completes: `apps/web/src/lib/source-sync.ts`'s `projectAndEvaluateSourceSyncs` (onboarding backfill + webhook DB-tail) and `apps/worker/src/cycle.ts`'s per-organization cycle (which previously discarded `runZendeskSlaPolicyImport`'s result entirely). `casesWithNoMatchingPolicy` comes from the same sync's `runCommitmentPipeline` call, so the numbers describe one consistent pass. No UI yet — reading this table for the review screen is Phase 6.7. New suites `apps/web/test/sla-import-summary.test.ts` and the archival coverage in `apps/web/test/zendesk-sla-policy-archive.test.ts` (both in `realDatabaseSuites`). Verified locally against a real Postgres: full suite 108 files / 1152 tests passing; `apps/web` and `apps/worker`'s `tsc --noEmit` both clean.
 
 **Docs**
 

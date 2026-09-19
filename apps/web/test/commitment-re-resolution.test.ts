@@ -89,6 +89,28 @@ describe.skipIf(!TEST_DATABASE_URL)("commitment re-resolution (real Postgres)", 
     });
   }
 
+  async function addPolicyVersion(
+    policyId: string,
+    version: number,
+    match: Record<string, unknown>,
+    targets: { kind: string; minutes: number }[],
+    overrides: Record<string, unknown> = {},
+  ) {
+    return prisma.sLAPolicyVersion.create({
+      data: {
+        policyId,
+        version,
+        match: match as Prisma.InputJsonValue,
+        targets: targets as unknown as Prisma.InputJsonValue,
+        pauseOnStates: [],
+        calendarVersionId: calendar247Id,
+        warnAtPercent: [50, 80, 95],
+        effectiveFrom: at("00:00"),
+        ...overrides,
+      },
+    });
+  }
+
   async function createCase(overrides: Record<string, unknown> = {}) {
     return prisma.case.create({
       data: { organizationId, externalId: `case-${Math.random()}`, openedAt: at("10:00"), ...overrides },
@@ -163,7 +185,7 @@ describe.skipIf(!TEST_DATABASE_URL)("commitment re-resolution (real Postgres)", 
         previousCalendarVersionId: calendar247Id,
         newCalendarVersionId: calendar247Id,
         changedAt: at("10:40"),
-        reason: "policy_driving_attribute_changed",
+        reason: "policy_switched",
       });
     });
 
@@ -265,6 +287,38 @@ describe.skipIf(!TEST_DATABASE_URL)("commitment re-resolution (real Postgres)", 
       expect(await auditRows(before.id)).toEqual([]);
     });
 
+    it("never touches a still-open (uncompleted) breached commitment — a breach is final (D2, E-5)", async () => {
+      const normal = await createPolicy("Normal", { priority: ["normal"] }, [{ kind: "resolution", minutes: 30 }]);
+      const urgent = await createPolicy("Urgent", { priority: ["urgent"] }, [{ kind: "resolution", minutes: 480 }]);
+      const zCase = await createCase({ priority: "normal" });
+      await writeEvents(zCase.id, [{ time: "10:00", type: "case_created", toState: "new", actor: "customer" }]);
+      await commitments.runCommitmentPipeline(prisma, organizationId);
+      // 45 elapsed minutes > 30-minute target, and the case is still open (no completion event).
+      await commitments.runEvaluationPipeline(prisma, organizationId, { asOf: at("10:45").toISOString() });
+      const before = await commitmentRow(zCase.id, "resolution");
+      expect(before).toMatchObject({ status: "breached", policyVersionId: normal.id, targetMinutes: 30 });
+      expect(before.closedAt).toBeNull(); // still open, not completed
+
+      // A larger target must never "un-breach" it, even though the
+      // commitment is still open and would otherwise be re-resolution-eligible.
+      await prisma.case.update({ where: { id: zCase.id }, data: { priority: "urgent" } });
+      const result = await commitments.runCommitmentReResolutionPipeline(prisma, organizationId, {
+        asOf: at("10:50").toISOString(),
+      });
+      expect(result.commitmentsUpdated).toBe(0);
+
+      const after = await commitmentRow(zCase.id, "resolution");
+      expect(after).toMatchObject({
+        status: "breached",
+        policyVersionId: before.policyVersionId,
+        targetMinutes: before.targetMinutes,
+        calendarVersionId: before.calendarVersionId,
+        dueAt: before.dueAt,
+      });
+      expect(await auditRows(before.id)).toEqual([]);
+      void urgent;
+    });
+
     it("never touches a cancelled commitment", async () => {
       const normal = await createPolicy("Normal", { priority: ["normal"] }, [{ kind: "next_reply", minutes: 60 }]);
       await createPolicy("Urgent", { priority: ["urgent"] }, [{ kind: "next_reply", minutes: 30 }]);
@@ -332,6 +386,68 @@ describe.skipIf(!TEST_DATABASE_URL)("commitment re-resolution (real Postgres)", 
 
       const row = await commitmentRow(zCase.id, "first_response");
       expect(row).toMatchObject({ policyVersionId: goldPolicy.id, targetMinutes: 10 });
+    });
+  });
+
+  describe("D1/D1b: only a switch to a different policy re-resolves", () => {
+    it("D1: a new version of the SAME policy (an override or re-import) never re-resolves an active commitment", async () => {
+      const normal = await createPolicy("Normal", { priority: ["normal"] }, [{ kind: "first_response", minutes: 60 }]);
+      const zCase = await createCase({ priority: "normal" });
+      await writeEvents(zCase.id, [{ time: "10:00", type: "case_created", toState: "new", actor: "customer" }]);
+      await commitments.runCommitmentPipeline(prisma, organizationId);
+      const before = await commitmentRow(zCase.id, "first_response");
+      expect(before).toMatchObject({ policyVersionId: normal.id, targetMinutes: 60 });
+
+      // A new version of the exact same policy (same policyId), e.g. an
+      // admin edit or a Zendesk re-import bumping the target — the match
+      // criteria and case attributes are unchanged.
+      const normalV2 = await addPolicyVersion(normal.policyId, 2, { priority: ["normal"] }, [
+        { kind: "first_response", minutes: 30 },
+      ]);
+
+      const result = await commitments.runCommitmentReResolutionPipeline(prisma, organizationId, {
+        asOf: at("10:20").toISOString(),
+      });
+      expect(result.commitmentsUpdated).toBe(0);
+
+      const after = await commitmentRow(zCase.id, "first_response");
+      expect(after).toMatchObject({ policyVersionId: normal.id, targetMinutes: 60 });
+      expect(await auditRows(after.id)).toEqual([]);
+      void normalV2;
+    });
+
+    it("D1b: reassigning a customer's calendar alone never re-resolves an active commitment", async () => {
+      const normal = await createPolicy("Normal", { priority: ["normal"] }, [{ kind: "first_response", minutes: 60 }]);
+      const customer = await prisma.customer.create({ data: { organizationId, name: "Acme" } });
+      const zCase = await createCase({ priority: "normal", customerId: customer.id });
+      await writeEvents(zCase.id, [{ time: "10:00", type: "case_created", toState: "new", actor: "customer" }]);
+      await commitments.runCommitmentPipeline(prisma, organizationId);
+      const before = await commitmentRow(zCase.id, "first_response");
+      expect(before.calendarVersionId).toBe(calendar247Id);
+
+      const narrowCalendar = await prisma.businessCalendar.create({
+        data: {
+          organizationId,
+          name: "Narrow",
+          versions: {
+            create: { version: 1, timezone: "UTC", weekly: [{ day: 4, openMinute: 0, closeMinute: 30 }], holidays: [], alwaysOpen: false },
+          },
+        },
+        include: { versions: true },
+      });
+      await prisma.customer.update({ where: { id: customer.id }, data: { calendarId: narrowCalendar.id } });
+
+      const result = await commitments.runCommitmentReResolutionPipeline(prisma, organizationId, {
+        asOf: at("10:20").toISOString(),
+      });
+      expect(result.commitmentsUpdated).toBe(0);
+
+      const after = await commitmentRow(zCase.id, "first_response");
+      expect(after).toMatchObject({
+        policyVersionId: normal.id,
+        calendarVersionId: calendar247Id, // unchanged — a calendar reassignment applies to new commitments only
+      });
+      expect(await auditRows(after.id)).toEqual([]);
     });
   });
 

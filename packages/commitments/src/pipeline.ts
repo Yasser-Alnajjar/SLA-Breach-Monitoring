@@ -149,7 +149,7 @@ export async function runCommitmentPipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId } },
+    where: { policy: { organizationId, archivedAt: null } },
     include: { calendarVersion: true },
   });
   if (policyVersionRows.length === 0) return result;

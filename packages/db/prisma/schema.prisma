@@ -32,6 +32,7 @@ model Organization {
   integrations      Integration[]
   integrationConfigs IntegrationConfig[]
   slaPolicies       SLAPolicy[]
+  slaImportSummary  SlaImportSummary?
   slackIntegration  SlackIntegration?
   emailSettings     OrganizationEmailSettings?
   users             User[]
@@ -260,6 +261,12 @@ model SLAPolicy {
   name           String
   createdAt      DateTime           @default(now())
   externalId     String?
+  /// Set when the source policy (e.g. deleted/deactivated in Zendesk) is no
+  /// longer live. Archived policies are excluded from matching for new and
+  /// re-resolved commitments, but their versions stay readable — already
+  /// created commitments keep the frozen policyVersionId they were matched
+  /// under (Phase 13.1), unaffected by archival.
+  archivedAt     DateTime?
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   versions       SLAPolicyVersion[]
 
@@ -289,6 +296,31 @@ model SLAPolicyVersion {
 
   @@unique([policyId, version])
   @@map("sla_policy_versions")
+}
+
+/// One row per organization, overwritten on every SLA policy import
+/// (Phase 1.12 / E-8, E-16): what the last import silently dropped or
+/// couldn't place, so it can reach the UI instead of only logs. A snapshot
+/// of the *last run*, not a history — each field is what that run reported.
+model SlaImportSummary {
+  id                              String   @id @default(cuid())
+  organizationId                  String   @unique
+  /// Filter conditions on fields this importer doesn't model (group, tags, form, type — see SUPPORTED_CONDITION_FIELDS).
+  unsupportedConditions           Int      @default(0)
+  /// Zendesk SLA metrics with no CommitmentKind equivalent (requester_wait_time, agent_work_time, ...).
+  unsupportedMetrics              Int      @default(0)
+  /// Policies whose policy_metrics produced no usable target for any CommitmentKind.
+  policiesWithNoUsableTargets     Int      @default(0)
+  /// Policies whose schedule_id pointed at a schedule not (yet) imported — fell back to the always-open default calendar.
+  policiesWithUnresolvedSchedule  Int      @default(0)
+  /// Previously-imported policies archived this run because they're gone from Zendesk's current listing (E-9).
+  policiesArchived                Int      @default(0)
+  /// Cases with at least one active commitment whose current attributes match no active policy version, as of this run's commitment pass.
+  casesWithNoMatchingPolicy       Int      @default(0)
+  updatedAt                       DateTime @updatedAt
+  organization                    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("sla_import_summaries")
 }
 
 /// Working hours, timezone, holidays. Versioned like SLAPolicy.

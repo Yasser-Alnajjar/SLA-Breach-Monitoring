@@ -73,9 +73,19 @@ export function matchPolicyVersion(
  * Whether an active Commitment's policy/target needs to change to match
  * `matchedPolicyVersion` — the currently applicable policy version for the
  * commitment's case, from a fresh `matchPolicyVersion` call (Active-Commitment
- * Re-Resolution). Deliberately generic: it compares ids, never a specific
- * `CaseAttributes` field, so it handles a priority, customer, tier, or any
- * other future match-driving attribute change through the same path.
+ * Re-Resolution).
+ *
+ * `changed` compares the underlying **policy** (`policyId`), not the specific
+ * version (`id`) — decision D1. A new version of the *same* policy (a manual
+ * override, a Zendesk re-import, or an edit in the policy UI) never
+ * re-resolves an active commitment; only a case attribute (priority,
+ * customer/organization, tier, or any future match-driving attribute)
+ * changing enough that a genuinely *different* policy now matches does.
+ * Deliberately generic: it never inspects which `CaseAttributes` field moved,
+ * so every such attribute is handled through the same path. A calendar
+ * change alone (D1b) never reaches this function at all — it doesn't affect
+ * `matchPolicyVersion`'s result, so `changed` stays false and the caller
+ * never recomputes `calendarVersionId` for an otherwise-unchanged commitment.
  *
  * `hasTarget` is false when `matchedPolicyVersion` has no target for the
  * commitment's `kind` (e.g. the newly-applicable policy dropped `next_reply`)
@@ -85,18 +95,19 @@ export function matchPolicyVersion(
  * SLA commitment.
  */
 export interface CommitmentPolicyResolution {
-  /** True when `matchedPolicyVersion.id` differs from the commitment's current `policyVersionId`. */
+  /** True when `matchedPolicyVersion.policyId` differs from the commitment's current policy's id — a switch to a different policy, not merely a new version of the same one. */
   changed: boolean;
   /** False when `matchedPolicyVersion` has no target for the commitment's `kind`. */
   hasTarget: boolean;
 }
 
 export function resolveCommitmentPolicyChange(
-  commitment: Pick<Commitment, "kind" | "policyVersionId">,
+  commitment: Pick<Commitment, "kind">,
+  currentPolicyId: string,
   matchedPolicyVersion: SLAPolicyVersion,
 ): CommitmentPolicyResolution {
   return {
-    changed: matchedPolicyVersion.id !== commitment.policyVersionId,
+    changed: matchedPolicyVersion.policyId !== currentPolicyId,
     hasTarget: matchedPolicyVersion.targets.some((t) => t.kind === commitment.kind),
   };
 }

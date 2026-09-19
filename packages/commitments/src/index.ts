@@ -32,6 +32,6 @@ export type { NextReplyCyclePipelineResult } from "./cycle-pipeline";
 export { overridePolicyTargets, PolicyNotFoundError } from "./override";
 export type { PolicyOverrideResult } from "./override";
 export { CalendarNotFoundError, CustomerNotFoundError, setCustomerCalendar } from "./customer-calendar";
-export { ACTIVE_COMMITMENT_WHERE } from "./active-commitment";
-export { POLICY_CHANGE_REASON, runCommitmentReResolutionPipeline } from "./re-resolution-pipeline";
+export { ACTIVE_COMMITMENT_WHERE, RE_RESOLUTION_ELIGIBLE_WHERE } from "./active-commitment";
+export { POLICY_SWITCH_REASON, runCommitmentReResolutionPipeline } from "./re-resolution-pipeline";
 export type { CommitmentReResolutionResult } from "./re-resolution-pipeline";

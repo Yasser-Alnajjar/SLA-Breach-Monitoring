@@ -10,17 +10,26 @@ import {
   type SLAPolicyVersion,
   type WeeklyWindow,
 } from "@sla/core";
-import { ACTIVE_COMMITMENT_WHERE } from "./active-commitment";
+import { RE_RESOLUTION_ELIGIBLE_WHERE } from "./active-commitment";
 import { latestVersionPerPolicy, resolveCommitmentCalendarVersion, toCalendarVersionDomain, toCaseAttributes } from "./pipeline";
 
 /**
- * The only reason `runCommitmentReResolutionPipeline` writes a
- * `CommitmentPolicyChange` row: a policy-driving Case attribute (priority,
- * customer/organization, tier, or any other field `matchPolicyVersion`
- * reads) changed enough that a different `SLAPolicyVersion` now applies.
- * Deliberately generic — never a per-field reason like `priority_changed`.
+ * The only trigger `runCommitmentReResolutionPipeline` acts on (D1, D1b): a
+ * policy-driving Case attribute (priority, customer/organization, tier, or
+ * any other field `matchPolicyVersion` reads) changed enough that a
+ * genuinely *different* policy now matches. Deliberately generic — never a
+ * per-field reason like `priority_changed`.
+ *
+ * Two triggers the roadmap considered are deliberately *not* reasons this
+ * function ever writes, because both were decided "no":
+ *  - D1: a new version of the *same* policy (an override, a Zendesk
+ *    re-import, or a policy-UI edit) never re-resolves an active commitment
+ *    — see `resolveCommitmentPolicyChange`'s `policyId` comparison.
+ *  - D1b: a calendar change alone (a customer calendar reassigned, or a
+ *    calendar edited) never re-resolves an active commitment either — it
+ *    doesn't change which policy matches, so it never reaches this reason.
  */
-export const POLICY_CHANGE_REASON = "policy_driving_attribute_changed";
+export const POLICY_SWITCH_REASON = "policy_switched";
 
 export interface CommitmentReResolutionResult {
   casesConsidered: number;
@@ -60,13 +69,15 @@ export interface CommitmentReResolutionResult {
  * never store computed time": there is no stored "elapsed so far" to freeze
  * under the old calendar.
  *
- * Only commitments that are genuinely active (`ACTIVE_COMMITMENT_WHERE` —
- * `closedAt: null` and not `cancelled`; not merely `status === "on_track"`)
- * are candidates — a `met` or terminally-`breached` commitment's policy
+ * Only commitments that are genuinely active and not yet breached
+ * (`RE_RESOLUTION_ELIGIBLE_WHERE` — `closedAt: null`, status not
+ * `cancelled` or `breached`; not merely `status === "on_track"`) are
+ * candidates — a `met` or terminally-`breached` commitment's policy
  * metadata is immutable, and a `cancelled` commitment's cycle is already
- * gone. A still-open `breached` commitment (not yet completed) is active and
- * does get re-resolved, so its ongoing `breachedByMinutes` reflects the
- * currently-applicable target.
+ * gone. A breach is final (D2): a still-open `breached` commitment keeps
+ * evaluating (`breachedByMinutes` keeps growing under its already-frozen
+ * target), but it is never re-resolved — a later target increase must never
+ * turn it back to `on_track`/`at_risk`.
  *
  * If the newly-matched policy has no target for an active commitment's
  * `kind` (e.g. the applicable policy dropped `next_reply`), or no policy
@@ -106,7 +117,7 @@ export async function runCommitmentReResolutionPipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId } },
+    where: { policy: { organizationId, archivedAt: null } },
     include: { calendarVersion: true },
   });
   if (policyVersionRows.length === 0) return result;
@@ -123,6 +134,11 @@ export async function runCommitmentReResolutionPipeline(
     effectiveFrom: row.effectiveFrom.toISOString(),
   }));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
+
+  // Which underlying policy each commitment's frozen policyVersionId belongs
+  // to (D1) — not just the active/latest versions above, since a commitment
+  // may be frozen on an older version of a still-active policy.
+  const policyIdByVersionId = new Map<string, string>(policyVersionRows.map((row) => [row.id, row.policyId]));
 
   const calendarsById = new Map<string, BusinessCalendarVersion>(
     policyVersionRows.map((row) => [row.calendarVersion.id, toCalendarVersionDomain(row.calendarVersion)]),
@@ -143,7 +159,7 @@ export async function runCommitmentReResolutionPipeline(
     where: {
       organizationId,
       deletedAt: null,
-      commitments: { some: ACTIVE_COMMITMENT_WHERE },
+      commitments: { some: RE_RESOLUTION_ELIGIBLE_WHERE },
     },
     select: {
       id: true,
@@ -152,7 +168,7 @@ export async function runCommitmentReResolutionPipeline(
       tier: true,
       openedAt: true,
       commitments: {
-        where: ACTIVE_COMMITMENT_WHERE,
+        where: RE_RESOLUTION_ELIGIBLE_WHERE,
         select: {
           id: true,
           kind: true,
@@ -175,6 +191,23 @@ export async function runCommitmentReResolutionPipeline(
   if (missingCalendarVersionIds.length > 0) {
     const rows = await prisma.businessCalendarVersion.findMany({ where: { id: { in: missingCalendarVersionIds } } });
     for (const row of rows) calendarsById.set(row.id, toCalendarVersionDomain(row));
+  }
+
+  // Same for a commitment frozen on a policy version whose policy has since
+  // been archived entirely — `policyVersionRows` above excludes archived
+  // policies, but the commitment's own policyId is still needed for the D1
+  // comparison.
+  const missingPolicyVersionIds = [
+    ...new Set(
+      cases.flatMap((c) => c.commitments.map((cm) => cm.policyVersionId).filter((id) => !policyIdByVersionId.has(id))),
+    ),
+  ];
+  if (missingPolicyVersionIds.length > 0) {
+    const rows = await prisma.sLAPolicyVersion.findMany({
+      where: { id: { in: missingPolicyVersionIds } },
+      select: { id: true, policyId: true },
+    });
+    for (const row of rows) policyIdByVersionId.set(row.id, row.policyId);
   }
 
   for (const caseRow of cases) {
@@ -200,7 +233,11 @@ export async function runCommitmentReResolutionPipeline(
       );
 
       for (const commitment of caseRow.commitments) {
-        const { changed, hasTarget } = resolveCommitmentPolicyChange(commitment, matched);
+        const currentPolicyId = policyIdByVersionId.get(commitment.policyVersionId);
+        if (!currentPolicyId) {
+          throw new Error(`No SLAPolicyVersion loaded for ${commitment.policyVersionId} (commitment ${commitment.id})`);
+        }
+        const { changed, hasTarget } = resolveCommitmentPolicyChange(commitment, currentPolicyId, matched);
         if (!changed) continue;
 
         if (!hasTarget) {
@@ -221,7 +258,7 @@ export async function runCommitmentReResolutionPipeline(
         // update actually lands — the loser's updateMany matches zero rows.
         const updatedCount = await prisma.$transaction(async (tx) => {
           const updated = await tx.commitment.updateMany({
-            where: { id: commitment.id, policyVersionId: commitment.policyVersionId, ...ACTIVE_COMMITMENT_WHERE },
+            where: { id: commitment.id, policyVersionId: commitment.policyVersionId, ...RE_RESOLUTION_ELIGIBLE_WHERE },
             data: {
               policyVersionId: matched.id,
               targetMinutes: target.minutes,
@@ -240,7 +277,7 @@ export async function runCommitmentReResolutionPipeline(
                 previousCalendarVersionId: commitment.calendarVersionId,
                 newCalendarVersionId: calendarVersion.id,
                 changedAt: new Date(asOf),
-                reason: POLICY_CHANGE_REASON,
+                reason: POLICY_SWITCH_REASON,
               },
             });
           }

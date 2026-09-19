@@ -52,6 +52,18 @@ const p1Tier1Policy: SLAPolicyVersion = {
   effectiveFrom: "2026-09-01T00:00:00.000Z",
 };
 
+const otherPolicy: SLAPolicyVersion = {
+  id: "policy-other-v1",
+  policyId: "policy-other",
+  version: 1,
+  match: { priority: ["P1"] },
+  targets: [{ kind: "resolution", minutes: 90 }],
+  pauseOnStates: [],
+  calendarVersionId: calendar.id,
+  warnAtPercent: [80],
+  effectiveFrom: "2026-09-01T00:00:00.000Z",
+};
+
 describe("matchPolicyVersion", () => {
   it("matches the most specific policy first", () => {
     const caseAttributes: CaseAttributes = {
@@ -143,30 +155,27 @@ describe("createCommitment", () => {
 
 describe("resolveCommitmentPolicyChange", () => {
   it("reports no change when the matched policy version is the commitment's current one", () => {
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "resolution", policyVersionId: genericPolicy.id },
-      genericPolicy,
-    );
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, genericPolicy.policyId, genericPolicy);
     expect(resolution).toEqual({ changed: false, hasTarget: true });
   });
 
-  it("reports a change generically — the comparison never inspects which CaseAttributes field moved", () => {
-    // p1Policy and p1Tier1Policy differ by priority+tier match criteria, not
-    // by anything resolveCommitmentPolicyChange itself looks at: it only
-    // ever compares ids.
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "resolution", policyVersionId: p1Policy.id },
-      p1Tier1Policy,
-    );
+  it("D1: reports no change for a new version of the SAME policy — an override, re-import, or policy-UI edit never re-resolves", () => {
+    // p1Policy and p1Tier1Policy share policyId "policy" and differ only by
+    // version and match criteria — exactly what a policy edit looks like.
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, p1Policy.policyId, p1Tier1Policy);
+    expect(resolution).toEqual({ changed: false, hasTarget: true });
+  });
+
+  it("reports a change generically when a genuinely different policy now matches — the comparison never inspects which CaseAttributes field moved", () => {
+    // genericPolicy and otherPolicy have different policyIds: a real switch,
+    // not merely a new version of the commitment's current policy.
+    const resolution = resolveCommitmentPolicyChange({ kind: "resolution" }, genericPolicy.policyId, otherPolicy);
     expect(resolution).toEqual({ changed: true, hasTarget: true });
   });
 
-  it("flags a missing target when the newly matched policy has no target for the commitment's kind", () => {
-    const noNextReply: SLAPolicyVersion = { ...p1Policy, id: "policy-no-next-reply" };
-    const resolution = resolveCommitmentPolicyChange(
-      { kind: "next_reply", policyVersionId: genericPolicy.id },
-      noNextReply,
-    );
+  it("flags a missing target when the newly matched (different) policy has no target for the commitment's kind", () => {
+    const noNextReply: SLAPolicyVersion = { ...otherPolicy, id: "policy-no-next-reply" };
+    const resolution = resolveCommitmentPolicyChange({ kind: "next_reply" }, genericPolicy.policyId, noNextReply);
     expect(resolution).toEqual({ changed: true, hasTarget: false });
   });
 });

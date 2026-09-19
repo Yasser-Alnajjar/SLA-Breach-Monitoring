@@ -192,12 +192,33 @@ describe("findBreachesInPeriod + bucketBreachesByDay (Breaches Over Time)", () =
   });
 
   it("doesn't count a met commitment", () => {
-    const { breaches, nonZero } = chartFor(
-      [historicalCase("met", "2026-09-10T08:00:00.000Z", "2026-09-10T08:45:00.000Z")],
-      reconciledAt,
-    );
+    // D5: a reply-less close is never "met", so this case needs an actual
+    // agent reply inside the target to be a genuine met commitment.
+    const metCase = historicalCase("met", "2026-09-10T08:00:00.000Z", "2026-09-10T08:45:00.000Z");
+    metCase.events.push({
+      id: "met-reply",
+      caseId: metCase.commitment.caseId,
+      type: "agent_replied",
+      occurredAt: "2026-09-10T08:30:00.000Z",
+      actor: "agent",
+      system: "zendesk",
+      fromState: null,
+      toState: null,
+      sourceRawEventId: "met-raw-reply",
+    });
+    const { breaches, nonZero } = chartFor([metCase], reconciledAt);
     expect(breaches).toEqual([]);
     expect(nonZero).toEqual([]);
+  });
+
+  it("doesn't count a reply-less close inside the target as met either (D5)", () => {
+    const { breaches } = chartFor(
+      [historicalCase("reply-less", "2026-09-10T08:00:00.000Z", "2026-09-10T08:45:00.000Z")],
+      reconciledAt,
+    );
+    // Closed at 45m, inside the 60m target, but never actually replied to:
+    // D5 says that's a broken promise, so it counts as a breach.
+    expect(breaches).toHaveLength(1);
   });
 
   it("buckets a breach just before midnight on that day, and one just after on the next", () => {

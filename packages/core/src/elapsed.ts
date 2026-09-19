@@ -70,7 +70,13 @@ export function foldClockIntervals(
   for (const event of sortNormalizedEvents(events)) {
     const occurredAt = new Date(event.occurredAt);
     if (occurredAt > windowEnd) break;
-    if (event.type !== "state_changed" && event.type !== "case_created")
+    // `case_closed` carries a real `toState` too (always "resolved" or
+    // "closed") and must be read here, not just `state_changed`/
+    // `case_created` — otherwise a policy that pauses on `resolved` (D3:
+    // resolution always does, unconditionally) never actually sees the
+    // solve, since Zendesk's solve normalizes to `case_closed`, not
+    // `state_changed` (see @sla/zendesk normalize.ts).
+    if (event.type !== "state_changed" && event.type !== "case_created" && event.type !== "case_closed")
       continue;
     if (!event.toState) continue;
 

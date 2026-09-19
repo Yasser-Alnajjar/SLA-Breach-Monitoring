@@ -200,11 +200,12 @@ export async function upsertPolicyVersion(
   externalId: string,
   name: string,
   desired: PolicyVersionContent,
+  position: number | null = null,
 ): Promise<boolean> {
   const policy = await prisma.sLAPolicy.upsert({
     where: { organizationId_externalId: { organizationId, externalId } },
-    update: { name },
-    create: { organizationId, externalId, name },
+    update: { name, position },
+    create: { organizationId, externalId, name, position },
   });
 
   const [latestVersion, latestImportedVersion] = await Promise.all([
@@ -372,11 +373,14 @@ export async function runZendeskSlaPolicyImport(
       const match: SLAPolicyMatch = { ...filterMatch };
       if (group.priority) match.priority = [group.priority];
 
-      const created = await upsertPolicyVersion(prisma, organizationId, externalId, policy.title, {
-        match,
-        targets: group.targets,
-        calendarVersionId,
-      });
+      const created = await upsertPolicyVersion(
+        prisma,
+        organizationId,
+        externalId,
+        policy.title,
+        { match, targets: group.targets, calendarVersionId },
+        policy.position ?? null,
+      );
       if (created) result.policyVersionsCreated += 1;
     }
   }

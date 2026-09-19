@@ -296,7 +296,9 @@ describe("evaluateCommitment", () => {
     ];
     const evaluation = evaluateCommitment(commitment, events, policy, alwaysOpen, minutesAfterStart(5 * 24 * 60));
     expect(evaluation.status).toBe("met");
-    expect(evaluation.elapsedWorkingMinutes).toBe(230);
+    // 0-50 running, 50-60 excluded (D3: solved before the reopen), 60-230
+    // running: 50 + 170 = 220m — not 230, which would count the solved gap.
+    expect(evaluation.elapsedWorkingMinutes).toBe(220);
   });
 
   it("does not let a linked Jira transition end a Zendesk customer pause (ticket 20 regression)", () => {

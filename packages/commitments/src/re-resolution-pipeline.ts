@@ -118,7 +118,7 @@ export async function runCommitmentReResolutionPipeline(
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
     where: { policy: { organizationId, archivedAt: null } },
-    include: { calendarVersion: true },
+    include: { calendarVersion: true, policy: { select: { position: true } } },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -132,6 +132,7 @@ export async function runCommitmentReResolutionPipeline(
     calendarVersionId: row.calendarVersionId,
     warnAtPercent: row.warnAtPercent,
     effectiveFrom: row.effectiveFrom.toISOString(),
+    policyPosition: row.policy.position,
   }));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
 

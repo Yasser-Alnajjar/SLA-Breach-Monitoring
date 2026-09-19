@@ -146,9 +146,32 @@ describe("deriveNextReplyCycles", () => {
     expect(derive(events)).toEqual(derive(events.filter((e) => e.type !== "state_changed")));
   });
 
-  it("customer → case_closed: a close does not answer the cycle", () => {
+  it("customer → case_closed: a close cancels the open cycle (D4), not answers it", () => {
     const events = [created(), customer("09:00"), event("10:00", "case_closed", { toState: "resolved" })];
-    expect(derive(events)).toEqual([expect.objectContaining({ startedAt: at("09:00"), completedAt: null, completionType: null })]);
+    expect(derive(events)).toEqual([]);
+  });
+
+  it("customer → agent (completed) → customer → case_closed: only the still-open cycle is cancelled", () => {
+    const events = [
+      created(),
+      customer("09:00"),
+      agent("10:00"),
+      customer("11:00"),
+      event("12:00", "case_closed", { toState: "resolved" }),
+    ];
+    expect(summarize(events)).toEqual([[at("09:00"), at("10:00"), 1]]);
+  });
+
+  it("a customer reply after the close-cancelled cycle starts a fresh one (D4 reopen)", () => {
+    const events = [
+      created(),
+      customer("09:00"),
+      event("10:00", "case_closed", { toState: "resolved" }),
+      event("11:00", "state_changed", { toState: "open" }),
+      customer("12:00"),
+      agent("13:00"),
+    ];
+    expect(summarize(events)).toEqual([[at("12:00"), at("13:00"), 1]]);
   });
 
   it("customer reply after resolution starts a new cycle whether or not the reopen comes first", () => {

@@ -5,6 +5,7 @@ import {
   deriveLegSpans,
   evaluateCommitment,
   evaluateEngineeringLegTarget,
+  eventsForPauseFold,
   pauseStatesFor,
   sumLegMinutes,
   type BusinessCalendarVersion,
@@ -325,7 +326,7 @@ export async function getCaseDetailData(
   // issue's events from before the case can't shade time before it opened.
   const shadingWindow = { start: caseRow.openedAt.toISOString(), end: endBound };
   const { pausedIntervals } = computeElapsedWorkingMinutes(
-    domainEvents,
+    shadingCommitment ? eventsForPauseFold(shadingCommitment.kind, domainEvents) : domainEvents,
     pauseOnStates,
     pauseCalendar,
     shadingWindow,

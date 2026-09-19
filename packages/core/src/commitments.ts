@@ -43,11 +43,19 @@ function matches(
 }
 
 /**
- * Matches a Case's attributes against active policy versions, most
- * specific first (Phase 13.1). A policy version with more defined match
- * criteria outranks one with fewer, provided all of its defined criteria
- * are satisfied. Ties break on the higher version number, then on `id` for
- * full determinism.
+ * Matches a Case's attributes against active policy versions.
+ *
+ * Imported Zendesk policies are ranked first by their Zendesk `position`
+ * (D6/1.10: lower position wins, matching Zendesk's own evaluation order) —
+ * a version with a `policyPosition` always outranks one without, regardless
+ * of specificity, since a position is Zendesk's explicit, authoritative
+ * ordering. Versions that share a position (fanned out per priority group
+ * from one Zendesk policy, `groupPolicyMetricsByPriority` in
+ * packages/zendesk) and versions with no position at all (manually-created
+ * policies, or an import from before `position` existed) fall back to
+ * specificity: a policy version with more defined match criteria outranks
+ * one with fewer, provided all of its defined criteria are satisfied. Ties
+ * break on the higher version number, then on `id` for full determinism.
  */
 export function matchPolicyVersion(
   caseAttributes: CaseAttributes,
@@ -59,6 +67,13 @@ export function matchPolicyVersion(
   if (candidates.length === 0) return null;
 
   candidates.sort((a, b) => {
+    const aPos = a.policyPosition ?? null;
+    const bPos = b.policyPosition ?? null;
+    if (aPos !== null || bPos !== null) {
+      if (aPos === null) return 1;
+      if (bPos === null) return -1;
+      if (aPos !== bPos) return aPos - bPos;
+    }
     const specificityDelta = specificity(b.match) - specificity(a.match);
     if (specificityDelta !== 0) return specificityDelta;
     const versionDelta = b.version - a.version;

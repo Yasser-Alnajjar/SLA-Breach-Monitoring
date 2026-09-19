@@ -140,7 +140,9 @@ describe("case detail commitment deadline (ticket #45)", () => {
 
   it("shows each commitment's own pause states, not the policy's", async () => {
     const resolution = await renderCommitment([created, pending], "resolution");
-    expect(resolution.commitment.pauseOnStates).toEqual(["pending_customer"]);
+    // D3: resolution also pauses on `resolved` (a solve-to-reopen interval
+    // never counts), on top of the policy's own pause states.
+    expect(resolution.commitment.pauseOnStates).toEqual(["pending_customer", "resolved"]);
     expect(resolution.commitment.policyVersion).not.toHaveProperty("pauseOnStates");
 
     const firstResponse = await renderCommitment([created, pending], "first_response");

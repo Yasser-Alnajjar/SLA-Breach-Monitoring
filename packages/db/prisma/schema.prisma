@@ -267,6 +267,11 @@ model SLAPolicy {
   /// created commitments keep the frozen policyVersionId they were matched
   /// under (Phase 13.1), unaffected by archival.
   archivedAt     DateTime?
+  /// Zendesk's own evaluation order (D6/1.10) — lower matches first. Set only
+  /// for imported policies whose Zendesk payload carried `position`; null for
+  /// manually-created policies and older snapshots, which fall back to
+  /// specificity (`matchPolicyVersion`, packages/core).
+  position       Int?
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   versions       SLAPolicyVersion[]
 

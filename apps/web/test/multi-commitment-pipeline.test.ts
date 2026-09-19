@@ -298,4 +298,68 @@ describe.skipIf(!TEST_DATABASE_URL)("multiple commitments per case (real Postgre
       startedAt: at("10:00"),
     });
   });
+
+  describe("agent-created ticket, D5b clock delay", () => {
+    it("creates first response on a later run once the customer replies, starting its clock there and ignoring the agent's earlier reply", async () => {
+      await createPolicy("Urgent", 1);
+      // Ticket opened by an agent (case #77): no customer has said anything
+      // yet, so first response must not be created (D5b) — only resolution is.
+      await writeEvents([
+        { time: "10:00", type: "case_created", toState: "new", actor: "agent" },
+        { time: "10:15", type: "agent_replied", actor: "agent" },
+      ]);
+      expect((await commitments.runCommitmentPipeline(prisma, organizationId)).commitmentsCreated).toBe(1);
+      expect((await byKind()).first_response).toBeUndefined();
+
+      // The customer's first message arrives. A later pipeline run must now
+      // create first response, anchored at the customer's message — not at
+      // ticket creation, and not retroactively satisfied by the 10:15 agent
+      // reply that came before the customer ever asked for anything.
+      await writeEvents([
+        { time: "10:00", type: "case_created", toState: "new", actor: "agent" },
+        { time: "10:15", type: "agent_replied", actor: "agent" },
+        { time: "11:00", type: "customer_replied", actor: "customer" },
+      ]);
+      expect((await commitments.runCommitmentPipeline(prisma, organizationId)).commitmentsCreated).toBe(1);
+      expect((await byKind()).first_response).toMatchObject({ startedAt: at("11:00") });
+
+      // Still open and running just after the customer's message: the 10:15
+      // agent reply must not have been read as already completing it.
+      await commitments.runEvaluationPipeline(prisma, organizationId, {
+        asOf: at("11:15").toISOString(),
+        scope: "all",
+      });
+      expect((await byKind()).first_response).toMatchObject({ status: "on_track", closedAt: null });
+
+      // A genuine agent reply after the customer's message completes it normally.
+      await writeEvents([
+        { time: "10:00", type: "case_created", toState: "new", actor: "agent" },
+        { time: "10:15", type: "agent_replied", actor: "agent" },
+        { time: "11:00", type: "customer_replied", actor: "customer" },
+        { time: "11:20", type: "agent_replied", actor: "agent" },
+      ]);
+      await commitments.runEvaluationPipeline(prisma, organizationId, {
+        asOf: at("11:25").toISOString(),
+        scope: "all",
+      });
+      expect((await byKind()).first_response).toMatchObject({ status: "met", closedAt: at("11:25") });
+    });
+
+    it("never creates first response, and so never reports it met, when the agent replies but no customer ever does (D5)", async () => {
+      await createPolicy("Urgent", 1);
+      await writeEvents([
+        { time: "10:00", type: "case_created", toState: "new", actor: "agent" },
+        { time: "10:15", type: "agent_replied", actor: "agent" },
+      ]);
+      expect((await commitments.runCommitmentPipeline(prisma, organizationId)).commitmentsCreated).toBe(1);
+
+      await commitments.runEvaluationPipeline(prisma, organizationId, {
+        asOf: at("12:00").toISOString(),
+        scope: "all",
+      });
+      const rows = await byKind();
+      expect(rows.first_response).toBeUndefined();
+      expect(rows.resolution).toMatchObject({ status: "on_track", closedAt: null });
+    });
+  });
 });

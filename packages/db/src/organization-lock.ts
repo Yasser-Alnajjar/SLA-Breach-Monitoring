@@ -1,7 +1,8 @@
+import pg from "pg";
 import type { PrismaClient } from "../generated/prisma/client";
 
-// Generous on purpose: a caller queued behind another's projection waits
-// inside this transaction, and only the lock (no rows) is held meanwhile.
+// Generous on purpose: a caller queued behind another's projection waits on
+// this lock, and only the lock (no rows) is held meanwhile.
 const LOCK_WAIT_TIMEOUT_MS = 15 * 60_000;
 
 /**
@@ -15,20 +16,48 @@ const LOCK_WAIT_TIMEOUT_MS = 15 * 60_000;
  * and idempotent (RawEvent upserts), so it never needs to wait behind this
  * lock, only the DB-local projection and pipeline steps that follow it.
  *
- * The lock belongs to an otherwise idle transaction and is released when it
- * ends; `work` itself uses the regular client, since the pipelines open
- * their own transactions.
+ * The lock is held on a **dedicated, unpooled** `pg` connection — never
+ * `prisma.$transaction` — for the same reason `advisory-lock.ts` uses one
+ * for the worker's own lock: `work()` runs its own queries on `prisma`'s
+ * shared pool, and a caller merely *waiting* for this lock must never pin
+ * one of that pool's limited connections while it waits. Holding the wait on
+ * a pooled connection self-deadlocks under any real concurrency — enough
+ * simultaneous callers for one organization (e.g. a burst of Zendesk webhook
+ * deliveries for one ticket update) exhaust the pool with connections idle
+ * *waiting* for the lock, leaving the eventual winner with no connection
+ * left to run `work()` on, so it hangs until the caller's own timeout (a
+ * 504 upstream) — reproduced locally 2026-09-19 by a burst of ~10 concurrent
+ * Zendesk webhook deliveries for the same ticket.
+ *
+ * `prisma` is kept in the signature for every caller's convenience (its pool
+ * is what `work()` uses) but not used for the lock itself — the dedicated
+ * connection is opened straight from `DATABASE_URL`, matching
+ * `connectAdvisoryLockConnection`.
  */
 export async function withOrganizationSlaLock<T>(
-  prisma: PrismaClient,
+  _prisma: PrismaClient,
   organizationId: string,
   work: () => Promise<T>,
 ): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`sla-processing:${organizationId}`}, 0))`;
-      return work();
-    },
-    { maxWait: 10_000, timeout: LOCK_WAIT_TIMEOUT_MS },
-  );
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL! });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    // Postgres applies `lock_timeout` to an advisory-lock wait like any
+    // other lock wait — the query below errors (55P03) instead of blocking
+    // past this, rather than relying on a JS-side timer that can't actually
+    // cancel a query already in flight on the wire.
+    await client.query(`SET LOCAL lock_timeout = '${LOCK_WAIT_TIMEOUT_MS}ms'`);
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `sla-processing:${organizationId}`,
+    ]);
+    const result = await work();
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    await client.end();
+  }
 }

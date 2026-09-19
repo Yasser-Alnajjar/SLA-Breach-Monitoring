@@ -43,6 +43,15 @@ vi.mock("@sla/linear", async (importOriginal) => ({
   runLinearCorrelation: vi.fn().mockResolvedValue({}),
   runLinearNormalization: vi.fn().mockResolvedValue({}),
 }));
+// `withOrganizationSlaLock` holds its advisory lock on a dedicated,
+// unpooled `pg.Client` (organization-lock.ts), not the injected Prisma
+// client — this fake DB has no real Postgres to lock against, so the lock
+// itself is stubbed to a passthrough; everything else from @sla/db (the
+// `PrismaClient` type) passes through untouched.
+vi.mock("@sla/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@sla/db")>()),
+  withOrganizationSlaLock: vi.fn((_prisma: unknown, _organizationId: string, work: () => Promise<unknown>) => work()),
+}));
 
 const captureExceptionMock = vi.mocked(captureException);
 const config = { appUrl: "https://app.example.com" } as WorkerConfig;
@@ -108,12 +117,6 @@ function fakeDb(status: Status) {
       ),
     },
     rawEvent: { createMany: vi.fn(async () => ({ count: 0 })) },
-    // `withOrganizationSlaLock`'s advisory lock: a real interactive
-    // transaction isn't needed here since this fake DB has no real
-    // concurrency to serialize against — just run the callback against the
-    // same fake client.
-    $executeRaw: vi.fn(async () => 0),
-    $transaction: vi.fn(async (fn: (tx: PrismaClient) => Promise<unknown>) => fn(prisma as unknown as PrismaClient)),
   };
 
   return { row, prisma: prisma as unknown as PrismaClient };
@@ -289,8 +292,6 @@ describe("runCycle — Next Reply cycle pipeline wiring (Step 7)", () => {
   function orgOnlyDb(): PrismaClient {
     const prisma = {
       organization: { findMany: vi.fn(async () => [{ id: "org_1", integrations: [] }]) },
-      $executeRaw: vi.fn(async () => 0),
-      $transaction: vi.fn(async (fn: (tx: PrismaClient) => Promise<unknown>) => fn(prisma as unknown as PrismaClient)),
     };
     return prisma as unknown as PrismaClient;
   }

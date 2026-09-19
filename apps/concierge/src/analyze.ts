@@ -5,6 +5,7 @@ import {
   deriveLegSpans,
   evaluateCommitment,
   evaluateEngineeringLegTarget,
+  eventsForPauseFold,
   findCaseCloseEvent,
   legAtTime,
   matchPolicyVersion,
@@ -149,7 +150,7 @@ function breachInstant(
   while (hi - lo > 60_000) {
     const mid = lo + Math.floor((hi - lo) / 2);
     const { elapsedWorkingMinutes } = computeElapsedWorkingMinutes(
-      events,
+      eventsForPauseFold(kind, events),
       pauseStatesFor(kind, policyVersion),
       calendar,
       { start: startedAt, end: new Date(mid).toISOString() },

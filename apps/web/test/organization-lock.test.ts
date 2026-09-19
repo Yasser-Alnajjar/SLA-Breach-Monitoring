@@ -8,6 +8,7 @@
  * Real Postgres, like source-sync-evaluation.test.ts. Needs a migrated
  * database at TEST_DATABASE_URL whose name contains "test"; skipped when unset.
  */
+import { PrismaPg } from "@prisma/adapter-pg";
 import type { PrismaClient } from "@sla/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -92,4 +93,41 @@ describe.skipIf(!TEST_DATABASE_URL)("withOrganizationSlaLock (real Postgres)", (
     expect(startedAt.a).toBeLessThan(50);
     expect(startedAt.b).toBeLessThan(50);
   });
+
+  it("does not deadlock a small connection pool: more concurrent callers than pool connections still all complete", async () => {
+    // Reproduces the 2026-09-19 incident: a burst of Zendesk webhook
+    // deliveries for one organization exhausted the connection pool with
+    // callers merely *waiting* for this lock, leaving the eventual winner
+    // with no connection left to run `work()` on — a self-inflicted
+    // deadlock that surfaced upstream as a 504. The lock itself must never
+    // be held on a connection from the same pool `work()` uses (see
+    // organization-lock.ts), so this must complete even with a pool smaller
+    // than the number of concurrent callers.
+    // `db.PrismaClient` (from the already-dynamically-imported `db`), not a
+    // static top-level import: a static `import { PrismaClient } from
+    // "@sla/db"` would resolve/evaluate that module (and its
+    // `DATABASE_URL`-dependent adapter) before `beforeAll` overrides
+    // `DATABASE_URL` to the test database.
+    const smallPoolPrisma = new db.PrismaClient({
+      adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL!, max: 2 }),
+    });
+    try {
+      const CONCURRENT_CALLERS = 6;
+      const completions: number[] = [];
+
+      const call = (n: number) =>
+        db.withOrganizationSlaLock(smallPoolPrisma, organizationId, async () => {
+          // Real work on the small-pool client — the failure mode was
+          // exactly this query never getting a connection.
+          await smallPoolPrisma.organization.findUnique({ where: { id: organizationId } });
+          completions.push(n);
+        });
+
+      await Promise.all(Array.from({ length: CONCURRENT_CALLERS }, (_, n) => call(n)));
+
+      expect(completions).toHaveLength(CONCURRENT_CALLERS);
+    } finally {
+      await smallPoolPrisma.$disconnect();
+    }
+  }, 20_000);
 });

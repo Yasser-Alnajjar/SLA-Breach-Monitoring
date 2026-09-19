@@ -382,13 +382,23 @@ Holidays are dates the calendar treats as fully non-working, in the calendar's o
 
 ### Paused states ("waiting for customer")
 
-By default, a commitment pauses only while the case is in the **"Pending customer"** normalized state — regardless of which connected system reported that status. This is the one state configured to pause the clock in the current implementation; it is not currently adjustable per policy from the settings UI.
+By default, a commitment pauses only while the case is in the **"Pending customer"** normalized state — regardless of which connected system reported that status. This is the one *configurable* pause state in the current implementation; it is not currently adjustable per policy from the settings UI. Putting a ticket **on hold** (Zendesk's internal-hold status) does **not** pause the resolution clock — that time keeps counting, the same as any other open time. This is a deliberate MVP choice, not a gap: on-hold is for internal triage, not customer waiting, so it doesn't excuse the clock.
 
 ### Reopened tickets
 
-If a Zendesk ticket is solved and later reopened, the resolution commitment's clock is **not** reset. It resumes live evaluation from the original commitment start time, over the full event history — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the total working time now exceeds target. This includes the time the ticket spent solved: the clock does not pause between the solve and the reopen, so that interval counts toward the target the same as any other open time.
+If a Zendesk ticket is solved and later reopened, the resolution commitment's clock is **not** reset. It resumes live evaluation from the original commitment start time, over the full event history — so a ticket that was marked "met" at solve time can read as "breached" once reopened and re-evaluated, if the total working time now exceeds target. The time the ticket spent solved is **excluded**: the clock pauses automatically between the solve and the reopen (matching Zendesk's own behavior), so only time the ticket was actually open counts toward the target.
 
-A first-response commitment is not affected by a reopen: once an agent has replied (or the ticket was solved before any reply), its result is final.
+A first-response commitment is not affected by a reopen: once an agent has replied, its result is final. A ticket closed with no agent reply at all is a separate case — see "First response without a reply" below.
+
+### First response without a reply
+
+Closing a ticket before an agent ever replied publicly is **not** treated as a met first response — it's the promise going unkept, not the promise being satisfied quickly. A ticket closed this way is reported as breached (once past target) rather than shown as "met" the moment the case closes.
+
+On a ticket an agent created on the customer's behalf (rather than the customer submitting it directly), the first-response clock does not start at ticket creation — it starts at the customer's first message. Until the customer has said anything, there is no promise to measure a response against.
+
+### Next Reply and closed tickets
+
+Closing a case ends any Next Reply cycle that was still waiting on an agent's answer — an unanswered customer message is not carried forward as an open obligation once the ticket is closed. If the ticket is reopened and the customer writes again, that starts a fresh Next Reply cycle from that new message.
 
 ### Priority changes
 
@@ -396,7 +406,7 @@ Changing a case's priority, customer, or (where populated) tier is not ignored: 
 
 ### Multiple SLA policies
 
-When a case is created, its attributes (priority, customer, and — where populated — tier) are matched against your imported SLA policies, and the **most specific match wins**: a policy that names this specific customer beats one that only names a priority, which beats a catch-all default policy. Ties are broken deterministically so the same inputs always produce the same match.
+When a case is created, its attributes (priority, customer, and — where populated — tier) are matched against your imported SLA policies in **Zendesk's own policy order** (the order your policies are listed in Zendesk's SLA settings) — the first policy in that order whose conditions match wins, exactly as Zendesk itself would apply them. A policy created directly in this product (not imported from Zendesk) has no Zendesk order to follow, so it and any other unordered policy fall back to **most-specific-match-wins**: a policy that names this specific customer beats one that only names a priority, which beats a catch-all default policy. Ties are broken deterministically so the same inputs always produce the same match.
 
 > **Note:** tier-based policy matching exists in the engine, but no currently connected data source (Zendesk or Intercom) populates a customer or case tier automatically today — see [Section 21](#21-data-accuracy-and-limitations).
 
@@ -419,7 +429,7 @@ A commitment moves through a small, fixed set of statuses:
 | **On track** | Elapsed working time is below every configured warning threshold | Default state on creation |
 | **At risk** | Elapsed working time has crossed a configured warning threshold (default thresholds: 50%, 80%, 95% of target) but the target has not been exceeded | Working time crosses a threshold |
 | **Breached** | Elapsed working time has exceeded the target, or the commitment completed after its target was already consumed | Target exceeded, evaluated on every sync cycle |
-| **Met** | The commitment completed with elapsed working time still within target | First response: an agent's first public reply (Zendesk public comment, Intercom admin reply), or the case closing before any reply. Resolution: the case closes (Zendesk marks it solved). Either one before target is exceeded |
+| **Met** | The commitment completed with elapsed working time still within target | First response: an agent's first public reply (Zendesk public comment, Intercom admin reply) before target is exceeded. A case closing before any reply is never "met" — see [Section 13](#13-sla-calculation). Resolution: the case closes (Zendesk marks it solved) before target is exceeded |
 | **Cancelled** | Defined in the data model but not currently produced by any part of the product | — |
 
 **Notifications:** crossing into **at risk** or **breached** triggers a Slack and/or email alert, if configured (Section 16) — but only for the customer-facing first-response and resolution commitments. The separate, optional engineering-leg target (Section 19) is currently dashboard-only and does not send its own alert.

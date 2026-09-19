@@ -1,4 +1,5 @@
-import type { CommitmentKind, NormalizedState, SLAPolicyVersion } from "./types";
+import { TICKET_SOURCE_SYSTEMS } from "./ticket-source";
+import type { CommitmentKind, NormalizedEvent, NormalizedState, SLAPolicyVersion } from "./types";
 
 interface CommitmentClockRule {
   /** The states that pause this commitment's SLA clock under `policyVersion`. */
@@ -12,12 +13,18 @@ interface CommitmentClockRule {
  *
  * - `first_response` never pauses: a customer being asked for more
  *   information doesn't excuse a late first reply.
- * - `resolution` pauses on the policy version's `pauseOnStates`.
+ * - `resolution` pauses on the policy version's `pauseOnStates`, plus
+ *   `resolved` unconditionally (D3): a solve-to-reopen interval never counts
+ *   toward Resolution, matching Zendesk. This is independent of
+ *   `pauseOnStates` — on-hold (`pending_internal`) is deliberately not
+ *   included here (D7) and must stay that way.
  * - `next_reply` never pauses: a reply is owed whatever state the case is in.
  */
 const COMMITMENT_CLOCK_RULES: Record<CommitmentKind, CommitmentClockRule> = {
   first_response: { pauseStates: () => [] },
-  resolution: { pauseStates: (policyVersion) => policyVersion.pauseOnStates },
+  resolution: {
+    pauseStates: (policyVersion) => [...new Set([...policyVersion.pauseOnStates, "resolved" as const])],
+  },
   next_reply: { pauseStates: () => [] },
 };
 
@@ -37,4 +44,24 @@ export function commitmentPausesOn(
   policyVersion: SLAPolicyVersion,
 ): boolean {
   return pauseStatesFor(kind, policyVersion).includes(state);
+}
+
+/**
+ * The events `foldClockIntervals` should fold for `kind`'s pause detection —
+ * ordinarily `events` unchanged, except for `resolution` (D3): `resolved` is
+ * a ticket-source-only pause cause, unlike the cross-system
+ * `policyVersion.pauseOnStates` (elapsed.ts's "regardless of which system
+ * reports it" rule, meant for customer-waiting states like
+ * `pending_customer`). A linked Jira issue reaching its own "resolved"
+ * category says nothing about whether the Zendesk/Intercom ticket is solved,
+ * so its `toState` is neutralized here before folding, leaving every other
+ * state transition (including its own pause states) untouched.
+ */
+export function eventsForPauseFold(kind: CommitmentKind, events: NormalizedEvent[]): NormalizedEvent[] {
+  if (kind !== "resolution") return events;
+  return events.map((event) =>
+    event.toState === "resolved" && !TICKET_SOURCE_SYSTEMS.has(event.system)
+      ? { ...event, toState: null }
+      : event,
+  );
 }

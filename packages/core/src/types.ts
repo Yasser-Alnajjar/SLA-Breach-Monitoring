@@ -91,6 +91,15 @@ export interface SLAPolicyVersion {
   calendarVersionId: string;
   warnAtPercent: number[]; // e.g. [50, 80, 95]
   effectiveFrom: string; // ISO 8601
+  /**
+   * The policy's Zendesk `position` (D6/1.10) — lower matches first, ahead
+   * of specificity. Absent/`null` for a manually-created policy or an import
+   * from before this field existed, which falls back to specificity
+   * (`matchPolicyVersion`). Optional so the many existing `SLAPolicyVersion`
+   * literals across the codebase (tests especially) don't all need updating
+   * to opt into position-based matching.
+   */
+  policyPosition?: number | null;
 }
 
 export interface CaseAttributes {

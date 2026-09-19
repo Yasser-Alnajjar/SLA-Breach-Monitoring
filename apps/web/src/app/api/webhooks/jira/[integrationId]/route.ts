@@ -13,7 +13,7 @@ import {
   verifyJiraWebhookSignature,
   type JiraWebhookPayload,
 } from "@sla/jira";
-import { getPrismaClient } from "@sla/db";
+import { getPrismaClient, withOrganizationSlaLock } from "@sla/db";
 import { getJiraOAuthConfig } from "@/lib/jira-env";
 import { runWebhookPipelineTail } from "@/lib/webhook-pipeline";
 
@@ -34,7 +34,11 @@ export const maxDuration = 60;
  * normalize → commitments → evaluation → notifications) for one issue,
  * synchronously — the 5-minute active-set poll and 60-minute reconciliation
  * sweep (roadmap step 7) keep running unchanged as the safety net for missed
- * or out-of-order deliveries.
+ * or out-of-order deliveries. Correlation, normalization and the pipeline
+ * tail run under `withOrganizationSlaLock` (E-3): a concurrent worker cycle
+ * or another webhook for the same organization waits rather than racing on
+ * the same Case/NormalizedEvent/Commitment rows. Ingest itself is excluded —
+ * network-bound and idempotent, so it never needs to wait.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ integrationId: string }> }) {
   const { integrationId } = await params;
@@ -98,9 +102,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
 
   try {
     await runJiraWebhookIngest(prisma, integration.id, config, issueKey);
-    await runJiraCorrelation(prisma, integration.id);
-    await runJiraNormalization(prisma, integration.id);
-    const pipeline = await runWebhookPipelineTail(prisma, integration.organizationId);
+    const pipeline = await withOrganizationSlaLock(prisma, integration.organizationId, async () => {
+      await runJiraCorrelation(prisma, integration.id);
+      await runJiraNormalization(prisma, integration.id);
+      return runWebhookPipelineTail(prisma, integration.organizationId);
+    });
 
     await prisma.integration.update({
       where: { id: integration.id },

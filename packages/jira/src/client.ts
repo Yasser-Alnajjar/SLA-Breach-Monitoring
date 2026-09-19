@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "@sla/http-retry";
 import type { JiraChangelogPage, JiraCredentials, JiraIssue, JiraRemoteLink, JiraSearchPage, JiraStatus } from "./types";
 
 const SEARCH_PAGE_SIZE = 100;
@@ -52,18 +53,16 @@ export class JiraClient {
 
   private async request<T>(path: string, hasRetriedAuth = false): Promise<T> {
     const url = path.startsWith("http") ? path : `${this.baseUrl()}${path}`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${this.credentials.accessToken}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (response.status === 429) {
-      const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "5");
-      await sleep(retryAfterSeconds * 1000);
-      return this.request<T>(path, hasRetriedAuth);
-    }
+    const response = await fetchWithRetry(
+      () =>
+        fetch(url, {
+          headers: {
+            Authorization: `Bearer ${this.credentials.accessToken}`,
+            Accept: "application/json",
+          },
+        }),
+      { isRetryableStatus: (r) => r.status === 429 },
+    );
 
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
@@ -126,8 +125,4 @@ export class JiraClient {
   fetchStatuses(): Promise<JiraStatus[]> {
     return this.request<JiraStatus[]>("/rest/api/3/status");
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

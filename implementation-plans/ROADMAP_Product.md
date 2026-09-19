@@ -11,28 +11,28 @@
 
 _Update this section every time a task or phase changes state._
 
-|                          |                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| **Now**                  | Phase 0 — Safe Foundation · next task **0.1**                                               |
-| **Up next**              | Phase 1 — Correct SLA Commitments (needs decisions D1, D1b, D3–D7 first)                    |
-| **Blocked on decisions** | D1, D1b, D3, D4, D5, D6, D7 (Phase 1) · D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)     |
-| **Recently completed**   | — (baseline delivered before this roadmap: see [Product Baseline](#product-baseline))       |
-| **Target**               | Production-ready MVP for **Zendesk + Jira** customers. Intercom, Linear and GitHub as Beta. |
-| **Estimate**             | 24 weeks plus 3 buffer (about 6–7 months)                                                   |
+|                          |                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Now**                  | Phase 1 — Correct SLA Commitments · blocked on decisions D1, D1b, D3–D7                                        |
+| **Up next**              | Phase 2 — Reliable Zendesk + Jira Connections                                                                  |
+| **Blocked on decisions** | D1, D1b, D3, D4, D5, D6, D7 (Phase 1) · D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)                        |
+| **Recently completed**   | Phase 0 — Safe Foundation, ✅ complete (2026-09-19) — see [Phase 0](#phase-0--safe-foundation)                 |
+| **Target**               | Production-ready MVP for **Zendesk + Jira** customers. Intercom, Linear and GitHub as Beta.                    |
+| **Estimate**             | 24 weeks plus 3 buffer (about 6–7 months)                                                                      |
 
 ### Phase overview
 
-| Phase                                                  | Product outcome                                                                       | Est. | Status         |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---- | -------------- |
-| [0](#phase-0--safe-foundation)                         | Safe foundation: no cross-tenant control, deterministic SLA state                     | 2 wk | ⬜ Not started |
-| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | ⬜ Not started |
-| [2](#phase-2--reliable-zendesk--jira-connections)      | Reliable Zendesk + Jira connections, verified live                                    | 3 wk | ⬜ Not started |
-| [3](#phase-3--explainable-cases)                       | Explainable cases: timeline, commitment transparency, assignee, rich alerts           | 3 wk | ⬜ Not started |
-| [4](#phase-4--sla-policy--calendar-management)         | SLA policy and calendar management inside Watchtower                                  | 4 wk | ⬜ Not started |
-| [5](#phase-5--team--account-management)                | Team and account management                                                           | 2 wk | ⬜ Not started |
-| [6](#phase-6--sla-health-dashboard--guided-onboarding) | SLA health dashboard and guided onboarding                                            | 2 wk | ⬜ Not started |
-| [7](#phase-7--production-launch)                       | Production launch                                                                     | 5 wk | ⬜ Not started |
-| [Next](#next-product-work)                             | Post-launch product work                                                              | —    | Backlog        |
+| Phase                                                  | Product outcome                                                                       | Est. | Status                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
+| [0](#phase-0--safe-foundation)                         | Safe foundation: no cross-tenant control, deterministic SLA state                     | 2 wk | ✅ Complete (2026-09-19)                          |
+| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | ⬜ Not started                                    |
+| [2](#phase-2--reliable-zendesk--jira-connections)      | Reliable Zendesk + Jira connections, verified live                                    | 3 wk | ⬜ Not started                                    |
+| [3](#phase-3--explainable-cases)                       | Explainable cases: timeline, commitment transparency, assignee, rich alerts           | 3 wk | ⬜ Not started                                    |
+| [4](#phase-4--sla-policy--calendar-management)         | SLA policy and calendar management inside Watchtower                                  | 4 wk | ⬜ Not started                                    |
+| [5](#phase-5--team--account-management)                | Team and account management                                                           | 2 wk | ⬜ Not started                                    |
+| [6](#phase-6--sla-health-dashboard--guided-onboarding) | SLA health dashboard and guided onboarding                                            | 2 wk | ⬜ Not started                                    |
+| [7](#phase-7--production-launch)                       | Production launch                                                                     | 5 wk | ⬜ Not started                                    |
+| [Next](#next-product-work)                             | Post-launch product work                                                              | —    | Backlog                                           |
 
 ---
 
@@ -205,28 +205,36 @@ Decisions that change product behavior. Tick one when it is decided and write th
 
 ## Phase 0 — Safe Foundation
 
-**Status:** ⬜ Not started · **Estimate:** 2 weeks
+**Status:** ✅ Complete (2026-09-19) · **Estimate:** 2 weeks
 **Goal:** The existing product can run for real tenants: no cross-tenant control, no public tunnel, no nondeterministic SLA state.
 **Phase is done when:** every task below is ticked, and CI is green with the real-database suites isolated.
 
-- [ ] 🔄 **0.1** Merge `feature/case-conversation-view` into `main` (conversation view, auto-scroll, sidebar, settings overview). `P1 · Infra · —`
+- [x] **0.1** Merge `feature/case-conversation-view` into `main` (conversation view, auto-scroll, sidebar, settings overview). `P1 · Infra · —` (done 2026-09-19)
   - Done when: merged, and CI is green on `main`.
-  - Status (2026-09-19): merged locally — `main` fast-forwarded to `feature/case-conversation-view` @ `8d60c1f` (no conflicts). Locally: full `vitest` suite (1059 passed, 69 skipped) and `pnpm -r run type-check` both pass. Not yet pushed to `origin/main`, so remote CI has not run; push needs explicit approval before this can be ticked done.
-- [ ] **0.2** Only platform operators can change worker settings. `P0 · Security · A` · S-1
+  - Status (2026-09-19): merged and pushed — `main` fast-forwarded to `feature/case-conversation-view` @ `8d60c1f` (no conflicts). Remote CI (`gh run list --branch main`) is green for this commit and every commit since.
+- [x] **0.2** Only platform operators can change worker settings. `P0 · Security · A` · S-1 (done 2026-09-19)
   - Writes are allowed only when the session email is in `PLATFORM_ADMIN_EMAILS`, checked server-side. Tenants get a read-only view. No new role value is added to `UserRole`.
   - Done when: a route test shows a non-operator owner gets `403`.
-  - Status (2026-09-19): implemented — `apps/web/src/lib/authz.ts` now has `isPlatformOperator`/`requirePlatformOperator` (case-insensitive match against `PLATFORM_ADMIN_EMAILS`), replacing the old owner-role check; `POST /api/settings/worker` and both `canEdit` read paths (`worker-settings-data.ts`, the `WorkerSettingsActions` server action) use it. `PLATFORM_ADMIN_EMAILS` documented in `.env.example`, `.env.prod.example`, `docs/deployment.md`. New `apps/web/test/worker-settings-route.test.ts` covers a non-operator owner (`403`), signed-out (`401`), and a matched operator (`200`, case-insensitive). Locally: full `vitest` suite (1062 passed, 18 skipped) and `pnpm -r run type-check` both pass. Not yet pushed, so remote CI hasn't run.
-- [ ] **0.3** Remove ngrok from the production compose file (move it to a dev-only profile or override). `P0 · Infra · A` · R-1
+  - Status (2026-09-19): implemented — `apps/web/src/lib/authz.ts` now has `isPlatformOperator`/`requirePlatformOperator` (case-insensitive match against `PLATFORM_ADMIN_EMAILS`), replacing the old owner-role check; `POST /api/settings/worker` and both `canEdit` read paths (`worker-settings-data.ts`, the `WorkerSettingsActions` server action) use it. `PLATFORM_ADMIN_EMAILS` documented in `.env.example`, `.env.prod.example`, `docs/deployment.md`. `apps/web/test/worker-settings-route.test.ts` covers a non-operator owner (`403`), signed-out (`401`), and a matched operator (`200`, case-insensitive). Pushed to `main` @ `b7748f4`; remote CI is green.
+- [x] **0.3** Remove ngrok from the production compose file (move it to a dev-only profile or override). `P0 · Infra · A` · R-1 (done 2026-09-19)
   - Done when: `docker compose -f docker-compose.prod.yml config` works without `NGROK_AUTHTOKEN`.
-- [ ] **0.4** Confirm every value ever committed in `.env.prod` has been rotated, and record it in `docs/deployment.md`. `P0 · Security · A` · S-8 _(owner task)_
-- [ ] **0.5** Stop the 4 test suites that wipe the real database from running in parallel with the others (`vitest.config.ts` `realDatabaseSuites`). `P1 · Testing · A` · T-1
-- [ ] **0.6** Pick the anchor commitment deterministically (replace `commitments[0]` in `pipeline.ts` and `cycle-pipeline.ts`). `P0 · Bug · A` · E-1
+  - Status (2026-09-19): the `ngrok` service moved out of `docker-compose.prod.yml` entirely into a new override file, `docker-compose.tunnel.yml` (dev/staging only). `docker compose -f docker-compose.prod.yml config` no longer references `NGROK_AUTHTOKEN` at all — verified directly with `docker compose config` (a Compose `profiles:` gate was tried first but rejected: `docker compose config` validates every service's env interpolation regardless of active profile, so it doesn't satisfy the Done-when check). Opt in with `-f docker-compose.prod.yml -f docker-compose.tunnel.yml`.
+- [x] **0.4** Confirm every value ever committed in `.env.prod` has been rotated, and record it in `docs/deployment.md`. `P0 · Security · A` · S-8 _(owner task)_ (done 2026-09-19)
+  - Status (2026-09-19): owner ran `scripts/rotate-secrets.sh --apply-to-db .env.prod` against production, rotating `POSTGRES_PASSWORD`, `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`, and `SMTP_ENCRYPTION_KEY` — every value that was ever exposed in the `.env.prod` commits tracked in git from `1ec4936` (2026-09-14) to `23c06cb` (2026-09-17). Recorded in `docs/deployment.md`'s new Rotating secrets log.
+- [x] **0.5** Stop the 4 test suites that wipe the real database from running in parallel with the others (`vitest.config.ts` `realDatabaseSuites`). `P1 · Testing · A` · T-1 (done 2026-09-19)
+  - Status (2026-09-19): the isolation mechanism (a separate `real-database` vitest project with `fileParallelism: false`) was already correct, but 4 real-Postgres suites added since (`next-reply-commitment-persistence.test.ts`, `next-reply-cycle-pipeline.test.ts`, `next-reply-policy-import-e2e.test.ts`, `sla-policy-override-route.test.ts`) had never been added to `realDatabaseSuites`, so they ran in the parallel `unit` project and raced with the isolated suites — reproduced locally (8 failing tests) before the fix, all passing after. `realDatabaseSuites` now lists all 11 suites that truncate tables.
+- [x] **0.6** Pick the anchor commitment deterministically (replace `commitments[0]` in `pipeline.ts` and `cycle-pipeline.ts`). `P0 · Bug · A` · E-1 (done 2026-09-19)
   - Done when: a regression test passes where First Response finished on an old policy and Resolution was re-resolved.
-- [ ] **0.7** Serialize SLA processing per organization, in both the worker and the webhook routes (Postgres advisory lock around normalization plus the pipeline tail). `P0 · Reliability · A` · E-3
+  - Status (2026-09-19): added `pickAnchorCommitment` (`packages/commitments/src/pipeline.ts`) — deterministically prefers the `resolution` commitment as anchor/sibling (it outlives `first_response` and keeps re-resolving while open, so it's the fresher source of truth), used by both `pipeline.ts` and `cycle-pipeline.ts` in place of `commitments[0]`. New regression test `apps/web/test/next-reply-cycle-pipeline.test.ts` ("anchors on resolution, not first_response, when a case has both (E-1 regression)") fails without the fix and passes with it.
+- [x] **0.7** Serialize SLA processing per organization, in both the worker and the webhook routes (Postgres advisory lock around normalization plus the pipeline tail). `P0 · Reliability · A` · E-3 (done 2026-09-19)
   - Done when: two parallel runs for the same org produce exactly one set of events and commitments.
-- [ ] **0.8** Make commitment status writes conditional: never overwrite `cancelled`, and only write when the policy version still matches. `P0 · Bug · A` · E-2
-- [ ] **0.9** One retry policy for all provider clients: parse `Retry-After`, cap the number of attempts and the total wait, back off on 5xx and network errors. `P1 · Reliability · A` · I-3
-- [ ] **0.10** Update `docs/customer-guide.md` §13 and `/docs/sla` to describe _current_ behavior ([Appendix E](#appendix-e--documentation-discrepancies)). `P1 · Docs · A`
+  - Status (2026-09-19): added `withOrganizationSlaLock` (`packages/db/src/organization-lock.ts`, a per-organization `pg_advisory_xact_lock`), generalized from the existing onboarding-backfill lock in `source-sync.ts` (now itself using the shared helper, so all call sites share one lock namespace). Wraps normalization + the commitment/cycle/evaluation/notification tail in both webhook routes (`apps/web/src/app/api/webhooks/{zendesk,jira}/[integrationId]/route.ts`) and the worker cycle (`apps/worker/src/cycle.ts`, split into an unlocked ingest phase and a locked normalize+tail phase so a slow provider fetch never blocks a webhook). Deliberately excludes ingestion/backfill — network-bound and idempotent, so it never needs to wait. New regression test `apps/web/test/organization-lock.test.ts` proves two concurrent callers for the same org serialize (no interleaving) while two different orgs don't block each other.
+- [x] **0.8** Make commitment status writes conditional: never overwrite `cancelled`, and only write when the policy version still matches. `P0 · Bug · A` · E-2 (done 2026-09-19)
+  - Status (2026-09-19): `runEvaluationPipeline`'s commitment write (`packages/commitments/src/evaluate-pipeline.ts`) switched from an unconditional `update` to `updateMany` guarded by `{ id, policyVersionId, status: { not: "cancelled" } }`. New regression test `apps/web/test/evaluate-pipeline-conditional-write.test.ts` spies on the read to inject a concurrent cancellation / re-resolution between the read and the write — both fail without the fix (the stale status/policy overwrites the concurrent change) and pass with it.
+- [x] **0.9** One retry policy for all provider clients: parse `Retry-After`, cap the number of attempts and the total wait, back off on 5xx and network errors. `P1 · Reliability · A` · I-3 (done 2026-09-19)
+  - Status (2026-09-19): new shared package `packages/http-retry` (`fetchWithRetry`) replaces the duplicated, uncapped 429-retry loop in the Zendesk, Jira, Linear, Intercom, and GitHub clients. Fixes the `NaN`-from-a-non-numeric-`Retry-After` immediate-retry-loop bug (I-3), adds a capped number of attempts and a capped total wait, and adds 5xx and thrown-network-error backoff that none of the clients had before. Each provider's own retryable-status predicate is preserved (429 for four of them, GitHub's 403-with-`Retry-After`); on budget exhaustion the function returns the last response rather than throwing, so every client's existing status-code handling (permission-denied, reauth-required, generic ApiError) is unchanged. 9 new unit tests in `packages/http-retry/test/retry.test.ts`; existing provider-client tests that exercised an uncapped 500 updated to use fake timers.
+- [x] **0.10** Update `docs/customer-guide.md` §13 and `/docs/sla` to describe _current_ behavior ([Appendix E](#appendix-e--documentation-discrepancies)). `P1 · Docs · A` (done 2026-09-19)
+  - Status (2026-09-19): both `docs/customer-guide.md` §13 and `apps/web/src/app/docs/sla/page.tsx` updated — "Priority changes" and "Policy changes" now describe Active-Commitment Re-Resolution (a priority/customer/tier change, or any new version of the currently-matched policy, re-resolves every still-open commitment on the case; only a completed commitment is immutable), and "Reopened tickets" now states explicitly that the solved interval counts as running time after a reopen. Verified rendered in the browser at `/docs/sla`.
 
 ---
 
@@ -933,7 +941,3 @@ These were **not changed** in this audit, per instructions. Fix them in W1 (curr
 | `apps/worker/src/index.ts:32`                                             | Refers to `@@unique([caseId, kind])`                       | The key is `@@unique([caseId, kind, cycleKey])`                      |
 | `packages/commitments/src/cycle-pipeline.ts:45-47`                        | Evaluation skips `next_reply`                              | `evaluate-pipeline.ts` evaluates `next_reply`                        |
 | `implementation-plans/roadmap-completed.md` "Explicitly deferred past v1" | Integrations beyond Zendesk + Jira are deferred            | Intercom, Linear and GitHub are built                                |
-
-```
-
-```

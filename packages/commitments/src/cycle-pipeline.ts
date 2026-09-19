@@ -11,7 +11,7 @@ import {
 } from "@sla/core";
 import { persistNextReplyCommitments } from "./cycle-commitments";
 import { toNormalizedEventDomain } from "./evaluate-pipeline";
-import { COMMITMENT_KINDS, latestVersionPerPolicy, toCalendarVersionDomain } from "./pipeline";
+import { COMMITMENT_KINDS, latestVersionPerPolicy, pickAnchorCommitment, toCalendarVersionDomain } from "./pipeline";
 
 export interface NextReplyCyclePipelineResult {
   casesConsidered: number;
@@ -131,7 +131,7 @@ export async function runNextReplyCyclePipeline(
   for (const caseRow of cases) {
     result.casesConsidered += 1;
     try {
-      const anchor = caseRow.commitments[0];
+      const anchor = pickAnchorCommitment(caseRow.commitments);
       if (!anchor) continue;
 
       const anchorPolicyVersion = policyVersionsById.get(anchor.policyVersionId);

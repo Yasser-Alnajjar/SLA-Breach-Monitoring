@@ -76,14 +76,21 @@ describe("ZendeskClient 403 handling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves other failures as a plain ZendeskApiError", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, { error: "boom" })));
-    const client = new ZendeskClient(baseCredentials);
+  it("leaves other failures as a plain ZendeskApiError, after exhausting the shared retry budget on a 500", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, { error: "boom" })));
+      const client = new ZendeskClient(baseCredentials);
 
-    const error = await client.fetchSlaPoliciesPage().catch((e: unknown) => e);
+      const pending = client.fetchSlaPoliciesPage().catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const error = await pending;
 
-    expect(error).toBeInstanceOf(ZendeskApiError);
-    expect(error).not.toBeInstanceOf(ZendeskPermissionDeniedError);
+      expect(error).toBeInstanceOf(ZendeskApiError);
+      expect(error).not.toBeInstanceOf(ZendeskPermissionDeniedError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

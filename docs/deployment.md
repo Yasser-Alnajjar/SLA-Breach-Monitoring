@@ -251,7 +251,8 @@ so run the check at a quiet time.
   un-decryptable-until-fixed.
 - `.env.prod` is never committed. It was tracked in this repository until
   roadmap step 39, so every value in any copy of it from before then must
-  be treated as leaked (see [Rotating secrets](#rotating-secrets)).
+  be treated as leaked — **rotated 2026-09-19** (see
+  [Rotating secrets](#rotating-secrets)).
 - Basic rate limiting and webhook replay protection (roadmap step 30) are
   in place: `/api/sign-up`, `/api/auth/callback/credentials`, and
   `/api/webhooks/**` are throttled per client IP in `apps/web/src/proxy.ts`
@@ -287,6 +288,12 @@ so run the check at a quiet time.
 
 Rotate when a secret may have leaked (for example, `.env.prod` ended up in
 git, a chat, or a shared drive), or when someone with access leaves.
+
+**Rotation log**
+
+| Date | Reason | Scope | Method |
+| --- | --- | --- | --- |
+| 2026-09-19 | `.env.prod` was tracked in git from `1ec4936` (2026-09-14) to `23c06cb` (2026-09-17); every value in that history must be treated as leaked (roadmap step 0.4). | `POSTGRES_PASSWORD`, `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`, `SMTP_ENCRYPTION_KEY` | `scripts/rotate-secrets.sh --apply-to-db .env.prod` |
 
 ```bash
 scripts/backup.sh

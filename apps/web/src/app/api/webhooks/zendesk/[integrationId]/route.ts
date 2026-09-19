@@ -9,7 +9,7 @@ import {
   ZendeskPermissionDeniedError,
   ZendeskReauthRequiredError,
 } from "@sla/zendesk";
-import { getPrismaClient } from "@sla/db";
+import { getPrismaClient, withOrganizationSlaLock } from "@sla/db";
 import { getZendeskOAuthConfig } from "@/lib/zendesk-env";
 import { runWebhookPipelineTail } from "@/lib/webhook-pipeline";
 
@@ -30,6 +30,11 @@ export const maxDuration = 60;
  * which is what actually delivers "real-time freshness" — the 5-minute
  * active-set poll and 60-minute reconciliation sweep (roadmap step 7) keep
  * running unchanged as the safety net for missed or out-of-order deliveries.
+ * Normalization and the pipeline tail run under `withOrganizationSlaLock`
+ * (E-3): a concurrent worker cycle or another webhook for the same
+ * organization waits rather than racing on the same Case/NormalizedEvent/
+ * Commitment rows. Ingest itself is excluded — network-bound and
+ * idempotent, so it never needs to wait.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ integrationId: string }> }) {
   const { integrationId } = await params;
@@ -101,8 +106,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
       return NextResponse.json({ status: "deleted", ticketId });
     }
 
-    await runZendeskNormalization(prisma, integration.id);
-    const pipeline = await runWebhookPipelineTail(prisma, integration.organizationId);
+    const pipeline = await withOrganizationSlaLock(prisma, integration.organizationId, async () => {
+      await runZendeskNormalization(prisma, integration.id);
+      return runWebhookPipelineTail(prisma, integration.organizationId);
+    });
 
     return NextResponse.json({ status: "processed", ticketId, ...pipeline });
   } catch (error) {

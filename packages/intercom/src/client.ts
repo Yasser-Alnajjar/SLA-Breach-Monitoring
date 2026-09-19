@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "@sla/http-retry";
 import type {
   IntercomCompaniesPage,
   IntercomContact,
@@ -61,22 +62,20 @@ export class IntercomClient {
     hasRetriedAuth = false,
   ): Promise<T> {
     const url = path.startsWith("http") ? path : `${API_URL}${path}`;
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${this.credentials.accessToken}`,
-        Accept: "application/json",
-        "Intercom-Version": API_VERSION,
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...init.headers,
-      },
-    });
-
-    if (response.status === 429) {
-      const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? "5");
-      await sleep(retryAfterSeconds * 1000);
-      return this.request<T>(path, init, hasRetriedAuth);
-    }
+    const response = await fetchWithRetry(
+      () =>
+        fetch(url, {
+          ...init,
+          headers: {
+            Authorization: `Bearer ${this.credentials.accessToken}`,
+            Accept: "application/json",
+            "Intercom-Version": API_VERSION,
+            ...(init.body ? { "Content-Type": "application/json" } : {}),
+            ...init.headers,
+          },
+        }),
+      { isRetryableStatus: (r) => r.status === 429 },
+    );
 
     if (response.status === 401 && this.onUnauthorized && !hasRetriedAuth) {
       this.credentials = await this.onUnauthorized(this.credentials);
@@ -128,10 +127,6 @@ export class IntercomClient {
   fetchContact(contactId: string): Promise<IntercomContact> {
     return this.request<IntercomContact>(`/contacts/${contactId}`);
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Inbox link to one conversation (or ticket — Intercom tickets are conversations) in the given workspace. */

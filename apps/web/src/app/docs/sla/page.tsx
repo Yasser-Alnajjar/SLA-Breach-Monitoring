@@ -138,12 +138,22 @@ export default function SlaPage() {
           </p>
 
           <p className="leading-7 text-muted-foreground">
-            The resulting commitment is tied to the policy and calendar versions
-            used for the calculation, so historical results remain reproducible
-            if policies change later. A case gets exactly one first-response
-            commitment and one resolution commitment, matched once, at creation
-            — changing priority afterward has no effect on commitments already
-            created.
+            A case gets exactly one first-response commitment and one
+            resolution commitment, matched once, at creation. Changing
+            priority, customer, or tier afterward is not ignored, though: on
+            the next poll or webhook delivery, any commitment on that case
+            that is still open is re-matched and moved onto whichever policy
+            version now applies (see{" "}
+            <Link
+              href="#policy-changes"
+              className="underline underline-offset-4"
+            >
+              Policy changes
+            </Link>{" "}
+            below). Only a commitment that has already completed — met, or
+            breached and closed — keeps the exact policy and calendar version
+            it finished under, permanently, so a historical result stays
+            reproducible.
           </p>
 
           <Alert variant="warning">
@@ -346,11 +356,13 @@ export default function SlaPage() {
           <p className="leading-7 text-muted-foreground">
             If a Zendesk ticket is solved and later reopened, the
             commitment&apos;s clock is not reset. It resumes live evaluation
-            from where it left off, using the original commitment start time —
-            so a ticket that was marked met at solve time can read as breached
-            once reopened and re-evaluated, if the working time consumed
-            (including the time before the original solve) now exceeds target.
-            This is intentional, not a bug.
+            from the original commitment start time, over the full event
+            history — so a ticket that was marked met at solve time can read
+            as breached once reopened and re-evaluated, if the total working
+            time now exceeds target. This includes the time the ticket spent
+            solved: the clock does not pause between the solve and the
+            reopen, so that interval counts toward the target the same as any
+            other open time. This is intentional, not a bug.
           </p>
         </section>
 
@@ -360,11 +372,16 @@ export default function SlaPage() {
           </h2>
 
           <p className="leading-7 text-muted-foreground">
-            Editing a policy&apos;s target never rewrites history. It creates a
-            new version of that policy; every commitment already created keeps
-            the exact policy version (and calendar version) it was created
-            under, permanently, so a policy correction never silently changes a
-            number that has already been reported.
+            Editing a policy&apos;s target never rewrites history in the sense
+            of altering a past record, but it is not invisible to commitments
+            already in progress: it creates a new version of that policy, and
+            any currently open commitment still matched to that policy moves
+            onto the new version — its target, calendar version, and due date
+            update, while its clock keeps running from its original start
+            time. Only a commitment that has already completed (met, or
+            breached and closed) keeps the exact policy version it finished
+            under, permanently, so a policy correction never changes a number
+            that&apos;s already been reported and closed out.
           </p>
         </section>
 

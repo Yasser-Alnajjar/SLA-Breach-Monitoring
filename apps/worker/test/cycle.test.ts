@@ -108,6 +108,12 @@ function fakeDb(status: Status) {
       ),
     },
     rawEvent: { createMany: vi.fn(async () => ({ count: 0 })) },
+    // `withOrganizationSlaLock`'s advisory lock: a real interactive
+    // transaction isn't needed here since this fake DB has no real
+    // concurrency to serialize against — just run the callback against the
+    // same fake client.
+    $executeRaw: vi.fn(async () => 0),
+    $transaction: vi.fn(async (fn: (tx: PrismaClient) => Promise<unknown>) => fn(prisma as unknown as PrismaClient)),
   };
 
   return { row, prisma: prisma as unknown as PrismaClient };
@@ -166,14 +172,23 @@ describe("runCycle — provider permission loss (roadmap step 32)", () => {
   });
 
   it("HTTP 500 → existing generic error behavior: status unchanged, raw error recorded, Sentry event", async () => {
-    const { row, prisma } = fakeDb("connected");
-    stubFetch(() => jsonResponse(500, { error: "boom" }));
+    vi.useFakeTimers();
+    try {
+      const { row, prisma } = fakeDb("connected");
+      // A 500 is now retried up to the shared retry policy's attempt cap
+      // (roadmap step 0.9) before surfacing as a failure.
+      stubFetch(...Array(5).fill(() => jsonResponse(500, { error: "boom" })));
 
-    await runCycle(prisma, config, "active_set_poll");
+      const pending = runCycle(prisma, config, "active_set_poll");
+      await vi.runAllTimersAsync();
+      await pending;
 
-    expect(row.status).toBe("connected");
-    expect(row.lastSyncError).toBe("Linear API error 500");
-    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+      expect(row.status).toBe("connected");
+      expect(row.lastSyncError).toBe("Linear API error 500");
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("permission_denied + successful sync → connected, error cleared", async () => {
@@ -189,13 +204,20 @@ describe("runCycle — provider permission loss (roadmap step 32)", () => {
   });
 
   it("a transient failure while permission_denied neither clears nor changes the status", async () => {
-    const { row, prisma } = fakeDb("permission_denied");
-    stubFetch(() => jsonResponse(500, { error: "boom" }));
+    vi.useFakeTimers();
+    try {
+      const { row, prisma } = fakeDb("permission_denied");
+      stubFetch(...Array(5).fill(() => jsonResponse(500, { error: "boom" })));
 
-    await runCycle(prisma, config, "active_set_poll");
+      const pending = runCycle(prisma, config, "active_set_poll");
+      await vi.runAllTimersAsync();
+      await pending;
 
-    expect(row.status).toBe("permission_denied");
-    expect(row.lastSyncError).toBe("Linear API error 500");
+      expect(row.status).toBe("permission_denied");
+      expect(row.lastSyncError).toBe("Linear API error 500");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("full lifecycle: connected → permission_denied (Sentry once across repeated 403s) → connected", async () => {
@@ -265,9 +287,12 @@ describe("runCycle — provider permission loss (roadmap step 32)", () => {
 
 describe("runCycle — Next Reply cycle pipeline wiring (Step 7)", () => {
   function orgOnlyDb(): PrismaClient {
-    return {
+    const prisma = {
       organization: { findMany: vi.fn(async () => [{ id: "org_1", integrations: [] }]) },
-    } as unknown as PrismaClient;
+      $executeRaw: vi.fn(async () => 0),
+      $transaction: vi.fn(async (fn: (tx: PrismaClient) => Promise<unknown>) => fn(prisma as unknown as PrismaClient)),
+    };
+    return prisma as unknown as PrismaClient;
   }
 
   beforeEach(() => {

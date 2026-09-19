@@ -1,0 +1,19 @@
+# Dev/staging convenience only, never for production: a public ngrok tunnel
+# to `web` for exposing webhook endpoints without a domain of your own.
+# Kept out of docker-compose.prod.yml itself (roadmap step 0.3) so a plain
+# `docker compose -f docker-compose.prod.yml ...` never needs NGROK_AUTHTOKEN
+# set. Opt in with:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml --env-file .env.prod up -d --build
+name: SLA
+services:
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    container_name: ngrok
+    depends_on:
+      - web
+    command:
+      - http
+      - web:3000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?NGROK_AUTHTOKEN is required}

@@ -52,6 +52,7 @@ export type {
 
 export { WORKER_ADVISORY_LOCK_KEY, connectAdvisoryLockConnection } from "./advisory-lock";
 export type { AdvisoryLockConnection } from "./advisory-lock";
+export { withOrganizationSlaLock } from "./organization-lock";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,

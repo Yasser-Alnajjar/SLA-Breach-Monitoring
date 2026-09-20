@@ -8,6 +8,7 @@ import {
   resolveActor,
   sortAuditsChronologically,
   UnknownZendeskStatusError,
+  zendeskConditionAttributes,
   type AuditRecord,
   type DerivedNormalizedEvent,
 } from "../src/normalize";
@@ -1057,5 +1058,80 @@ describe("publicCommentBodiesInAudit", () => {
       { authorId: 900, body: "first" },
       { authorId: 501, body: "second" },
     ]);
+  });
+});
+
+describe("zendeskConditionAttributes", () => {
+  it("resolves every Zendesk SLA condition field this importer supports, minus the canonical Case columns", () => {
+    const result = zendeskConditionAttributes({
+      ...ticket,
+      status: "pending",
+      type: "incident",
+      group_id: 42,
+      assignee_id: 7,
+      requester_id: 501,
+      brand_id: 3,
+      ticket_form_id: 99,
+      recipient: "support@acme.com",
+      via: { channel: "chat" },
+      custom_fields: [
+        { id: 360000123, value: "gold" },
+        { id: 360000456, value: null },
+      ],
+    });
+
+    expect(result).toEqual({
+      status: "pending",
+      type: "incident",
+      group_id: 42,
+      assignee_id: 7,
+      requester_id: 501,
+      brand_id: 3,
+      ticket_form_id: 99,
+      form_id: 99,
+      recipient: "support@acme.com",
+      via_id: "chat",
+      current_via_id: "chat",
+      exact_created_at: ticket.created_at,
+      custom_fields_360000123: "gold",
+      custom_fields_360000456: null,
+    });
+  });
+
+  it("omits a field entirely when the ticket doesn't carry it, so the matcher's missing-field fail-safe applies", () => {
+    const result = zendeskConditionAttributes(ticket);
+
+    expect(result).toEqual({
+      status: "closed",
+      requester_id: 501,
+      via_id: "web",
+      current_via_id: "web",
+      exact_created_at: ticket.created_at,
+    });
+    expect(result).not.toHaveProperty("type");
+    expect(result).not.toHaveProperty("group_id");
+    expect(result).not.toHaveProperty("assignee_id");
+    expect(result).not.toHaveProperty("brand_id");
+    expect(result).not.toHaveProperty("ticket_form_id");
+    expect(result).not.toHaveProperty("recipient");
+  });
+
+  it("keys each custom field by its Zendesk id, including a null value", () => {
+    const result = zendeskConditionAttributes({
+      ...ticket,
+      custom_fields: [{ id: 1, value: "a" }, { id: 2, value: 5 }, { id: 3, value: null }],
+    });
+
+    expect(result.custom_fields_1).toBe("a");
+    expect(result.custom_fields_2).toBe(5);
+    expect(result.custom_fields_3).toBeNull();
+  });
+
+  it("never emits organization_id, priority, or tags — those are resolved as canonical Case columns / match.customerIds elsewhere, never duplicated into the generic attributes bag", () => {
+    const result = zendeskConditionAttributes(ticket);
+
+    expect(result).not.toHaveProperty("organization_id");
+    expect(result).not.toHaveProperty("priority");
+    expect(result).not.toHaveProperty("tags");
   });
 });

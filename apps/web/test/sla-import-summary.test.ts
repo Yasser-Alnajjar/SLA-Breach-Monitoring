@@ -66,10 +66,13 @@ describe.skipIf(!TEST_DATABASE_URL)("SLA import summary persistence (real Postgr
   });
 
   it("persists import coverage and cases-with-no-matching-policy after a sync, and overwrites on the next one", async () => {
-    // A policy with one unsupported filter condition (group_id), one
-    // unsupported metric (agent_work_time) alongside a usable one, matching
-    // only "normal" priority — a case opened as "urgent" then has no
-    // matching policy at all.
+    // A policy with one unsupported filter condition (custom_status_id —
+    // Zendesk's custom ticket statuses registry isn't ingested by this
+    // importer, see RESOLVED_CONDITION_FIELDS/isResolvedConditionField in
+    // packages/zendesk/src/policies.ts), one unsupported metric
+    // (agent_work_time) alongside a usable one, matching only "normal"
+    // priority — a case opened as "urgent" then has no matching policy at
+    // all.
     await prisma.rawEvent.create({
       data: {
         integrationId,
@@ -81,7 +84,7 @@ describe.skipIf(!TEST_DATABASE_URL)("SLA import summary persistence (real Postgr
           filter: {
             all: [
               { field: "priority", operator: "is", value: "normal" },
-              { field: "group_id", operator: "is", value: 42 },
+              { field: "custom_status_id", operator: "is", value: 7 },
             ],
           },
           policy_metrics: [

@@ -112,7 +112,7 @@ describe("toCaseAttributes", () => {
     });
   });
 
-  it("mirrors tags into attributes so a generic `tags` match condition can be evaluated", () => {
+  it("mirrors tags into attributes under both `tags` and `current_tags` so either generic match condition can be evaluated", () => {
     expect(
       toCaseAttributes({
         id: "case_1",
@@ -124,7 +124,83 @@ describe("toCaseAttributes", () => {
       }),
     ).toEqual({
       caseId: "case_1",
-      attributes: { tags: ["d6", "vip"] },
+      attributes: { tags: ["d6", "vip"], current_tags: ["d6", "vip"] },
+      priority: undefined,
+      customerId: undefined,
+      tier: undefined,
+    });
+  });
+
+  it("mirrors channel into attributes under `channel`, `via_id`, and `current_via_id`", () => {
+    expect(
+      toCaseAttributes({
+        id: "case_1",
+        priority: null,
+        customerId: null,
+        tier: null,
+        channel: "chat",
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: { channel: "chat", via_id: "chat", current_via_id: "chat" },
+      priority: undefined,
+      customerId: undefined,
+      tier: undefined,
+    });
+  });
+
+  it("merges the generic `attributes` JSON bag in as-is (Zendesk fields with no dedicated column: status, type, group_id, ...)", () => {
+    expect(
+      toCaseAttributes({
+        id: "case_1",
+        priority: null,
+        customerId: null,
+        tier: null,
+        attributes: { status: "pending", type: "incident", group_id: 42 },
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: { status: "pending", type: "incident", group_id: 42 },
+      priority: undefined,
+      customerId: undefined,
+      tier: undefined,
+    });
+  });
+
+  it("lets a canonical field (priority) win over the same key in the generic attributes bag", () => {
+    expect(
+      toCaseAttributes({
+        id: "case_1",
+        priority: "urgent",
+        customerId: null,
+        tier: null,
+        attributes: { priority: "stale-cached-value" },
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: { priority: "urgent" },
+      priority: "urgent",
+      customerId: undefined,
+      tier: undefined,
+    });
+  });
+
+  it("ignores a non-object attributes value (Json column can statically hold one, but never actually does)", () => {
+    expect(
+      toCaseAttributes({
+        id: "case_1",
+        priority: null,
+        customerId: null,
+        tier: null,
+        attributes: "not-an-object" as unknown as Record<string, unknown>,
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: {},
       priority: undefined,
       customerId: undefined,
       tier: undefined,

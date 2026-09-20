@@ -44,6 +44,44 @@ function normalizeCondition(
     value: condition.value,
   };
 }
+
+/**
+ * Every Zendesk SLA condition `field` this importer resolves onto a Case's
+ * canonical columns or its generic `attributes` bag (see
+ * `zendeskConditionAttributes`, ./normalize.ts, and the field mapping table
+ * on `ZendeskSlaPolicyCondition`, ./types.ts) — everything else is preserved
+ * in the match (never dropped, `normalizeCondition` above) but is reported
+ * as unsupported, since it can never actually be satisfied (see
+ * `unsupportedConditions` below and `evaluateCondition`, packages/core).
+ * `organization_id` is deliberately not listed here — it's resolved through
+ * an entirely different path (`match.customerIds`, not a generic attribute)
+ * and is handled/counted separately below.
+ */
+const RESOLVED_CONDITION_FIELDS = new Set([
+  "tags",
+  "current_tags",
+  "priority",
+  "status",
+  "type",
+  "group_id",
+  "assignee_id",
+  "requester_id",
+  "via_id",
+  "current_via_id",
+  "brand_id",
+  "ticket_form_id",
+  "form_id",
+  "recipient",
+  "exact_created_at",
+]);
+
+const CUSTOM_FIELD_CONDITION = /^custom_fields_\d+$/;
+
+function isResolvedConditionField(field: string): boolean {
+  return (
+    RESOLVED_CONDITION_FIELDS.has(field) || CUSTOM_FIELD_CONDITION.test(field)
+  );
+}
 /** Customer-caused waiting, regardless of which system reports it (Phase 13.4) — fixed for every imported policy, not configurable in v1. Only commitment kinds whose clock rules honor the policy's pause states pause on it (`pauseStatesFor` in @sla/core): resolution does, first response never pauses. */
 export const PAUSE_ON_STATES: NormalizedState[] = ["pending_customer"];
 export const WARN_AT_PERCENT = [50, 80, 95];
@@ -148,9 +186,19 @@ export function extractMatchFromFilter(
     match.customerIds = [];
   }
 
+  // The condition itself is still preserved in `match.conditions` above
+  // (never dropped) — this only counts how many of them name a field this
+  // importer can't resolve onto any Case attribute, so it can never actually
+  // be satisfied (`evaluateCondition`, packages/core, fails it safe as
+  // "field missing"). `organization_id` is resolved through `customerIds`
+  // above, not this generic path, so it's never counted here.
+  const unsupportedConditions = [...genericAll, ...genericAny].filter(
+    (condition) => !isResolvedConditionField(condition.field),
+  ).length;
+
   return {
     match,
-    unsupportedConditions: 0,
+    unsupportedConditions,
   };
 }
 

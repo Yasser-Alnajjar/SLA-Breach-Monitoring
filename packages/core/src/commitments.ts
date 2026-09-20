@@ -11,11 +11,23 @@ import type {
 } from "./types";
 import { SINGLE_CYCLE_KEY } from "./types";
 
+/**
+ * A rough count of how restrictive a match is, used to rank same-position
+ * (or unpositioned) candidates — every legacy field (priority/customerIds/
+ * tier) counts for one, and every generic condition counts too, so a
+ * Zendesk-imported policy whose `filter` only ever produces `match.conditions`
+ * (see `extractMatchFromFilter`, packages/zendesk) still outranks an
+ * unconditioned catch-all instead of tying with it. An `any` group counts
+ * once regardless of its size — it's an OR, so it's never more restrictive
+ * than a second `all` condition would be.
+ */
 function specificity(match: SLAPolicyVersion["match"]): number {
   return (
     (match.priority?.length ? 1 : 0) +
     (match.customerIds?.length ? 1 : 0) +
-    (match.tier?.length ? 1 : 0)
+    (match.tier?.length ? 1 : 0) +
+    (match.conditions?.all?.length ?? 0) +
+    (match.conditions?.any?.length ? 1 : 0)
   );
 }
 function valuesEqual(actual: unknown, expected: unknown): boolean {
@@ -33,8 +45,21 @@ function valuesEqual(actual: unknown, expected: unknown): boolean {
   );
 }
 
+/**
+ * Zendesk's `includes`/`not_includes` operator on a list-valued field (e.g.
+ * `current_tags`) takes a *space-delimited list* of values to compare
+ * against, matched as "at least one of these" — not a single literal value.
+ * A single-token `expected` behaves exactly as before (one token, "any of
+ * one" is just "equals one of").
+ */
 function includesValue(actual: unknown, expected: unknown): boolean {
   if (Array.isArray(actual)) {
+    if (typeof expected === "string" && expected.trim().includes(" ")) {
+      return expected
+        .trim()
+        .split(/\s+/)
+        .some((token) => actual.some((value) => valuesEqual(value, token)));
+    }
     return actual.some((value) => valuesEqual(value, expected));
   }
 
@@ -45,13 +70,61 @@ function includesValue(actual: unknown, expected: unknown): boolean {
   return false;
 }
 
+/** Zendesk's fixed priority ordering — the only field whose `less_than`/`greater_than` comparison isn't a plain numeric/date compare. */
+const PRIORITY_ORDER: Record<string, number> = {
+  low: 0,
+  normal: 1,
+  high: 2,
+  urgent: 3,
+};
+
+/**
+ * Orders `actual` relative to `expected` for `less_than`/`greater_than`
+ * comparisons, or `null` when the two values can't be meaningfully compared
+ * (an unrecognized priority string, non-numeric/non-date text, ...) — the
+ * caller then fails the condition rather than guessing, same policy as an
+ * unknown operator.
+ */
+function compareOrdinal(
+  field: string,
+  actual: unknown,
+  expected: unknown,
+): number | null {
+  if (field === "priority") {
+    const a = PRIORITY_ORDER[String(actual).toLowerCase()];
+    const b = PRIORITY_ORDER[String(expected).toLowerCase()];
+    return a === undefined || b === undefined ? null : a - b;
+  }
+
+  const aDate = Date.parse(String(actual));
+  const bDate = Date.parse(String(expected));
+  if (!Number.isNaN(aDate) && !Number.isNaN(bDate)) return aDate - bDate;
+
+  const aNum = Number(actual);
+  const bNum = Number(expected);
+  if (actual !== "" && expected !== "" && !Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+    return aNum - bNum;
+  }
+
+  return null;
+}
+
 function evaluateCondition(
   attributes: Record<string, unknown>,
   condition: PolicyCondition,
 ): boolean {
   const actual = attributes[condition.field];
 
-  // Missing fields must never satisfy a condition.
+  // Presence operators are the only ones a missing field can satisfy —
+  // every other operator below requires a value to compare against.
+  if (condition.operator === "present") {
+    return actual !== undefined && actual !== null;
+  }
+  if (condition.operator === "not_present") {
+    return actual === undefined || actual === null;
+  }
+
+  // Missing fields must never satisfy a value-comparison condition.
   if (actual === undefined || actual === null) {
     return false;
   }
@@ -72,6 +145,26 @@ function evaluateCondition(
     case "not_includes":
     case "not_contains":
       return !includesValue(actual, condition.value);
+
+    case "less_than": {
+      const cmp = compareOrdinal(condition.field, actual, condition.value);
+      return cmp !== null && cmp < 0;
+    }
+
+    case "less_than_equal": {
+      const cmp = compareOrdinal(condition.field, actual, condition.value);
+      return cmp !== null && cmp <= 0;
+    }
+
+    case "greater_than": {
+      const cmp = compareOrdinal(condition.field, actual, condition.value);
+      return cmp !== null && cmp > 0;
+    }
+
+    case "greater_than_equal": {
+      const cmp = compareOrdinal(condition.field, actual, condition.value);
+      return cmp !== null && cmp >= 0;
+    }
 
     default:
       // Never broaden a policy because we do not understand an operator.

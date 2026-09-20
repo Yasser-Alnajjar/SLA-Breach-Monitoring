@@ -2,7 +2,7 @@
 
 > **The single, living implementation plan for SLA Watchtower.** It says what we build next, what is in progress, and what is done. It is updated in place as the product evolves. Never start a second roadmap file.
 >
-> **Revision:** 3 · **Last updated:** 2026-09-19 · **Capacity:** 10–15 h/week
+> **Revision:** 3 · **Last updated:** 2026-09-20 · **Capacity:** 10–15 h/week
 > **History:** the steps already delivered (0–44) are in [`roadmap-completed.md`](roadmap-completed.md). Parked ideas are in [`ignored.md`](ignored.md).
 
 ---
@@ -13,10 +13,10 @@ _Update this section every time a task or phase changes state._
 
 |                          |                                                                                                                |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Now**                  | Phase 1 — Correct SLA Commitments · 6 of 13 tasks done (1.1, 1.2, 1.3, 1.9, 1.11, 1.12) · most of the rest blocked on decisions D3–D7 |
-| **Up next**              | Phase 2 — Reliable Zendesk + Jira Connections                                                                  |
-| **Blocked on decisions** | D3, D4, D5, D6, D7 (Phase 1) · D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)                        |
-| **Recently completed**   | Phase 0 — Safe Foundation, ✅ complete (2026-09-19) — see [Phase 0](#phase-0--safe-foundation)                 |
+| **Now**                  | Phase 2 — Reliable Zendesk + Jira Connections · not started                                                    |
+| **Up next**              | Phase 3 — Explainable Cases                                                                                    |
+| **Blocked on decisions** | D12 (Phase 4) · D8 (Phase 5) · D11 (scheduling)                                                                |
+| **Recently completed**   | Phase 1 — Correct SLA Commitments, ✅ complete (13/13 tasks, 2026-09-19) — see [Phase 1](#phase-1--correct-sla-commitments) |
 | **Target**               | Production-ready MVP for **Zendesk + Jira** customers. Intercom, Linear and GitHub as Beta.                    |
 | **Estimate**             | 24 weeks plus 3 buffer (about 6–7 months)                                                                      |
 
@@ -25,7 +25,7 @@ _Update this section every time a task or phase changes state._
 | Phase                                                  | Product outcome                                                                       | Est. | Status                                            |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
 | [0](#phase-0--safe-foundation)                         | Safe foundation: no cross-tenant control, deterministic SLA state                     | 2 wk | ✅ Complete (2026-09-19)                          |
-| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | 🔄 In progress (5/13 tasks, 2026-09-19)           |
+| [1](#phase-1--correct-sla-commitments)                 | Correct SLA commitments: final, tested First Response / Next Reply / Resolution rules | 3 wk | ✅ Complete (2026-09-19)                          |
 | [2](#phase-2--reliable-zendesk--jira-connections)      | Reliable Zendesk + Jira connections, verified live                                    | 3 wk | ⬜ Not started                                    |
 | [3](#phase-3--explainable-cases)                       | Explainable cases: timeline, commitment transparency, assignee, rich alerts           | 3 wk | ⬜ Not started                                    |
 | [4](#phase-4--sla-policy--calendar-management)         | SLA policy and calendar management inside Watchtower                                  | 4 wk | ⬜ Not started                                    |

@@ -168,6 +168,8 @@ export async function runCommitmentReResolutionPipeline(
       customerId: true,
       tier: true,
       tags: true,
+      channel: true,
+      attributes: true,
       openedAt: true,
       commitments: {
         where: RE_RESOLUTION_ELIGIBLE_WHERE,

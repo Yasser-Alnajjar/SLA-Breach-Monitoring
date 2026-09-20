@@ -367,6 +367,307 @@ describe("matchPolicyVersion", () => {
     });
   });
 
+  describe("full Zendesk SLA condition field coverage", () => {
+    const orgPolicy: SLAPolicyVersion = {
+      ...genericPolicy,
+      id: "policy-org",
+      match: { customerIds: ["cust-acme"] },
+    };
+
+    it("matches organization via match.customerIds, not a generic condition", () => {
+      const caseAttributes: CaseAttributes = {
+        caseId: "case-1",
+        attributes: {},
+        customerId: "cust-acme",
+      };
+
+      expect(matchPolicyVersion(caseAttributes, [orgPolicy])?.id).toBe(
+        "policy-org",
+      );
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-2", attributes: {}, customerId: "cust-other" },
+          [orgPolicy],
+        ),
+      ).toBeNull();
+    });
+
+    it("matches current_tags with a space-delimited 'includes' value as any-of, like Zendesk's tag condition", () => {
+      const policy: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-current-tags",
+        match: {
+          conditions: {
+            all: [
+              { field: "current_tags", operator: "includes", value: "vip escalated" },
+            ],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-1", attributes: { current_tags: ["escalated"] } },
+          [policy],
+        )?.id,
+      ).toBe("policy-current-tags");
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-2", attributes: { current_tags: ["billing"] } },
+          [policy],
+        ),
+      ).toBeNull();
+    });
+
+    it("matches not_includes on current_tags (none of the listed tags present)", () => {
+      const policy: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-not-includes",
+        match: {
+          conditions: {
+            all: [
+              { field: "current_tags", operator: "not_includes", value: "vip escalated" },
+            ],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-1", attributes: { current_tags: ["billing"] } },
+          [policy],
+        )?.id,
+      ).toBe("policy-not-includes");
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-2", attributes: { current_tags: ["escalated"] } },
+          [policy],
+        ),
+      ).toBeNull();
+    });
+
+    it("matches status, type, group_id, assignee_id, requester_id, channel, and custom fields generically", () => {
+      const policy: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-many-fields",
+        match: {
+          conditions: {
+            all: [
+              { field: "status", operator: "is", value: "pending" },
+              { field: "type", operator: "is", value: "incident" },
+              { field: "group_id", operator: "is", value: 42 },
+              { field: "assignee_id", operator: "is", value: 7 },
+              { field: "requester_id", operator: "is", value: 99 },
+              { field: "channel", operator: "is", value: "chat" },
+              { field: "custom_fields_360000123", operator: "is", value: "gold" },
+            ],
+          },
+        },
+      };
+
+      const matchingCase: CaseAttributes = {
+        caseId: "case-1",
+        attributes: {
+          status: "pending",
+          type: "incident",
+          group_id: 42,
+          assignee_id: 7,
+          requester_id: 99,
+          channel: "chat",
+          custom_fields_360000123: "gold",
+        },
+      };
+
+      expect(matchPolicyVersion(matchingCase, [policy])?.id).toBe(
+        "policy-many-fields",
+      );
+
+      const missingOneField: CaseAttributes = {
+        ...matchingCase,
+        caseId: "case-2",
+        attributes: { ...matchingCase.attributes, channel: "email" },
+      };
+      expect(matchPolicyVersion(missingOneField, [policy])).toBeNull();
+    });
+
+    it("matches priority ordinal comparisons (less_than/greater_than)", () => {
+      const atLeastHigh: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-priority-gte-high",
+        match: {
+          conditions: {
+            all: [{ field: "priority", operator: "greater_than_equal", value: "high" }],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-1", attributes: {}, priority: "urgent" },
+          [atLeastHigh],
+        )?.id,
+      ).toBe("policy-priority-gte-high");
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-2", attributes: {}, priority: "high" },
+          [atLeastHigh],
+        )?.id,
+      ).toBe("policy-priority-gte-high");
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-3", attributes: {}, priority: "normal" },
+          [atLeastHigh],
+        ),
+      ).toBeNull();
+    });
+
+    it("fails safe for an ordinal comparison it cannot evaluate (unrecognized priority string)", () => {
+      const policy: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-bad-ordinal",
+        match: {
+          conditions: {
+            all: [{ field: "priority", operator: "less_than", value: "high" }],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-1", attributes: {}, priority: "not-a-priority" },
+          [policy],
+        ),
+      ).toBeNull();
+    });
+
+    it("matches exact_created_at with less_than/greater_than as a date comparison", () => {
+      const before2026: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-created-before",
+        match: {
+          conditions: {
+            all: [
+              {
+                field: "exact_created_at",
+                operator: "less_than",
+                value: "2026-01-01T00:00:00.000Z",
+              },
+            ],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          {
+            caseId: "case-1",
+            attributes: { exact_created_at: "2025-06-01T00:00:00.000Z" },
+          },
+          [before2026],
+        )?.id,
+      ).toBe("policy-created-before");
+      expect(
+        matchPolicyVersion(
+          {
+            caseId: "case-2",
+            attributes: { exact_created_at: "2026-06-01T00:00:00.000Z" },
+          },
+          [before2026],
+        ),
+      ).toBeNull();
+    });
+
+    it("matches `present`/`not_present` on a custom field, including when the field is entirely missing", () => {
+      const requiresCustomField: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-present",
+        match: {
+          conditions: {
+            all: [{ field: "custom_fields_1", operator: "present", value: null }],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-1", attributes: { custom_fields_1: "value" } },
+          [requiresCustomField],
+        )?.id,
+      ).toBe("policy-present");
+      expect(
+        matchPolicyVersion({ caseId: "case-2", attributes: {} }, [
+          requiresCustomField,
+        ]),
+      ).toBeNull();
+
+      const requiresAbsence: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "policy-not-present",
+        match: {
+          conditions: {
+            all: [{ field: "custom_fields_1", operator: "not_present", value: null }],
+          },
+        },
+      };
+
+      expect(
+        matchPolicyVersion({ caseId: "case-3", attributes: {} }, [
+          requiresAbsence,
+        ])?.id,
+      ).toBe("policy-not-present");
+      expect(
+        matchPolicyVersion(
+          { caseId: "case-4", attributes: { custom_fields_1: "value" } },
+          [requiresAbsence],
+        ),
+      ).toBeNull();
+    });
+
+    it("picks the most specific of several matching policies when none carry a Zendesk position", () => {
+      const catchAll: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "catch-all",
+      };
+      const tagSpecific: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "tag-specific",
+        match: {
+          conditions: {
+            all: [{ field: "tags", operator: "contains", value: "vip" }],
+          },
+        },
+      };
+      const orgAndTag: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "org-and-tag",
+        match: {
+          customerIds: ["cust-acme"],
+          conditions: {
+            all: [{ field: "tags", operator: "contains", value: "vip" }],
+          },
+        },
+      };
+
+      const caseAttributes: CaseAttributes = {
+        caseId: "case-1",
+        attributes: { tags: ["vip"] },
+        customerId: "cust-acme",
+      };
+
+      // Specificity only counts `match.priority`/`customerIds`/`tier`
+      // (see `specificity`) — a generic `conditions` match is a tiebreaker
+      // input Zendesk's own `position` decides in practice (D6); absent a
+      // position, both tag-only and org+tag policies tie on `conditions`
+      // alone, so `orgAndTag`'s extra `customerIds` breaks the tie.
+      expect(
+        matchPolicyVersion(caseAttributes, [catchAll, tagSpecific, orgAndTag])
+          ?.id,
+      ).toBe("org-and-tag");
+    });
+  });
+
   describe("D6: imported Zendesk position outranks specificity", () => {
     it("prefers the lower position even when it's less specific", () => {
       const caseAttributes: CaseAttributes = {

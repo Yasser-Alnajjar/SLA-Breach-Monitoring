@@ -11,6 +11,8 @@ const realDatabaseSuites = [
   "apps/web/test/multi-commitment-pipeline.test.ts",
   "apps/web/test/event-ordering-persistence.test.ts",
   "apps/web/test/zendesk-requester-name.test.ts",
+  "apps/web/test/zendesk-ticket-tags.test.ts",
+  "apps/web/test/zendesk-sla-condition-fields.test.ts",
   "apps/web/test/commitment-re-resolution.test.ts",
   "apps/web/test/sla-e2e-matrix.test.ts",
   "apps/web/test/next-reply-commitment-persistence.test.ts",

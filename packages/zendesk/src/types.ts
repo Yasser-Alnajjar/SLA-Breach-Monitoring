@@ -30,7 +30,7 @@ export interface ZendeskTicket {
   priority: string | null;
   organization_id: number | null;
   requester_id?: number | null;
-  /** Ticket tags, used as a generic SLA policy match input (`match.conditions`, field `"tags"` — see `extractMatchFromFilter` in ./policies). Absent on very old snapshots fetched before this field was read. */
+  /** Ticket tags, used as a generic SLA policy match input (`match.conditions`, field `"tags"`/`"current_tags"` — see `extractMatchFromFilter` in ./policies). Absent on very old snapshots fetched before this field was read. */
   tags?: string[];
   via?: { channel: string };
   /**
@@ -42,6 +42,20 @@ export interface ZendeskTicket {
    * requester wasn't present in the sideload.
    */
   requester_name?: string | null;
+  /** Zendesk's ticket type ("problem"/"incident"/"question"/"task") — a generic SLA policy match input, field `"type"`. Null for an untyped ticket. */
+  type?: string | null;
+  /** The agent group currently assigned, if any — generic SLA policy match input, field `"group_id"`. */
+  group_id?: number | null;
+  /** The individual agent currently assigned, if any — generic SLA policy match input, field `"assignee_id"`. */
+  assignee_id?: number | null;
+  /** The brand this ticket was submitted through (multi-brand accounts) — generic SLA policy match input, field `"brand_id"`. */
+  brand_id?: number | null;
+  /** The ticket form used to submit this ticket — generic SLA policy match input, field `"ticket_form_id"` (Zendesk also accepts the alias `"form_id"`). */
+  ticket_form_id?: number | null;
+  /** The email address (or channel-specific address) the ticket was submitted to — generic SLA policy match input, field `"recipient"`. */
+  recipient?: string | null;
+  /** Custom ticket field values — each becomes a generic SLA policy match input under field `"custom_fields_<id>"` (see `zendeskConditionAttributes` in ./normalize). */
+  custom_fields?: { id: number; value: unknown }[];
   [key: string]: unknown;
 }
 
@@ -122,12 +136,42 @@ export interface ZendeskIncrementalOrganizationExport {
 
 /**
  * One condition in an SLA policy's `filter`. `field` covers Zendesk's full
- * condition vocabulary (priority, group_id, tags, form_id, ...) — the
- * importer (`extractMatchFromFilter` in ./policies) preserves every field
- * generically, but a condition only ever matches a case whose attributes
- * actually carry that field (priority, organization/customerIds, tags today);
- * anything else always evaluates to "does not match" (see `evaluateCondition`,
- * packages/core), never to "unrestricted".
+ * condition vocabulary — the importer (`extractMatchFromFilter` in
+ * ./policies) preserves every field/operator generically, exactly as
+ * Zendesk sent it, never dropping or rewriting one it doesn't recognize.
+ *
+ * A condition only ever *matches*, though, when the case's attributes
+ * actually carry that field — see `zendeskConditionAttributes` (./normalize)
+ * and `toCaseAttributes` (packages/commitments) for the full Zendesk field ->
+ * Case/Case.attributes mapping this importer resolves:
+ *
+ *   priority          -> Case.priority            -> attributes.priority
+ *   tags              -> Case.tags                -> attributes.tags, attributes.current_tags
+ *   organization_id    -> Case.customerId          -> match.customerIds (never a generic attribute — see extractMatchFromFilter)
+ *   status            -> attributes (raw Zendesk status, e.g. "pending") -> attributes.status
+ *   type              -> attributes.type           -> attributes.type
+ *   group_id          -> attributes.group_id       -> attributes.group_id
+ *   assignee_id       -> attributes.assignee_id    -> attributes.assignee_id
+ *   requester_id      -> attributes.requester_id   -> attributes.requester_id
+ *   via_id/current_via_id -> ticket.via.channel (string) -> attributes.channel, attributes.via_id, attributes.current_via_id
+ *   brand_id          -> attributes.brand_id       -> attributes.brand_id
+ *   ticket_form_id    -> attributes.ticket_form_id -> attributes.ticket_form_id, attributes.form_id
+ *   recipient         -> attributes.recipient      -> attributes.recipient
+ *   exact_created_at  -> ticket.created_at         -> attributes.exact_created_at (compared with less_than/greater_than)
+ *   custom_fields_N   -> ticket.custom_fields[]    -> attributes["custom_fields_N"]
+ *
+ * A field with no row above (Zendesk's custom ticket types/`ticket_type_id`,
+ * custom ticket statuses/`custom_status_id`, `satisfaction_score`,
+ * `locale_id`, `user.custom_fields.*`/`organization.custom_fields.*`) is not
+ * resolved by this importer — this integration doesn't ingest the
+ * corresponding Zendesk registries (ticket types, custom statuses,
+ * satisfaction ratings, requester/org custom fields), so a policy
+ * conditioned on one of them fails safe (never matches) rather than being
+ * silently guessed at. `via_id`/`current_via_id` is matched against
+ * Zendesk's `via.channel` *string* (e.g. `"chat"`, `"web"`, `"api"`) since
+ * that's what the Ticket API actually gives us; a condition whose `value` is
+ * Zendesk's internal numeric via id (undocumented in a way this importer
+ * could verify) will likewise fail safe rather than risk a wrong mapping.
  */
 export interface ZendeskSlaPolicyCondition {
   field: string;

@@ -237,6 +237,82 @@ describe("extractMatchFromFilter", () => {
       unsupportedConditions: 0,
     });
   });
+
+  it("counts a condition field this importer can't resolve onto any Case attribute as unsupported, while still preserving it in the match", () => {
+    const { match, unsupportedConditions } = extractMatchFromFilter(
+      {
+        all: [
+          { field: "priority", operator: "is", value: "urgent" },
+          { field: "custom_status_id", operator: "is", value: 7 },
+        ],
+      },
+      new Map(),
+    );
+
+    expect(unsupportedConditions).toBe(1);
+    expect(match.conditions?.all).toEqual([
+      { field: "priority", operator: "is", value: "urgent" },
+      { field: "custom_status_id", operator: "is", value: 7 },
+    ]);
+  });
+
+  it("counts unsupported conditions across both all and any", () => {
+    const { unsupportedConditions } = extractMatchFromFilter(
+      {
+        all: [{ field: "ticket_type_id", operator: "is", value: 1 }],
+        any: [{ field: "satisfaction_score", operator: "is", value: "good" }],
+      },
+      new Map(),
+    );
+
+    expect(unsupportedConditions).toBe(2);
+  });
+
+  it("never counts organization_id as unsupported, whether or not it resolves to a Customer", () => {
+    expect(
+      extractMatchFromFilter(
+        { all: [{ field: "organization_id", operator: "is", value: 7 }] },
+        new Map([["7", "cust_abc"]]),
+      ).unsupportedConditions,
+    ).toBe(0);
+
+    expect(
+      extractMatchFromFilter(
+        { all: [{ field: "organization_id", operator: "is", value: 999 }] },
+        new Map(),
+      ).unsupportedConditions,
+    ).toBe(0);
+  });
+
+  it("counts every resolved field (tags, current_tags, status, type, group_id, assignee_id, requester_id, via_id, current_via_id, brand_id, ticket_form_id, form_id, recipient, exact_created_at, custom_fields_<id>) as supported", () => {
+    const resolvedFields = [
+      "tags",
+      "current_tags",
+      "priority",
+      "status",
+      "type",
+      "group_id",
+      "assignee_id",
+      "requester_id",
+      "via_id",
+      "current_via_id",
+      "brand_id",
+      "ticket_form_id",
+      "form_id",
+      "recipient",
+      "exact_created_at",
+      "custom_fields_360000123",
+    ];
+
+    const { unsupportedConditions } = extractMatchFromFilter(
+      {
+        all: resolvedFields.map((field) => ({ field, operator: "is", value: "x" })),
+      },
+      new Map(),
+    );
+
+    expect(unsupportedConditions).toBe(0);
+  });
 });
 
 describe("groupPolicyMetricsByPriority", () => {

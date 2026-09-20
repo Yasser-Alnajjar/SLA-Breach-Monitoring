@@ -219,6 +219,15 @@ model Case {
   /// packages/core) — never for display or correlation. Empty for cases from
   /// a source/normalizer that doesn't populate it, or a ticket with no tags.
   tags             String[]          @default([])
+  /// Generic, source-specific SLA policy match inputs that don't warrant
+  /// their own column (e.g. a Zendesk ticket's `status`, `type`, `group_id`,
+  /// `assignee_id`, `custom_fields_<id>`, ... — see `zendeskConditionAttributes`,
+  /// packages/zendesk/src/normalize.ts) — never for display or correlation.
+  /// Canonical fields that already have a dedicated column (priority, tags,
+  /// channel, customerId, tier) are NOT duplicated in here; `toCaseAttributes`
+  /// (packages/commitments) merges both into one match input at read time.
+  /// Null for cases from a source/normalizer that doesn't populate it.
+  attributes       Json?
   openedAt         DateTime
   closedAt         DateTime?
   /// Set when the source ticket no longer exists in the ticket-source system

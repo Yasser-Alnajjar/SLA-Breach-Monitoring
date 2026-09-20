@@ -271,6 +271,66 @@ export function deriveCaseClosedAt(
   return new Date(closureEvent?.occurredAt ?? ticket.updated_at);
 }
 
+/** Every custom ticket field value keyed the way an SLA policy condition names it (`"custom_fields_<id>"`). */
+function customFieldAttributes(ticket: ZendeskTicket): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of ticket.custom_fields ?? []) {
+    if (field?.id == null) continue;
+    out[`custom_fields_${field.id}`] = field.value;
+  }
+  return out;
+}
+
+/**
+ * Generic Zendesk-derived SLA policy match inputs (`Case.attributes`, a
+ * `Json` column) for every Zendesk SLA condition field this importer can
+ * resolve from a ticket snapshot that ISN'T already one of Case's canonical
+ * columns. Canonical fields (priority, tags, channel — plus customerId/tier,
+ * which have no Zendesk ticket source) are set directly on `Case` and merged
+ * into the match input separately by `toCaseAttributes`
+ * (packages/commitments), so they are deliberately not duplicated here.
+ *
+ * See the field -> Case/attributes mapping table on `ZendeskSlaPolicyCondition`
+ * (./types) for the full picture, including which condition fields this
+ * importer does NOT resolve and why.
+ */
+export function zendeskConditionAttributes(
+  ticket: ZendeskTicket,
+): Record<string, unknown> {
+  return {
+    // Zendesk's raw ticket status (e.g. "pending", "hold") — distinct from
+    // this system's own NormalizedState vocabulary, which an SLA condition
+    // imported from Zendesk was never written against.
+    ...(ticket.status != null ? { status: ticket.status } : {}),
+    ...(ticket.type != null ? { type: ticket.type } : {}),
+    ...(ticket.group_id != null ? { group_id: ticket.group_id } : {}),
+    ...(ticket.assignee_id != null
+      ? { assignee_id: ticket.assignee_id }
+      : {}),
+    ...(ticket.requester_id != null
+      ? { requester_id: ticket.requester_id }
+      : {}),
+    ...(ticket.brand_id != null ? { brand_id: ticket.brand_id } : {}),
+    ...(ticket.ticket_form_id != null
+      ? {
+          ticket_form_id: ticket.ticket_form_id,
+          form_id: ticket.ticket_form_id,
+        }
+      : {}),
+    ...(ticket.recipient != null ? { recipient: ticket.recipient } : {}),
+    // via_id/current_via_id: matched against the channel string, not
+    // Zendesk's internal numeric via id — see ./types.ts's doc comment on
+    // `ZendeskSlaPolicyCondition`.
+    ...(ticket.via?.channel != null
+      ? { via_id: ticket.via.channel, current_via_id: ticket.via.channel }
+      : {}),
+    ...(ticket.created_at != null
+      ? { exact_created_at: ticket.created_at }
+      : {}),
+    ...customFieldAttributes(ticket),
+  };
+}
+
 export interface NormalizationResult {
   customersUpserted: number;
   casesUpserted: number;
@@ -417,6 +477,10 @@ export async function runZendeskNormalization(
           // Generic SLA policy match input (`SLAPolicyMatch.conditions`,
           // field `"tags"`) — see `extractMatchFromFilter` in ./policies.
           tags: ticket.tags ?? [],
+          // Every other Zendesk SLA condition field this importer can
+          // resolve (status, type, group_id, assignee_id, ...) — see
+          // `zendeskConditionAttributes` above.
+          attributes: zendeskConditionAttributes(ticket) as Prisma.InputJsonValue,
           closedAt,
           // Display-only, like `subject` — never feeds Customer resolution,
           // SLA matching, calendar overrides, or anomaly grouping (see
@@ -432,6 +496,7 @@ export async function runZendeskNormalization(
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
           tags: ticket.tags ?? [],
+          attributes: zendeskConditionAttributes(ticket) as Prisma.InputJsonValue,
           openedAt: new Date(ticket.created_at),
           closedAt,
           requesterName: ticket.requester_name ?? null,

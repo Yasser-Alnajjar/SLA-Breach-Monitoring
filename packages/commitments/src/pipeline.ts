@@ -26,9 +26,26 @@ export interface CaseRecord {
   customerId: string | null;
   tier: string | null;
   openedAt: Date;
-  /** Source ticket's tags (e.g. a Zendesk ticket's `tags`) — a generic SLA policy match input, mirrored into `attributes.tags` below so a `match.conditions` entry on field `"tags"` (see `extractMatchFromFilter`, packages/zendesk) can actually be evaluated. */
+  /** Source ticket's tags (e.g. a Zendesk ticket's `tags`) — a generic SLA policy match input, mirrored into `attributes.tags`/`attributes.current_tags` below so a `match.conditions` entry on field `"tags"` or `"current_tags"` (see `extractMatchFromFilter`, packages/zendesk) can actually be evaluated. */
   tags?: string[];
-  attributes?: Record<string, unknown>;
+  /** Source ticket's channel (e.g. a Zendesk ticket's `via.channel`) — mirrored into `attributes.channel`/`attributes.via_id`/`attributes.current_via_id` below, the same string-based match `zendeskConditionAttributes` (packages/zendesk) documents for those fields. */
+  channel?: string | null;
+  /**
+   * Every other generic, source-specific SLA policy match input (Zendesk's
+   * `status`, `type`, `group_id`, `assignee_id`, `custom_fields_<id>`, ... —
+   * see `zendeskConditionAttributes`, packages/zendesk/src/normalize.ts).
+   * Merged as-is; canonical fields above always win on key collision since
+   * they're the authoritative column. Typed `unknown` rather than
+   * `Record<string, unknown>` so a Prisma `Json` column's value (which can
+   * statically be a primitive/array, even though this column only ever
+   * stores a plain object) is assignable without a cast at every call site.
+   */
+  attributes?: unknown;
+}
+
+/** True for a plain JSON object — excludes arrays, primitives, and null, which a `Json` column can hold in principle but `attributes` never actually does. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Builds packages/core's `CaseAttributes` from a persisted Case row. */
@@ -36,11 +53,20 @@ export function toCaseAttributes(caseRow: CaseRecord): CaseAttributes {
   return {
     caseId: caseRow.id,
     attributes: {
-      ...(caseRow.attributes ?? {}),
+      ...(isPlainObject(caseRow.attributes) ? caseRow.attributes : {}),
       ...(caseRow.priority != null ? { priority: caseRow.priority } : {}),
       ...(caseRow.customerId != null ? { customerId: caseRow.customerId } : {}),
       ...(caseRow.tier != null ? { tier: caseRow.tier } : {}),
-      ...(caseRow.tags != null ? { tags: caseRow.tags } : {}),
+      ...(caseRow.tags != null
+        ? { tags: caseRow.tags, current_tags: caseRow.tags }
+        : {}),
+      ...(caseRow.channel != null
+        ? {
+            channel: caseRow.channel,
+            via_id: caseRow.channel,
+            current_via_id: caseRow.channel,
+          }
+        : {}),
     },
     priority: caseRow.priority ?? undefined,
     customerId: caseRow.customerId ?? undefined,
@@ -235,6 +261,8 @@ export async function runCommitmentPipeline(
       customerId: true,
       tier: true,
       tags: true,
+      channel: true,
+      attributes: true,
       openedAt: true,
       // Scoped to the single-cycle kinds this pipeline creates: a persisted
       // Next Reply commitment must never be picked as the "sibling" below or

@@ -2,11 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Bell,
+  Book,
   LayoutDashboard,
   ListChecks,
   Settings,
   Settings2,
   Timer,
+  UserRound,
 } from "lucide-react";
 
 export interface NavItem {
@@ -42,6 +44,12 @@ export const SETTINGS_NAV_ITEMS: NavItem[] = [
     icon: Activity,
     description: "Monitor worker health and adjust polling intervals.",
   },
+  {
+    href: "/settings/profile",
+    label: "Profile",
+    icon: UserRound,
+    description: "Manage your personal profile and appearance preferences.",
+  },
 ];
 
 export const NAV_ITEMS: NavItem[] = [
@@ -53,15 +61,14 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Settings,
     items: SETTINGS_NAV_ITEMS,
   },
+
+  { href: "/docs", label: "Documentation", icon: Book },
 ];
 
 export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function hasActiveDescendant(
-  pathname: string,
-  item: NavItem,
-): boolean {
+export function hasActiveDescendant(pathname: string, item: NavItem): boolean {
   return !!item.items?.some((child) => isNavItemActive(pathname, child.href));
 }

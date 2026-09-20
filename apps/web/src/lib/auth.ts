@@ -117,12 +117,23 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.userId = user.id;
         token.organizationId = user.organizationId;
         token.image = user.image;
         token.role = user.role;
+      }
+      // Fired by the client's `useSession().update(...)` (see the Profile
+      // page) right after `/api/me` saves a name change — merges it into
+      // this JWT cookie so `useSession()` reflects the edit without a full
+      // re-login. Deliberately excludes the avatar: it's stored as a
+      // `data:` URL (no external image host — see `updateProfileSchema`),
+      // and a JWT this app doesn't chunk across multiple cookies is the
+      // wrong place for one. The sidebar avatar instead reads straight from
+      // the database on every request — see `(main)/layout.tsx`.
+      if (trigger === "update" && session) {
+        if (typeof session.name === "string") token.name = session.name;
       }
       return token;
     },

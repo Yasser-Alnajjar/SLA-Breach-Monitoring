@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types/integrations";
 import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-settings";
 import type { SignUpInput } from "@/lib/sign-up";
+import type { IUser } from "@/lib/types/user";
 import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
 import type {
   ConciergeExportSelectionRequest,
@@ -46,6 +47,16 @@ interface SmtpActionResult {
   ok: boolean;
   message?: string;
   error?: string;
+}
+
+export interface UpdateProfileInput {
+  name: string;
+  image: string | null;
+}
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
 }
 
 async function postJSON<T>(
@@ -252,6 +263,15 @@ export const Actions = {
   WorkerSettings: {
     async save(input: { activePollIntervalMs: number; reconciliationIntervalMs: number }) {
       return postJSON<WorkerMonitoringData>("/api/settings/worker", input);
+    },
+  },
+
+  Profile: {
+    async update(input: UpdateProfileInput) {
+      return postJSON<IUser>("/api/me", input);
+    },
+    async changePassword(input: ChangePasswordInput) {
+      return postJSON<Record<string, never>>("/api/me/password", input);
     },
   },
 };

@@ -187,7 +187,7 @@ export function DocsSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <Link href="/docs/getting-started" aria-label="Documentation">
-          <BrandMark />
+          <BrandMark logoClassName="size-8" />
         </Link>
       </SidebarHeader>
 

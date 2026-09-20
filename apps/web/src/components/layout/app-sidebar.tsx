@@ -98,7 +98,7 @@ export function AppSidebar() {
     <Sidebar side={"left"} collapsible="icon">
       <SidebarHeader>
         <Link href="/dashboard" aria-label="dashboard">
-          <BrandMark />
+          <BrandMark logoClassName="size-8" />
         </Link>
       </SidebarHeader>
 

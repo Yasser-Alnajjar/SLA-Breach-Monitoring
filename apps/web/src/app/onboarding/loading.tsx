@@ -5,7 +5,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function OnboardingLoading() {
   return (
     <main className="relative min-h-screen overflow-hidden px-6 py-10 sm:py-14">
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grain" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-grain"
+      />
       <div className="relative mx-auto flex max-w-xl flex-col gap-8">
         <header className="flex items-center justify-between">
           <BrandMark />

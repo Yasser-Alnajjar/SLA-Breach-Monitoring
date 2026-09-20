@@ -21,7 +21,12 @@ export type NormalizedState =
 
 export type Actor = "customer" | "agent" | "system";
 
-export type SourceSystem = "zendesk" | "jira" | "linear" | "intercom" | "github";
+export type SourceSystem =
+  | "zendesk"
+  | "jira"
+  | "linear"
+  | "intercom"
+  | "github";
 
 export type NormalizedEventType =
   | "case_created"
@@ -72,7 +77,22 @@ export type CommitmentStatus =
   | "breached"
   | "cancelled";
 
+export interface PolicyCondition {
+  field: string;
+  operator: string;
+  value: string | number | boolean | null;
+}
+
+export interface PolicyConditionGroup {
+  all?: PolicyCondition[];
+  any?: PolicyCondition[];
+}
+
 export interface SLAPolicyMatch {
+  conditions?: PolicyConditionGroup;
+
+  // Legacy representation.
+  // Keep these for backward compatibility with existing policy versions.
   priority?: string[];
   customerIds?: string[];
   tier?: string[];
@@ -104,6 +124,18 @@ export interface SLAPolicyVersion {
 
 export interface CaseAttributes {
   caseId: string;
+
+  /**
+   * Canonical internal attributes used by generic policy matching.
+   *
+   * Keys are intentionally open-ended because Zendesk policy conditions
+   * must not require a code change whenever Zendesk exposes a new field.
+   */
+  attributes: Record<string, unknown>;
+
+  /**
+   * Legacy normalized fields retained for callers that still populate them.
+   */
   priority?: string;
   customerId?: string;
   tier?: string;

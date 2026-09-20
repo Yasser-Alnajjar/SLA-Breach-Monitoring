@@ -8,7 +8,13 @@ import {
   type PolicyVersionRecord,
 } from "../src/pipeline";
 
-function version(overrides: Partial<PolicyVersionRecord> & { id: string; policyId: string; version: number }): PolicyVersionRecord {
+function version(
+  overrides: Partial<PolicyVersionRecord> & {
+    id: string;
+    policyId: string;
+    version: number;
+  },
+): PolicyVersionRecord {
   return {
     match: {},
     targets: [],
@@ -48,7 +54,10 @@ describe("latestVersionPerPolicy", () => {
 
 describe("missingCommitmentKinds", () => {
   it("returns both kinds when a case has neither", () => {
-    expect(missingCommitmentKinds([])).toEqual(["first_response", "resolution"]);
+    expect(missingCommitmentKinds([])).toEqual([
+      "first_response",
+      "resolution",
+    ]);
   });
 
   it("returns only the kind not already present", () => {
@@ -56,15 +65,29 @@ describe("missingCommitmentKinds", () => {
   });
 
   it("returns nothing once both kinds exist", () => {
-    expect(missingCommitmentKinds(["first_response", "resolution"])).toEqual([]);
+    expect(missingCommitmentKinds(["first_response", "resolution"])).toEqual(
+      [],
+    );
   });
 });
 
 describe("toCaseAttributes", () => {
   it("maps null fields to undefined so packages/core's optional matching treats them as absent", () => {
     expect(
-      toCaseAttributes({ id: "case_1", priority: null, customerId: null, tier: null, openedAt: new Date() }),
-    ).toEqual({ caseId: "case_1", priority: undefined, customerId: undefined, tier: undefined });
+      toCaseAttributes({
+        id: "case_1",
+        priority: null,
+        customerId: null,
+        tier: null,
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: {},
+      priority: undefined,
+      customerId: undefined,
+      tier: undefined,
+    });
   });
 
   it("passes through defined fields", () => {
@@ -76,23 +99,65 @@ describe("toCaseAttributes", () => {
         tier: "gold",
         openedAt: new Date(),
       }),
-    ).toEqual({ caseId: "case_1", priority: "urgent", customerId: "cust_1", tier: "gold" });
+    ).toEqual({
+      caseId: "case_1",
+      attributes: {
+        priority: "urgent",
+        customerId: "cust_1",
+        tier: "gold",
+      },
+      priority: "urgent",
+      customerId: "cust_1",
+      tier: "gold",
+    });
+  });
+
+  it("mirrors tags into attributes so a generic `tags` match condition can be evaluated", () => {
+    expect(
+      toCaseAttributes({
+        id: "case_1",
+        priority: null,
+        customerId: null,
+        tier: null,
+        tags: ["d6", "vip"],
+        openedAt: new Date(),
+      }),
+    ).toEqual({
+      caseId: "case_1",
+      attributes: { tags: ["d6", "vip"] },
+      priority: undefined,
+      customerId: undefined,
+      tier: undefined,
+    });
   });
 });
 
-function calendarVersion(overrides: Partial<BusinessCalendarVersion> & { id: string }): BusinessCalendarVersion {
-  return { version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true, ...overrides };
+function calendarVersion(
+  overrides: Partial<BusinessCalendarVersion> & { id: string },
+): BusinessCalendarVersion {
+  return {
+    version: 1,
+    timezone: "UTC",
+    weekly: [],
+    holidays: [],
+    alwaysOpen: true,
+    ...overrides,
+  };
 }
 
 describe("resolveCommitmentCalendarVersion", () => {
   it("prefers the customer's calendar override when one is set", () => {
     const policyCalendar = calendarVersion({ id: "cal_org" });
     const customerCalendar = calendarVersion({ id: "cal_customer" });
-    expect(resolveCommitmentCalendarVersion(policyCalendar, customerCalendar)).toBe(customerCalendar);
+    expect(
+      resolveCommitmentCalendarVersion(policyCalendar, customerCalendar),
+    ).toBe(customerCalendar);
   });
 
   it("falls back to the policy's calendar when the customer has no override", () => {
     const policyCalendar = calendarVersion({ id: "cal_org" });
-    expect(resolveCommitmentCalendarVersion(policyCalendar, undefined)).toBe(policyCalendar);
+    expect(resolveCommitmentCalendarVersion(policyCalendar, undefined)).toBe(
+      policyCalendar,
+    );
   });
 });

@@ -122,4 +122,50 @@ describe.skipIf(!TEST_DATABASE_URL)("Zendesk SLA policy position matching (real 
     await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
     expect((await prisma.sLAPolicy.findFirstOrThrow({ where: { organizationId } })).position).toBe(4);
   });
+
+  /**
+   * Regression for the reported bug: a ticket matching a tag-filtered policy
+   * (position 1), an organization-filtered policy (position 2), and an
+   * unfiltered catch-all (position 3) must land on position 1 — not on the
+   * catch-all. Before the fix, both the tag and organization policies were
+   * silently excluded as candidates: `organization_id` was duplicated into
+   * the generic `conditions` group (which a case's attributes never satisfy,
+   * since only `customerId` is set — see `extractMatchFromFilter`), and a
+   * Case never carried its source ticket's tags at all (see `Case.tags` /
+   * `normalize.ts`), so a `tags` condition could never be satisfied either.
+   * That left the catch-all as the only surviving candidate regardless of
+   * position.
+   */
+  it("matches a tag-filtered policy over an organization-filtered policy and a catch-all, by position", async () => {
+    const customer = await prisma.customer.create({
+      data: { organizationId, name: "Acme", zendeskOrgId: "555" },
+    });
+
+    await writePolicySnapshot(1, "D6-Org Ticket Tag - d6", 1, {
+      all: [{ field: "tags", operator: "contains", value: "d6" }],
+    });
+    await writePolicySnapshot(2, "D6 - Organization Policy", 2, {
+      all: [{ field: "organization_id", operator: "is", value: "555" }],
+    });
+    await writePolicySnapshot(3, "Set first reply time", 3);
+    await zendesk.runZendeskSlaPolicyImport(prisma, integrationId);
+
+    const zCase = await prisma.case.create({
+      data: {
+        organizationId,
+        externalId: "ticket-2",
+        customerId: customer.id,
+        tags: ["d6", "customer-visible"],
+        priority: "normal",
+        openedAt: new Date("2026-09-17T10:00:00.000Z"),
+      },
+    });
+    await commitments.runCommitmentPipeline(prisma, organizationId);
+
+    const created = await prisma.commitment.findFirstOrThrow({ where: { caseId: zCase.id } });
+    const matchedPolicy = await prisma.sLAPolicy.findFirstOrThrow({
+      where: { versions: { some: { id: created.policyVersionId } } },
+    });
+    expect(matchedPolicy.name).toBe("D6-Org Ticket Tag - d6");
+  });
 });

@@ -15,7 +15,10 @@ import {
 import { toNormalizedEventDomain } from "./evaluate-pipeline";
 
 /** The single-cycle kinds this pipeline creates. Also `runNextReplyCyclePipeline`'s anchor kinds (cycle-pipeline.ts). */
-export const COMMITMENT_KINDS: CommitmentKind[] = ["first_response", "resolution"];
+export const COMMITMENT_KINDS: CommitmentKind[] = [
+  "first_response",
+  "resolution",
+];
 
 export interface CaseRecord {
   id: string;
@@ -23,12 +26,22 @@ export interface CaseRecord {
   customerId: string | null;
   tier: string | null;
   openedAt: Date;
+  /** Source ticket's tags (e.g. a Zendesk ticket's `tags`) — a generic SLA policy match input, mirrored into `attributes.tags` below so a `match.conditions` entry on field `"tags"` (see `extractMatchFromFilter`, packages/zendesk) can actually be evaluated. */
+  tags?: string[];
+  attributes?: Record<string, unknown>;
 }
 
 /** Builds packages/core's `CaseAttributes` from a persisted Case row. */
 export function toCaseAttributes(caseRow: CaseRecord): CaseAttributes {
   return {
     caseId: caseRow.id,
+    attributes: {
+      ...(caseRow.attributes ?? {}),
+      ...(caseRow.priority != null ? { priority: caseRow.priority } : {}),
+      ...(caseRow.customerId != null ? { customerId: caseRow.customerId } : {}),
+      ...(caseRow.tier != null ? { tier: caseRow.tier } : {}),
+      ...(caseRow.tags != null ? { tags: caseRow.tags } : {}),
+    },
     priority: caseRow.priority ?? undefined,
     customerId: caseRow.customerId ?? undefined,
     tier: caseRow.tier ?? undefined,
@@ -55,17 +68,22 @@ export interface PolicyVersionRecord {
  * being candidates for *new* commitments — existing commitments keep the
  * version id they were created under regardless).
  */
-export function latestVersionPerPolicy(versions: PolicyVersionRecord[]): PolicyVersionRecord[] {
+export function latestVersionPerPolicy(
+  versions: PolicyVersionRecord[],
+): PolicyVersionRecord[] {
   const latestByPolicyId = new Map<string, PolicyVersionRecord>();
   for (const version of versions) {
     const current = latestByPolicyId.get(version.policyId);
-    if (!current || version.version > current.version) latestByPolicyId.set(version.policyId, version);
+    if (!current || version.version > current.version)
+      latestByPolicyId.set(version.policyId, version);
   }
   return [...latestByPolicyId.values()];
 }
 
 /** Which of the two commitment kinds a Case doesn't have yet. */
-export function missingCommitmentKinds(existingKinds: CommitmentKind[]): CommitmentKind[] {
+export function missingCommitmentKinds(
+  existingKinds: CommitmentKind[],
+): CommitmentKind[] {
   const existing = new Set(existingKinds);
   return COMMITMENT_KINDS.filter((kind) => !existing.has(kind));
 }
@@ -79,7 +97,9 @@ export function missingCommitmentKinds(existingKinds: CommitmentKind[]): Commitm
  * fresher source of truth whenever both exist; first_response is the only
  * option otherwise.
  */
-export function pickAnchorCommitment<T extends { kind: CommitmentKind }>(commitments: T[]): T | undefined {
+export function pickAnchorCommitment<T extends { kind: CommitmentKind }>(
+  commitments: T[],
+): T | undefined {
   return commitments.find((c) => c.kind === "resolution") ?? commitments[0];
 }
 
@@ -159,34 +179,52 @@ export async function runCommitmentPipeline(
   });
   if (policyVersionRows.length === 0) return result;
 
-  const allPolicyVersions: SLAPolicyVersion[] = policyVersionRows.map((row) => ({
-    id: row.id,
-    policyId: row.policyId,
-    version: row.version,
-    match: row.match as SLAPolicyMatch,
-    targets: row.targets as { kind: CommitmentKind; minutes: number }[],
-    pauseOnStates: row.pauseOnStates as NormalizedState[],
-    calendarVersionId: row.calendarVersionId,
-    warnAtPercent: row.warnAtPercent,
-    effectiveFrom: row.effectiveFrom.toISOString(),
-    policyPosition: row.policy.position,
-  }));
-  const policyVersionsById = new Map(allPolicyVersions.map((pv) => [pv.id, pv]));
+  const allPolicyVersions: SLAPolicyVersion[] = policyVersionRows.map(
+    (row) => ({
+      id: row.id,
+      policyId: row.policyId,
+      version: row.version,
+      match: row.match as SLAPolicyMatch,
+      targets: row.targets as { kind: CommitmentKind; minutes: number }[],
+      pauseOnStates: row.pauseOnStates as NormalizedState[],
+      calendarVersionId: row.calendarVersionId,
+      warnAtPercent: row.warnAtPercent,
+      effectiveFrom: row.effectiveFrom.toISOString(),
+      policyPosition: row.policy.position,
+    }),
+  );
+  const policyVersionsById = new Map(
+    allPolicyVersions.map((pv) => [pv.id, pv]),
+  );
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
 
   const calendarsById = new Map<string, BusinessCalendarVersion>(
-    policyVersionRows.map((row) => [row.calendarVersion.id, toCalendarVersionDomain(row.calendarVersion)]),
+    policyVersionRows.map((row) => [
+      row.calendarVersion.id,
+      toCalendarVersionDomain(row.calendarVersion),
+    ]),
   );
 
   const customersWithCalendarOverride = await prisma.customer.findMany({
     where: { organizationId, calendarId: { not: null } },
-    select: { id: true, calendar: { select: { versions: { orderBy: { version: "desc" }, take: 1 } } } },
+    select: {
+      id: true,
+      calendar: {
+        select: { versions: { orderBy: { version: "desc" }, take: 1 } },
+      },
+    },
   });
-  const customerCalendarVersionByCustomerId = new Map<string, BusinessCalendarVersion>();
+  const customerCalendarVersionByCustomerId = new Map<
+    string,
+    BusinessCalendarVersion
+  >();
   for (const customer of customersWithCalendarOverride) {
     const version = customer.calendar?.versions[0];
     if (!version) continue;
-    customerCalendarVersionByCustomerId.set(customer.id, toCalendarVersionDomain(version));
+    customerCalendarVersionByCustomerId.set(
+      customer.id,
+      toCalendarVersionDomain(version),
+    );
   }
 
   const cases = await prisma.case.findMany({
@@ -196,6 +234,7 @@ export async function runCommitmentPipeline(
       priority: true,
       customerId: true,
       tier: true,
+      tags: true,
       openedAt: true,
       // Scoped to the single-cycle kinds this pipeline creates: a persisted
       // Next Reply commitment must never be picked as the "sibling" below or
@@ -211,7 +250,9 @@ export async function runCommitmentPipeline(
   // customer reply, not ticket creation (`resolveFirstResponseStartedAt`).
   // Only fetched for cases that still need a first-response commitment.
   const casesNeedingFirstResponse = cases.filter((c) =>
-    missingCommitmentKinds(c.commitments.map((cm) => cm.kind as CommitmentKind)).includes("first_response"),
+    missingCommitmentKinds(
+      c.commitments.map((cm) => cm.kind as CommitmentKind),
+    ).includes("first_response"),
   );
   const firstResponseEventsByCaseId = new Map<string, NormalizedEvent[]>();
   if (casesNeedingFirstResponse.length > 0) {
@@ -235,47 +276,78 @@ export async function runCommitmentPipeline(
     ...new Set(
       cases.flatMap((c) =>
         c.commitments.length < COMMITMENT_KINDS.length
-          ? c.commitments.map((cm) => cm.calendarVersionId).filter((id) => !calendarsById.has(id))
+          ? c.commitments
+              .map((cm) => cm.calendarVersionId)
+              .filter((id) => !calendarsById.has(id))
           : [],
       ),
     ),
   ];
   if (missingCalendarVersionIds.length > 0) {
-    const rows = await prisma.businessCalendarVersion.findMany({ where: { id: { in: missingCalendarVersionIds } } });
-    for (const row of rows) calendarsById.set(row.id, toCalendarVersionDomain(row));
+    const rows = await prisma.businessCalendarVersion.findMany({
+      where: { id: { in: missingCalendarVersionIds } },
+    });
+    for (const row of rows)
+      calendarsById.set(row.id, toCalendarVersionDomain(row));
   }
 
   for (const caseRow of cases) {
     result.casesConsidered += 1;
     try {
-      const missingKinds = missingCommitmentKinds(caseRow.commitments.map((c) => c.kind as CommitmentKind));
+      const missingKinds = missingCommitmentKinds(
+        caseRow.commitments.map((c) => c.kind as CommitmentKind),
+      );
       if (missingKinds.length === 0) continue;
 
       const sibling = pickAnchorCommitment(caseRow.commitments);
       let policyVersionFor: (kind: CommitmentKind) => SLAPolicyVersion;
       let calendarVersion: BusinessCalendarVersion;
       if (sibling) {
-        const siblingPolicyVersion = policyVersionsById.get(sibling.policyVersionId);
-        if (!siblingPolicyVersion) throw new Error(`No SLAPolicyVersion loaded for ${sibling.policyVersionId}`);
-        const siblingCalendarVersion = calendarsById.get(sibling.calendarVersionId);
-        if (!siblingCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${sibling.calendarVersionId}`);
+        const siblingPolicyVersion = policyVersionsById.get(
+          sibling.policyVersionId,
+        );
+        if (!siblingPolicyVersion)
+          throw new Error(
+            `No SLAPolicyVersion loaded for ${sibling.policyVersionId}`,
+          );
+        const siblingCalendarVersion = calendarsById.get(
+          sibling.calendarVersionId,
+        );
+        if (!siblingCalendarVersion)
+          throw new Error(
+            `No BusinessCalendarVersion loaded for ${sibling.calendarVersionId}`,
+          );
         const latestOfSamePolicy =
-          activePolicyVersions.find((pv) => pv.policyId === siblingPolicyVersion.policyId) ?? siblingPolicyVersion;
+          activePolicyVersions.find(
+            (pv) => pv.policyId === siblingPolicyVersion.policyId,
+          ) ?? siblingPolicyVersion;
         policyVersionFor = (kind) =>
-          siblingPolicyVersion.targets.some((t) => t.kind === kind) ? siblingPolicyVersion : latestOfSamePolicy;
+          siblingPolicyVersion.targets.some((t) => t.kind === kind)
+            ? siblingPolicyVersion
+            : latestOfSamePolicy;
         calendarVersion = siblingCalendarVersion;
       } else {
-        const matched = matchPolicyVersion(toCaseAttributes(caseRow), activePolicyVersions);
+        const matched = matchPolicyVersion(
+          toCaseAttributes(caseRow),
+          activePolicyVersions,
+        );
         if (!matched) {
           result.casesWithNoMatchingPolicy += 1;
           continue;
         }
-        const policyCalendarVersion = calendarsById.get(matched.calendarVersionId);
-        if (!policyCalendarVersion) throw new Error(`No BusinessCalendarVersion loaded for ${matched.calendarVersionId}`);
+        const policyCalendarVersion = calendarsById.get(
+          matched.calendarVersionId,
+        );
+        if (!policyCalendarVersion)
+          throw new Error(
+            `No BusinessCalendarVersion loaded for ${matched.calendarVersionId}`,
+          );
         policyVersionFor = () => matched;
         calendarVersion = resolveCommitmentCalendarVersion(
           policyCalendarVersion,
-          caseRow.customerId ? customerCalendarVersionByCustomerId.get(caseRow.customerId) : undefined,
+          caseRow.customerId
+            ? customerCalendarVersionByCustomerId.get(caseRow.customerId)
+            : undefined,
         );
       }
 
@@ -318,7 +390,10 @@ export async function runCommitmentPipeline(
         result.commitmentsCreated += 1;
       }
     } catch (error) {
-      result.casesFailed.push({ caseId: caseRow.id, error: error instanceof Error ? error.message : String(error) });
+      result.casesFailed.push({
+        caseId: caseRow.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

@@ -214,6 +214,11 @@ model Case {
   priority         String?
   tier             String?
   channel          String?
+  /// The source ticket's tags (e.g. a Zendesk ticket's `tags`), used only as
+  /// a generic SLA policy match input (`SLAPolicyMatch.conditions`,
+  /// packages/core) — never for display or correlation. Empty for cases from
+  /// a source/normalizer that doesn't populate it, or a ticket with no tags.
+  tags             String[]          @default([])
   openedAt         DateTime
   closedAt         DateTime?
   /// Set when the source ticket no longer exists in the ticket-source system
@@ -310,7 +315,11 @@ model SLAPolicyVersion {
 model SlaImportSummary {
   id                              String   @id @default(cuid())
   organizationId                  String   @unique
-  /// Filter conditions on fields this importer doesn't model (group, tags, form, type — see SUPPORTED_CONDITION_FIELDS).
+  /// Reserved for filter conditions the importer can't represent at all;
+  /// currently always 0 — every condition field is preserved generically
+  /// (see `extractMatchFromFilter`, packages/zendesk), though only fields
+  /// with a matching Case attribute (priority, organization/customerIds,
+  /// tags) actually influence matching.
   unsupportedConditions           Int      @default(0)
   /// Zendesk SLA metrics with no CommitmentKind equivalent (requester_wait_time, agent_work_time, ...).
   unsupportedMetrics              Int      @default(0)

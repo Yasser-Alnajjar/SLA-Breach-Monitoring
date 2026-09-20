@@ -30,6 +30,8 @@ export interface ZendeskTicket {
   priority: string | null;
   organization_id: number | null;
   requester_id?: number | null;
+  /** Ticket tags, used as a generic SLA policy match input (`match.conditions`, field `"tags"` — see `extractMatchFromFilter` in ./policies). Absent on very old snapshots fetched before this field was read. */
+  tags?: string[];
   via?: { channel: string };
   /**
    * Not a real Zendesk API field — resolved from the `users` sideload
@@ -120,9 +122,12 @@ export interface ZendeskIncrementalOrganizationExport {
 
 /**
  * One condition in an SLA policy's `filter`. `field` covers Zendesk's full
- * condition vocabulary (priority, group_id, tags, form_id, ...); the
- * importer (roadmap step 6) only understands a subset — see
- * `SUPPORTED_CONDITION_FIELDS` in ./policies.
+ * condition vocabulary (priority, group_id, tags, form_id, ...) — the
+ * importer (`extractMatchFromFilter` in ./policies) preserves every field
+ * generically, but a condition only ever matches a case whose attributes
+ * actually carry that field (priority, organization/customerIds, tags today);
+ * anything else always evaluates to "does not match" (see `evaluateCondition`,
+ * packages/core), never to "unrestricted".
  */
 export interface ZendeskSlaPolicyCondition {
   field: string;

@@ -5,6 +5,8 @@ import type {
   CaseAttributes,
   Commitment,
   CommitmentKind,
+  PolicyCondition,
+  PolicyConditionGroup,
   SLAPolicyVersion,
 } from "./types";
 import { SINGLE_CYCLE_KEY } from "./types";
@@ -16,32 +18,140 @@ function specificity(match: SLAPolicyVersion["match"]): number {
     (match.tier?.length ? 1 : 0)
   );
 }
+function valuesEqual(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(actual)) {
+    return actual.some((value) => valuesEqual(value, expected));
+  }
 
+  if (actual == null || expected == null) {
+    return actual === expected;
+  }
+
+  return (
+    String(actual).trim().toLowerCase() ===
+    String(expected).trim().toLowerCase()
+  );
+}
+
+function includesValue(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(actual)) {
+    return actual.some((value) => valuesEqual(value, expected));
+  }
+
+  if (typeof actual === "string") {
+    return actual.toLowerCase().includes(String(expected).toLowerCase());
+  }
+
+  return false;
+}
+
+function evaluateCondition(
+  attributes: Record<string, unknown>,
+  condition: PolicyCondition,
+): boolean {
+  const actual = attributes[condition.field];
+
+  // Missing fields must never satisfy a condition.
+  if (actual === undefined || actual === null) {
+    return false;
+  }
+
+  switch (condition.operator) {
+    case "is":
+    case "equals":
+      return valuesEqual(actual, condition.value);
+
+    case "includes":
+    case "contains":
+      return includesValue(actual, condition.value);
+
+    case "is_not":
+    case "not_equals":
+      return !valuesEqual(actual, condition.value);
+
+    case "not_includes":
+    case "not_contains":
+      return !includesValue(actual, condition.value);
+
+    default:
+      // Never broaden a policy because we do not understand an operator.
+      return false;
+  }
+}
+
+function matchesGenericConditions(
+  attributes: Record<string, unknown>,
+  conditions: PolicyConditionGroup,
+): boolean {
+  if (
+    conditions.all?.some(
+      (condition) => !evaluateCondition(attributes, condition),
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    conditions.any &&
+    conditions.any.length > 0 &&
+    !conditions.any.some((condition) =>
+      evaluateCondition(attributes, condition),
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
 function matches(
   caseAttributes: CaseAttributes,
   policyVersion: SLAPolicyVersion,
 ): boolean {
   const { match } = policyVersion;
+
+  const attributes: Record<string, unknown> = {
+    ...caseAttributes.attributes,
+    ...(caseAttributes.priority !== undefined
+      ? { priority: caseAttributes.priority }
+      : {}),
+    ...(caseAttributes.customerId !== undefined
+      ? { customerId: caseAttributes.customerId }
+      : {}),
+    ...(caseAttributes.tier !== undefined ? { tier: caseAttributes.tier } : {}),
+  };
+
+  if (
+    match.conditions &&
+    !matchesGenericConditions(attributes, match.conditions)
+  ) {
+    return false;
+  }
+
   if (
     match.priority &&
     (!caseAttributes.priority ||
       !match.priority.includes(caseAttributes.priority))
-  )
+  ) {
     return false;
+  }
+
   if (
     match.customerIds &&
     (!caseAttributes.customerId ||
       !match.customerIds.includes(caseAttributes.customerId))
-  )
+  ) {
     return false;
+  }
+
   if (
     match.tier &&
     (!caseAttributes.tier || !match.tier.includes(caseAttributes.tier))
-  )
+  ) {
     return false;
+  }
+
   return true;
 }
-
 /**
  * Matches a Case's attributes against active policy versions.
  *
@@ -123,7 +233,9 @@ export function resolveCommitmentPolicyChange(
 ): CommitmentPolicyResolution {
   return {
     changed: matchedPolicyVersion.policyId !== currentPolicyId,
-    hasTarget: matchedPolicyVersion.targets.some((t) => t.kind === commitment.kind),
+    hasTarget: matchedPolicyVersion.targets.some(
+      (t) => t.kind === commitment.kind,
+    ),
   };
 }
 

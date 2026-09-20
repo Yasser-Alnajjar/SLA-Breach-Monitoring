@@ -1,9 +1,21 @@
 import type { Prisma, PrismaClient } from "@sla/db";
-import { policyVersionContentEquals, type CommitmentKind, type NormalizedState, type SLAPolicyMatch } from "@sla/core";
+import {
+  PolicyCondition,
+  PolicyConditionGroup,
+  policyVersionContentEquals,
+  type CommitmentKind,
+  type NormalizedState,
+  type SLAPolicyMatch,
+} from "@sla/core";
 import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
 import type { SlaPolicyManifest } from "./rawEvents";
-import type { ZendeskSlaPolicy, ZendeskSlaPolicyCondition, ZendeskSlaPolicyFilter, ZendeskSlaPolicyMetric } from "./types";
+import type {
+  ZendeskSlaPolicy,
+  ZendeskSlaPolicyCondition,
+  ZendeskSlaPolicyFilter,
+  ZendeskSlaPolicyMetric,
+} from "./types";
 
 /**
  * Zendesk SLA metric name -> the CommitmentKind packages/core knows how to
@@ -22,9 +34,16 @@ const METRIC_TO_COMMITMENT_KIND: Record<string, CommitmentKind> = {
   next_reply_time: "next_reply",
 };
 
-/** Condition fields the importer can express in `SLAPolicyMatch`. Anything else (group_id, tags, form_id, ...) is dropped — Phase 10 explicitly defers a configurable rules engine. */
-const SUPPORTED_CONDITION_FIELDS = new Set(["priority", "organization_id"]);
-
+/** Copies a Zendesk filter condition's field/operator/value as-is — every field is preserved (see `extractMatchFromFilter`), not just ones this system can resolve to a case attribute. */
+function normalizeCondition(
+  condition: ZendeskSlaPolicyCondition,
+): PolicyCondition {
+  return {
+    field: condition.field,
+    operator: condition.operator,
+    value: condition.value,
+  };
+}
 /** Customer-caused waiting, regardless of which system reports it (Phase 13.4) — fixed for every imported policy, not configurable in v1. Only commitment kinds whose clock rules honor the policy's pause states pause on it (`pauseStatesFor` in @sla/core): resolution does, first response never pauses. */
 export const PAUSE_ON_STATES: NormalizedState[] = ["pending_customer"];
 export const WARN_AT_PERCENT = [50, 80, 95];
@@ -36,8 +55,13 @@ export interface ExtractedMatch {
   unsupportedConditions: number;
 }
 
-function conditionValues(conditions: ZendeskSlaPolicyCondition[], field: string): string[] {
-  return conditions.filter((c) => c.field === field && c.value != null).map((c) => String(c.value).toLowerCase());
+function conditionValues(
+  conditions: ZendeskSlaPolicyCondition[],
+  field: string,
+): string[] {
+  return conditions
+    .filter((c) => c.field === field && c.value != null)
+    .map((c) => String(c.value).toLowerCase());
 }
 
 /**
@@ -55,34 +79,79 @@ function conditionValues(conditions: ZendeskSlaPolicyCondition[], field: string)
  * condition sets `match.customerIds` to an explicit empty array when none of
  * those orgs resolve to a known Customer, which `matchPolicyVersion`
  * (packages/core) treats as "matches no case" rather than "unrestricted".
+ *
+ * `organization_id` conditions are translated into `match.customerIds` and
+ * then dropped from the generic `conditions.all`/`any` groups entirely —
+ * never duplicated into both. A case's attributes only ever carry its
+ * resolved `customerId`, never a raw `organization_id`, so an `organization_id`
+ * left in the generic group would always evaluate as "field missing" (see
+ * `evaluateCondition`, packages/core) and make the *whole* policy fail to
+ * match every case, silently overriding the working `customerIds` check
+ * (this was a real bug: D6-fixed).
  */
+export interface ExtractedMatch {
+  match: SLAPolicyMatch;
+  unsupportedConditions: number;
+}
+
 export function extractMatchFromFilter(
   filter: ZendeskSlaPolicyFilter | undefined,
   customerIdsByZendeskOrgId: ReadonlyMap<string, string>,
 ): ExtractedMatch {
-  const conditions = [...(filter?.all ?? []), ...(filter?.any ?? [])];
-  const unsupportedConditions = conditions.filter((c) => !SUPPORTED_CONDITION_FIELDS.has(c.field)).length;
+  const all = (filter?.all ?? []).map(normalizeCondition);
+  const any = (filter?.any ?? []).map(normalizeCondition);
+  if (!filter) {
+    return {
+      match: {},
+      unsupportedConditions: 0,
+    };
+  }
+  const organizationConditions = [...all, ...any].filter(
+    (condition) => condition.field === "organization_id",
+  );
 
-  const priorities = new Set(conditionValues(conditions, "priority"));
-  const organizationIdValues = conditionValues(conditions, "organization_id");
   const customerIds = new Set(
-    organizationIdValues
+    organizationConditions
+      .map((condition) => String(condition.value))
       .map((zendeskOrgId) => customerIdsByZendeskOrgId.get(zendeskOrgId))
       .filter((id): id is string => id != null),
   );
 
-  const match: SLAPolicyMatch = {};
-  if (priorities.size > 0) match.priority = [...priorities];
+  const genericAll = all.filter(
+    (condition) => condition.field !== "organization_id",
+  );
+  const genericAny = any.filter(
+    (condition) => condition.field !== "organization_id",
+  );
+
+  const conditions: PolicyConditionGroup = {};
+
+  if (genericAll.length > 0) {
+    conditions.all = genericAll;
+  }
+
+  if (genericAny.length > 0) {
+    conditions.any = genericAny;
+  }
+
+  const match: SLAPolicyMatch = {
+    conditions,
+  };
+
+  /*
+   * Keep the legacy normalized organization field because existing
+   * matching/data/tests may still depend on it.
+   */
   if (customerIds.size > 0) {
     match.customerIds = [...customerIds];
-  } else if (organizationIdValues.length > 0) {
-    // The policy names at least one org, but none of them resolved to a
-    // known Customer — an explicit empty array (not "unset") so the policy
-    // matches no case rather than becoming an accidental match-all.
+  } else if (organizationConditions.length > 0) {
     match.customerIds = [];
   }
 
-  return { match, unsupportedConditions };
+  return {
+    match,
+    unsupportedConditions: 0,
+  };
 }
 
 export interface PolicyTargetGroup {
@@ -104,8 +173,13 @@ export interface GroupedPolicyMetrics {
  * carries a single `targets` array and Zendesk lets one policy define
  * different first-reply/resolution targets per priority.
  */
-export function groupPolicyMetricsByPriority(metrics: ZendeskSlaPolicyMetric[] | undefined): GroupedPolicyMetrics {
-  const byPriority = new Map<string | null, { kind: CommitmentKind; minutes: number }[]>();
+export function groupPolicyMetricsByPriority(
+  metrics: ZendeskSlaPolicyMetric[] | undefined,
+): GroupedPolicyMetrics {
+  const byPriority = new Map<
+    string | null,
+    { kind: CommitmentKind; minutes: number }[]
+  >();
   let unsupportedMetrics = 0;
 
   for (const metric of metrics ?? []) {
@@ -120,7 +194,10 @@ export function groupPolicyMetricsByPriority(metrics: ZendeskSlaPolicyMetric[] |
     byPriority.set(priority, targets);
   }
 
-  const groups = [...byPriority.entries()].map(([priority, targets]) => ({ priority, targets }));
+  const groups = [...byPriority.entries()].map(([priority, targets]) => ({
+    priority,
+    targets,
+  }));
   return { groups, unsupportedMetrics };
 }
 
@@ -154,7 +231,15 @@ export async function ensureDefaultCalendarVersion(
     data: {
       organizationId,
       name: DEFAULT_CALENDAR_NAME,
-      versions: { create: { version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true } },
+      versions: {
+        create: {
+          version: 1,
+          timezone: "UTC",
+          weekly: [],
+          holidays: [],
+          alwaysOpen: true,
+        },
+      },
     },
     include: { versions: true },
   });
@@ -176,13 +261,19 @@ export function resolvePolicyCalendarVersion(
   defaultCalendarVersion: { id: string },
 ): { calendarVersionId: string; scheduleUnresolved: boolean } {
   if (policy.schedule_id == null) {
-    return { calendarVersionId: defaultCalendarVersion.id, scheduleUnresolved: false };
+    return {
+      calendarVersionId: defaultCalendarVersion.id,
+      scheduleUnresolved: false,
+    };
   }
   const resolved = calendarVersionsByScheduleId.get(policy.schedule_id);
   if (resolved) {
     return { calendarVersionId: resolved.id, scheduleUnresolved: false };
   }
-  return { calendarVersionId: defaultCalendarVersion.id, scheduleUnresolved: true };
+  return {
+    calendarVersionId: defaultCalendarVersion.id,
+    scheduleUnresolved: true,
+  };
 }
 
 /**
@@ -224,7 +315,10 @@ export async function upsertPolicyVersion(
     policyVersionContentEquals(
       {
         match: latestImportedVersion.match as SLAPolicyMatch,
-        targets: latestImportedVersion.targets as { kind: CommitmentKind; minutes: number }[],
+        targets: latestImportedVersion.targets as {
+          kind: CommitmentKind;
+          minutes: number;
+        }[],
         calendarVersionId: latestImportedVersion.calendarVersionId,
       },
       desired,
@@ -280,7 +374,9 @@ export async function runZendeskSlaPolicyImport(
   prisma: PrismaClient,
   integrationId: string,
 ): Promise<SlaPolicyImportResult> {
-  const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+  const integration = await prisma.integration.findUniqueOrThrow({
+    where: { id: integrationId },
+  });
   const organizationId = integration.organizationId;
 
   const result: SlaPolicyImportResult = {
@@ -306,7 +402,10 @@ export async function runZendeskSlaPolicyImport(
   // snapshot is still processed and nothing is archived (unchanged prior
   // behavior).
   const manifestRow = await prisma.rawEvent.findFirst({
-    where: { integrationId, providerEventId: { startsWith: "sla_policy_manifest:" } },
+    where: {
+      integrationId,
+      providerEventId: { startsWith: "sla_policy_manifest:" },
+    },
     select: { payload: true },
     orderBy: { fetchedAt: "desc" },
   });
@@ -319,7 +418,9 @@ export async function runZendeskSlaPolicyImport(
       where: { organizationId, externalId: { not: null }, archivedAt: null },
       select: { id: true, externalId: true },
     });
-    const toArchive = importedPolicies.filter((p) => !liveZendeskIds.has(Number(p.externalId!.split(":")[0])));
+    const toArchive = importedPolicies.filter(
+      (p) => !liveZendeskIds.has(Number(p.externalId!.split(":")[0])),
+    );
     if (toArchive.length > 0) {
       await prisma.sLAPolicy.updateMany({
         where: { id: { in: toArchive.map((p) => p.id) } },
@@ -335,25 +436,33 @@ export async function runZendeskSlaPolicyImport(
     where: { organizationId, zendeskOrgId: { not: null } },
     select: { id: true, zendeskOrgId: true },
   });
-  const customerIdsByZendeskOrgId = new Map(customers.map((c) => [c.zendeskOrgId as string, c.id]));
+  const customerIdsByZendeskOrgId = new Map(
+    customers.map((c) => [c.zendeskOrgId as string, c.id]),
+  );
 
-  const defaultCalendarVersion = await ensureDefaultCalendarVersion(prisma, organizationId);
-  const calendarVersionsByScheduleId = await latestCalendarVersionsByZendeskScheduleId(prisma, organizationId);
+  const defaultCalendarVersion = await ensureDefaultCalendarVersion(
+    prisma,
+    organizationId,
+  );
+  const calendarVersionsByScheduleId =
+    await latestCalendarVersionsByZendeskScheduleId(prisma, organizationId);
 
   const policyEntries = liveZendeskIds
-    ? [...latestPolicies.values()].filter(({ value }) => liveZendeskIds.has(value.id))
+    ? [...latestPolicies.values()].filter(({ value }) =>
+        liveZendeskIds.has(value.id),
+      )
     : [...latestPolicies.values()];
 
   for (const { value: policy } of policyEntries) {
     result.policiesEvaluated += 1;
 
-    const { match: filterMatch, unsupportedConditions } = extractMatchFromFilter(
-      policy.filter,
-      customerIdsByZendeskOrgId,
-    );
+    const { match: filterMatch, unsupportedConditions } =
+      extractMatchFromFilter(policy.filter, customerIdsByZendeskOrgId);
     result.unsupportedConditions += unsupportedConditions;
 
-    const { groups, unsupportedMetrics } = groupPolicyMetricsByPriority(policy.policy_metrics);
+    const { groups, unsupportedMetrics } = groupPolicyMetricsByPriority(
+      policy.policy_metrics,
+    );
     result.unsupportedMetrics += unsupportedMetrics;
 
     if (groups.length === 0) {
@@ -361,16 +470,17 @@ export async function runZendeskSlaPolicyImport(
       continue;
     }
 
-    const { calendarVersionId, scheduleUnresolved } = resolvePolicyCalendarVersion(
-      policy,
-      calendarVersionsByScheduleId,
-      defaultCalendarVersion,
-    );
+    const { calendarVersionId, scheduleUnresolved } =
+      resolvePolicyCalendarVersion(
+        policy,
+        calendarVersionsByScheduleId,
+        defaultCalendarVersion,
+      );
     if (scheduleUnresolved) result.policiesWithUnresolvedSchedule += 1;
 
     for (const group of groups) {
       const externalId = `${policy.id}:${group.priority ?? "any"}`;
-      const match: SLAPolicyMatch = { ...filterMatch };
+      const match = withMetricPriority(filterMatch, group.priority);
       if (group.priority) match.priority = [group.priority];
 
       const created = await upsertPolicyVersion(
@@ -386,4 +496,28 @@ export async function runZendeskSlaPolicyImport(
   }
 
   return result;
+}
+function withMetricPriority(
+  match: SLAPolicyMatch,
+  priority: string | null,
+): SLAPolicyMatch {
+  if (!priority) {
+    return match;
+  }
+
+  return {
+    ...match,
+    priority: [priority],
+    conditions: {
+      ...match.conditions,
+      all: [
+        ...(match.conditions?.all ?? []),
+        {
+          field: "priority",
+          operator: "is",
+          value: priority,
+        },
+      ],
+    },
+  };
 }

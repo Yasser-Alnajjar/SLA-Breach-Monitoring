@@ -250,7 +250,11 @@ export function analyzeExport(parsed: ParsedExport, options: AnalysisOptions): F
     const currentLeg = closeEvent ? null : (lastSpan?.leg ?? null);
 
     const policyVersion = matchPolicyVersion(
-      { caseId, priority: ticket.priority ?? undefined },
+      {
+        caseId,
+        attributes: ticket.priority != null ? { priority: ticket.priority } : {},
+        priority: ticket.priority ?? undefined,
+      },
       options.policyVersions,
     );
     let status: CommitmentStatus | null = null;

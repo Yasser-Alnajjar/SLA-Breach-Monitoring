@@ -414,6 +414,9 @@ export async function runZendeskNormalization(
           subject: ticket.subject,
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
+          // Generic SLA policy match input (`SLAPolicyMatch.conditions`,
+          // field `"tags"`) — see `extractMatchFromFilter` in ./policies.
+          tags: ticket.tags ?? [],
           closedAt,
           // Display-only, like `subject` — never feeds Customer resolution,
           // SLA matching, calendar overrides, or anomaly grouping (see
@@ -428,6 +431,7 @@ export async function runZendeskNormalization(
           subject: ticket.subject,
           priority: ticket.priority,
           channel: ticket.via?.channel ?? null,
+          tags: ticket.tags ?? [],
           openedAt: new Date(ticket.created_at),
           closedAt,
           requesterName: ticket.requester_name ?? null,

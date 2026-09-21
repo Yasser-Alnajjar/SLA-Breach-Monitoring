@@ -58,7 +58,7 @@ export class EmailSettingsUnreadableError extends Error {
   }
 }
 
-const ENCRYPTION_SALT = "sla-breach-monitoring/email-settings";
+const ENCRYPTION_SALT = "elapsed/email-settings";
 
 /**
  * Derives a stable AES-256 key from the dedicated SMTP_ENCRYPTION_KEY
@@ -134,16 +134,18 @@ export async function getEmailSettingsStatus(
     },
   });
 
-  return row ? { configured: true, ...row } : {
-    configured: false,
-    host: null,
-    port: null,
-    security: null,
-    username: null,
-    fromEmail: null,
-    fromName: null,
-    updatedAt: null,
-  };
+  return row
+    ? { configured: true, ...row }
+    : {
+        configured: false,
+        host: null,
+        port: null,
+        security: null,
+        username: null,
+        fromEmail: null,
+        fromName: null,
+        updatedAt: null,
+      };
 }
 
 /**
@@ -166,7 +168,9 @@ export async function saveEmailSettings(
   }
 
   const fromName = input.fromName?.trim() || null;
-  const encryptedPassword = input.password ? encryptSmtpPassword(input.password) : undefined;
+  const encryptedPassword = input.password
+    ? encryptSmtpPassword(input.password)
+    : undefined;
 
   // Deliberately two separate calls rather than one `upsert`: Prisma
   // validates an `upsert`'s `create` *and* `update` argument shapes before

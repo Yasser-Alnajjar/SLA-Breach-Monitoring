@@ -1,27 +1,24 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Open_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionProvider } from "@/providers/session-provider";
 
-const fontSans = Inter({
+const open_Sans = Open_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const fontDisplay = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-open-sans",
   weight: ["500", "600"],
   style: ["normal", "italic"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SLA Breach Monitoring",
+  title: {
+    template: `%s | Elapsed`,
+    default: "Elapsed",
+  },
   description: "Know before your customer does.",
 };
 
@@ -33,7 +30,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fontSans.variable} ${fontDisplay.variable}`}
+      className={` ${open_Sans.variable}`}
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>

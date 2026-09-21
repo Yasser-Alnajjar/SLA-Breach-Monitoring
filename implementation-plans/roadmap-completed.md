@@ -12,7 +12,7 @@ file gets checked off and committed as each step lands.
 ## Status
 
 - [x] **0 — Foundation**: pure SLA/OLA engine (`packages/core`), Prisma schema
-      (`packages/db`), pnpm workspace scaffold. [PR #2](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/2)
+      (`packages/db`), pnpm workspace scaffold. [PR #2](https://github.com/Yasser-Alnajjar/elapsed/pull/2)
 
 - [x] **1 — Auth + org bootstrap**
       Next.js App Router setup in `apps/web`, minimal email-based auth, sign-up
@@ -25,25 +25,25 @@ file gets checked off and committed as each step lands.
       organizations, and SLA policy definitions into `RawEvent`. Historical
       backfill of the last 60–90 days (Phase 10: "the entire go-to-market
       depends on this"). No normalization yet — raw ingestion only.
-      [PR #4](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/4)
+      [PR #4](https://github.com/Yasser-Alnajjar/elapsed/pull/4)
 
 - [x] **3 — Zendesk normalizer + Case/Customer projection**
       `RawEvent` → `NormalizedEvent` for Zendesk: ticket state transitions
       mapped to `NormalizedState`, actor resolution, `Case` opened per ticket,
       `Customer` auto-derived from Zendesk organizations (never manually
-      entered). [PR #5](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/5)
+      entered). [PR #5](https://github.com/Yasser-Alnajjar/elapsed/pull/5)
 
 - [x] **4 — Jira integration: connect + ingest**
       Read-only OAuth connect flow, adapter pulling issues, changelog, status
       transitions, and remote links into `RawEvent`. Mirrors step 2's shape for
-      the second provider. [PR #6](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/6)
+      the second provider. [PR #6](https://github.com/Yasser-Alnajjar/elapsed/pull/6)
 
 - [x] **5 — Jira normalizer + deterministic correlator**
       `RawEvent` → `NormalizedEvent` for Jira. Correlator creates `CaseLink`
       rows using only the deterministic tier (Phase 15): the official
       Zendesk↔Jira link, Jira remote links, or an explicit external-id field.
       No fuzzy matching. Report link coverage honestly.
-      [PR #7](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/7)
+      [PR #7](https://github.com/Yasser-Alnajjar/elapsed/pull/7)
 
 - [x] **6 — SLA policy import + commitment pipeline**
       `RawEvent` (sla_policy snapshots) → `SLAPolicy`/`SLAPolicyVersion`.
@@ -59,7 +59,7 @@ file gets checked off and committed as each step lands.
       defines, once, permanently (`@@unique([caseId, kind])`). No business
       hours import yet — every policy is anchored to one always-open
       calendar per organization until Zendesk schedules are ingested.
-      [PR #9](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/9)
+      [PR #9](https://github.com/Yasser-Alnajjar/elapsed/pull/9)
 
 - [x] **7 — Worker: two-speed polling + evaluation**
       `apps/worker` becomes real: 5-minute active-set poll, 60-minute
@@ -193,7 +193,7 @@ file gets checked off and committed as each step lands.
       CaseLink's `evidence` at link time instead. Onboarding's progress
       tracking stays Jira-only for now — a deliberate scope cut, not an
       oversight, since Linear was never part of that flow's design.
-      [PR #18](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/18)
+      [PR #18](https://github.com/Yasser-Alnajjar/elapsed/pull/18)
 
 - [x] **16 — Optional per-team leg targets**
       One optional target duration for the engineering leg, org-scoped rather
@@ -214,7 +214,7 @@ file gets checked off and committed as each step lands.
       disagree on a case's status. Settings UI added as a fifth card on
       `/settings/integrations` (the only settings surface today), following
       the Slack channel picker's set/clear pattern exactly.
-      [PR #19](https://github.com/Yasser-Alnajjar/SLA-Breach-Monitoring/pull/19)
+      [PR #19](https://github.com/Yasser-Alnajjar/elapsed/pull/19)
 
 - [x] **17 — Integration lifecycle management: disconnect, reconnect, health**
       Prioritized ahead of the rest of this list — an audit of the settings
@@ -629,7 +629,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       type-check, test, and build the whole workspace. Investigated the root
       `pnpm build` failure on `packages/core`/`packages/slack` rather than
       deleting the script — both packages' `tsconfig.json` had `"types":
-    ["node"]` as a sibling of `compilerOptions` instead of nested inside
+  ["node"]` as a sibling of `compilerOptions` instead of nested inside
       it, a silently-ignored key in every one of the 10 non-`db` packages'
       `tsconfig.json`. With no ambient Node types loaded, `core`'s
       `node:crypto` import and `slack`'s global `fetch`/`URL`/
@@ -639,7 +639,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `type-check` script (`tsc --noEmit`) to those same 10 packages and to
       `apps/worker` (mirroring `apps/web`'s existing `type-check`), plus a
       root `pnpm type-check` that runs all of them via `pnpm -r run
-    type-check` — `packages/db` has no such script (its own
+  type-check` — `packages/db` has no such script (its own
       `tsconfig.json` has a `rootDir` that doesn't include the generated
       Prisma client, never exercised before since nothing built or
       typechecked it standalone) and `pnpm -r run` skips packages missing
@@ -647,7 +647,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       dummy values for `DATABASE_URL`/`NEXTAUTH_SECRET`/`NEXTAUTH_URL`/
       `INTEGRATION_CONFIG_ENCRYPTION_KEY`/`SMTP_ENCRYPTION_KEY` directly as
       job env — verified locally with no `.env` file present that `prisma
-    generate` (needs `DATABASE_URL` to resolve, doesn't connect) and
+  generate` (needs `DATABASE_URL` to resolve, doesn't connect) and
       `next build` (fully static/dynamic-route analysis, no live DB query at
       build time) both succeed on dummy values alone, so CI never needs a
       real database.
@@ -656,7 +656,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `docs/deployment.md` — targeting Docker + self-host/VPS, not a
       specific managed host. The two apps needed different treatment.
       `apps/web` gets a standard multi-stage build using Next's `output:
-    "standalone"` (added to `next.config.mjs`, with
+  "standalone"` (added to `next.config.mjs`, with
       `outputFileTracingRoot` pointed at the monorepo root so pnpm-workspace
       packages trace correctly) — the runtime image ships only the traced
       server bundle, no devDependencies. `apps/worker` can't do the same:
@@ -680,7 +680,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       across build and run. Second, `apps/web/Dockerfile` unconditionally
       copied a `public/` directory the app doesn't have; removed that COPY.
       Both app containers run as an unprivileged user; the one-off `prisma
-    migrate deploy` step (documented, not run automatically on every
+  migrate deploy` step (documented, not run automatically on every
       start) needs `--user root` since a non-root user can't write
       `node_modules` state files migrate occasionally touches — the
       long-running worker process itself never runs that way. Build-time
@@ -917,7 +917,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       Headers: new `apps/web/security-headers.mjs` (plain `.mjs` so
       `next.config.mjs` imports it directly), applied to every path through
       `headers()`: CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options:
-    nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
+  nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
       restrictive `Permissions-Policy`, and HSTS (two years,
       `includeSubDomains`) in production only. `poweredByHeader` is off.
       CSP: `default-src 'self'`, `frame-ancestors 'none'`,
@@ -1033,7 +1033,7 @@ reauth_required`), `disconnectedAt`, `lastSyncAt`, `lastSyncError`.
       `README.md` goes from an empty stub to: what the product does and what
       it connects to, the repo layout, local setup (Node 22/pnpm 10, `.env`
       at the repo root with the three generated secrets, `docker compose up
-    -d postgres`, Prisma generate + `migrate:dev`, `web:dev` +
+  -d postgres`, Prisma generate + `migrate:dev`, `web:dev` +
       `worker:dev`, first sign-up and the bring-your-own-OAuth-app step),
       tests, a pointer to `docs/deployment.md`, and where each doc set lives,
       with a note to keep the guide and in-app docs updated together.

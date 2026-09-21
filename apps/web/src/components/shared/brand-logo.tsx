@@ -35,7 +35,7 @@ export const BrandLogo = ({ className }: { className?: string }) => {
             y="0"
             x="0"
             fill="var(--background)"
-            fill-opacity="1"
+            fillOpacity="1"
           />
         </g>
       </g>
@@ -74,7 +74,7 @@ export const BrandLogo = ({ className }: { className?: string }) => {
                     cy="794.6"
                     cx="215"
                     fill="var(--foreground)"
-                    fill-opacity="1"
+                    fillOpacity="1"
                   />
                 </g>
               </g>
@@ -98,7 +98,7 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="Neck">
             <path
               fill="var(--foreground)"
-              fill-opacity="1"
+              fillOpacity="1"
               d="M329.161,773.9C329.161,773.9,329.161,778.7,329.161,778.7C301.711,778.7,276.648,794.309,264.541,818.945C264.541,818.945,267.86,773.9,267.86,773.9C267.86,773.9,329.161,773.9,329.161,773.9Z"
             />
           </g>
@@ -120,10 +120,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="Outline">
             <path
               d="M215,758"
-              stroke-linejoin="round"
-              stroke-linecap="round"
-              stroke-width="41.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeWidth="41.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate
@@ -156,10 +156,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="E bottom">
             <path
               d="M375.8,626.6"
-              stroke-linejoin="round"
-              stroke-linecap="butt"
-              stroke-width="56.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeWidth="56.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate
@@ -177,10 +177,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="E mid">
             <path
               d="M375.8,461"
-              stroke-linejoin="round"
-              stroke-linecap="butt"
-              stroke-width="56.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeWidth="56.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate
@@ -198,10 +198,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="E top">
             <path
               d="M375.8,306.8"
-              stroke-linejoin="round"
-              stroke-linecap="butt"
-              stroke-width="56.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeWidth="56.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate
@@ -219,10 +219,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="E stem">
             <path
               d="M376.4,278.6"
-              stroke-linejoin="round"
-              stroke-linecap="butt"
-              stroke-width="62.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeWidth="62.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate
@@ -255,10 +255,10 @@ export const BrandLogo = ({ className }: { className?: string }) => {
           <g id="I">
             <path
               d="M681.2,267.8"
-              stroke-linejoin="round"
-              stroke-linecap="butt"
-              stroke-width="62.4"
-              stroke-opacity="1"
+              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeWidth="62.4"
+              strokeOpacity="1"
               stroke="var(--foreground)"
             >
               <animate

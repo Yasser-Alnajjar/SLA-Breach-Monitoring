@@ -18,7 +18,7 @@ export function OnboardingShell({
       />
       <div className="relative mx-auto flex max-w-xl flex-col gap-8">
         <header className="flex items-center justify-between">
-          <BrandMark className="size-12" />
+          <BrandMark logoClassName="size-12" />
           <a
             href="/dashboard"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"

@@ -10,11 +10,16 @@ const SUBDOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/i;
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const subdomain = new URL(request.url).searchParams.get("subdomain")?.trim() ?? "";
+  const subdomain =
+    new URL(request.url).searchParams.get("subdomain")?.trim() ?? "";
   if (!SUBDOMAIN_PATTERN.test(subdomain)) {
-    return NextResponse.json({ error: "Enter a valid Zendesk subdomain" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Enter a valid Zendesk subdomain" },
+      { status: 400 },
+    );
   }
 
   let config;
@@ -22,15 +27,28 @@ export async function GET(request: Request) {
     config = await getZendeskOAuthConfig(session.user.organizationId);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Zendesk OAuth is not configured" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Zendesk OAuth is not configured",
+      },
       { status: 500 },
     );
   }
 
   const nonce = randomBytes(16).toString("hex");
-  const state = signOAuthState({ nonce, subdomain, organizationId: session.user.organizationId, userId: session.user.id });
+  const state = signOAuthState({
+    nonce,
+    subdomain,
+    organizationId: session.user.organizationId,
+    userId: session.user.id,
+  });
 
-  const response = NextResponse.redirect(buildAuthorizeUrl(subdomain, config, state));
+  const response = NextResponse.redirect(
+    buildAuthorizeUrl(subdomain, config, state),
+  );
+
   response.cookies.set(ZENDESK_STATE_COOKIE, state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

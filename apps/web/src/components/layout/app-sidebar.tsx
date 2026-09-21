@@ -27,6 +27,59 @@ import Link from "next/link";
 import { BrandMark } from "../shared/brand-mark";
 import { isNavItemActive, NAV_ITEMS, type NavItem } from "./nav-items";
 
+export function AppSidebar() {
+  const pathname = usePathname();
+
+  return (
+    <Sidebar side={"left"} collapsible="icon">
+      <SidebarHeader>
+        <Link href="/dashboard" aria-label="dashboard">
+          <BrandMark logoClassName="size-8" />
+        </Link>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {NAV_ITEMS.map((item) => {
+                if (item.items?.length) {
+                  return (
+                    <NavGroupItem
+                      key={item.href}
+                      item={item as NavItem & { items: NavItem[] }}
+                      pathname={pathname}
+                    />
+                  );
+                }
+
+                const active = isNavItemActive(pathname, item.href);
+                const Icon = item.icon;
+
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      tooltip={item.label}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarRail />
+    </Sidebar>
+  );
+}
 function NavGroupItem({
   item,
   pathname,
@@ -88,59 +141,5 @@ function NavGroupItem({
         </CollapsibleContent>
       </SidebarMenuItem>
     </Collapsible>
-  );
-}
-
-export function AppSidebar() {
-  const pathname = usePathname();
-
-  return (
-    <Sidebar side={"left"} collapsible="icon">
-      <SidebarHeader>
-        <Link href="/dashboard" aria-label="dashboard">
-          <BrandMark logoClassName="size-8" />
-        </Link>
-      </SidebarHeader>
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
-                if (item.items?.length) {
-                  return (
-                    <NavGroupItem
-                      key={item.href}
-                      item={item as NavItem & { items: NavItem[] }}
-                      pathname={pathname}
-                    />
-                  );
-                }
-
-                const active = isNavItemActive(pathname, item.href);
-                const Icon = item.icon;
-
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      tooltip={item.label}
-                    >
-                      <Link href={item.href}>
-                        <Icon />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarRail />
-    </Sidebar>
   );
 }

@@ -11,7 +11,7 @@ export default function OnboardingLoading() {
       />
       <div className="relative mx-auto flex max-w-xl flex-col gap-8">
         <header className="flex items-center justify-between">
-          <BrandMark />
+          <BrandMark hasTitle={false} />
         </header>
         <div className="space-y-2">
           <Skeleton className="h-7 w-44" />

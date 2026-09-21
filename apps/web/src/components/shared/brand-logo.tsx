@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import React from "react";
 
 export const BrandLogo = ({ className }: { className?: string }) => {
@@ -11,7 +12,7 @@ export const BrandLogo = ({ className }: { className?: string }) => {
       height="100%"
       width="100%"
       viewBox="0 0 1000 1000"
-      className={className}
+      className={cn("shrink-0", className)}
       {...c2paNamespace}
     >
       <metadata

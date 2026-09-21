@@ -75,6 +75,18 @@ function isStatusChangeEvent(
   );
 }
 
+/** Unlike status, a priority can be unset (`null`) on either side of the change. */
+function isPriorityChangeEvent(
+  event: ZendeskAudit["events"][number],
+): event is { id: number; type: "Change"; field_name: "priority"; value: string | null; previous_value: string | null } {
+  return (
+    event.type === "Change" &&
+    event.field_name === "priority" &&
+    (typeof event.value === "string" || event.value === null) &&
+    (typeof event.previous_value === "string" || event.previous_value === null)
+  );
+}
+
 export function isPublicCommentEvent(
   event: ZendeskAudit["events"][number],
 ): event is { id: number; type: "Comment"; public: true; author_id?: number } {
@@ -83,6 +95,8 @@ export function isPublicCommentEvent(
 
 /** One public comment's text and author, read straight off an audit event — for conversation display only, never for SLA math. */
 export interface ZendeskCommentBody {
+  /** The comment event's own `id` — unique within its audit, used to dedupe conversation display (3.7/C-5). */
+  id: number;
   authorId: number | null;
   body: string;
 }
@@ -108,7 +122,7 @@ export function publicCommentBodiesInAudit(audit: ZendeskAudit): ZendeskCommentB
     const body = typeof plainBody === "string" ? plainBody : typeof bodyField === "string" ? bodyField : "";
     if (body.trim() === "") continue;
     const authorId = typeof authorIdField === "number" ? authorIdField : audit.author_id;
-    results.push({ authorId: typeof authorId === "number" ? authorId : null, body });
+    results.push({ id: raw.id, authorId: typeof authorId === "number" ? authorId : null, body });
   }
   return results;
 }
@@ -123,8 +137,9 @@ export interface DerivedNormalizedEvent {
   type: NormalizedEventType;
   occurredAt: string;
   actor: Actor;
-  fromState: NormalizedState | null;
-  toState: NormalizedState | null;
+  /** A raw priority string, not a `NormalizedState`, on `priority_changed` — see `NormalizedEvent` (@sla/core). */
+  fromState: NormalizedState | string | null;
+  toState: NormalizedState | string | null;
   sourceRawEventId: string;
   /**
    * Position in the ticket's own source order: 0 for the synthesized
@@ -167,6 +182,11 @@ export function sortAuditsChronologically(audits: AuditRecord[]): AuditRecord[] 
  * lists its events in — a comment listed before a status change in the same
  * audit stays before it. `sourceSequence` records that order so it survives
  * persistence (see `compareNormalizedEvents` in @sla/core).
+ *
+ * A `Change` event on `field_name: "priority"` becomes `priority_changed`
+ * (E-14/3.1) — display-only, read by the Activity Timeline, never by SLA
+ * matching or the engine (which still reads `Case.priority`, the live
+ * snapshot written below).
  */
 export function deriveNormalizedEventsForTicket(
   ticket: ZendeskTicket,
@@ -216,6 +236,19 @@ export function deriveNormalizedEventsForTicket(
           actor: resolveActor(audit.via?.channel, audit.author_id, ticket, userRoles),
           fromState: normalizeZendeskStatus(event.previous_value),
           toState,
+          sourceRawEventId: rawEventId,
+          sourceSequence,
+        });
+        continue;
+      }
+
+      if (isPriorityChangeEvent(event)) {
+        events.push({
+          type: "priority_changed",
+          occurredAt: audit.created_at,
+          actor: resolveActor(audit.via?.channel, audit.author_id, ticket, userRoles),
+          fromState: event.previous_value,
+          toState: event.value,
           sourceRawEventId: rawEventId,
           sourceSequence,
         });
@@ -513,6 +546,7 @@ export async function runZendeskNormalization(
           // SLA matching, calendar overrides, or anomaly grouping (see
           // Customer resolution above, which this never touches).
           requesterName: ticket.requester_name ?? null,
+          assigneeName: ticket.assignee_name ?? null,
         },
         create: {
           organizationId,
@@ -527,6 +561,7 @@ export async function runZendeskNormalization(
           openedAt: new Date(ticket.created_at),
           closedAt,
           requesterName: ticket.requester_name ?? null,
+          assigneeName: ticket.assignee_name ?? null,
         },
       });
       result.casesUpserted += 1;

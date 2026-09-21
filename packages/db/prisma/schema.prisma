@@ -211,6 +211,14 @@ model Case {
   /// null` here rather than a Customer row synthesized from the requester.
   /// Null for cases from a source/normalizer that doesn't populate it.
   requesterName    String?
+  /// The source ticket's currently-assigned agent display name (Zendesk
+  /// `assignee_id` resolved via the ticket's `users` sideload, Intercom
+  /// `admin_assignee_id` resolved via the workspace's admin list). Display
+  /// only (D10/3.6) — never used for matching, correlation, or routing; only
+  /// the name is stored, never the provider's numeric id. Null for a case
+  /// with no current assignee, or from a source/normalizer that doesn't
+  /// resolve it.
+  assigneeName     String?
   priority         String?
   tier             String?
   channel          String?

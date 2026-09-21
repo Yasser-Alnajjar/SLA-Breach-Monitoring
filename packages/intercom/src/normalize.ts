@@ -388,7 +388,7 @@ export async function runIntercomNormalization(
     conversationsFailed: [],
   };
 
-  const [companyRows, contactRows, conversationRows, partRows] = await Promise.all([
+  const [companyRows, contactRows, conversationRows, partRows, adminRows] = await Promise.all([
     prisma.rawEvent.findMany({
       where: { integrationId, providerEventId: { startsWith: "company:" } },
       select: { id: true, payload: true, fetchedAt: true },
@@ -408,7 +408,21 @@ export async function runIntercomNormalization(
       where: { integrationId, providerEventId: { startsWith: "conversation_part:" } },
       select: { id: true, providerEventId: true, payload: true },
     }),
+    prisma.rawEvent.findMany({
+      where: { integrationId, providerEventId: { startsWith: "admin:" } },
+      select: { id: true, payload: true, fetchedAt: true },
+      orderBy: { fetchedAt: "asc" },
+    }),
   ]);
+
+  // `admin_assignee_id` -> display name (D10/3.6). Absent until the next
+  // backfill/cycle has fetched the admin list at least once.
+  const adminNamesById = new Map(
+    [...latestSnapshotById<{ id: string; name: string | null }>(adminRows).values()].map(({ value }) => [
+      value.id,
+      value.name,
+    ]),
+  );
 
   const latestCompanies = latestSnapshotById<{ id: string; name: string }>(companyRows);
   for (const { value: company } of latestCompanies.values()) {
@@ -441,6 +455,10 @@ export async function runIntercomNormalization(
           ? await upsertContactCustomer(primaryContactId, primaryContact, conversation)
           : null;
       const priority = normalizeIntercomPriority(conversation.priority);
+      const assigneeName =
+        conversation.admin_assignee_id != null
+          ? (adminNamesById.get(String(conversation.admin_assignee_id)) ?? null)
+          : null;
 
       const partsForConversation = partsByConversationId.get(conversation.id) ?? [];
       const subject = deriveIntercomSubject(conversation, partsForConversation);
@@ -462,6 +480,7 @@ export async function runIntercomNormalization(
           priority,
           channel: conversation.source?.type ?? null,
           closedAt,
+          assigneeName,
         },
         create: {
           organizationId,
@@ -473,6 +492,7 @@ export async function runIntercomNormalization(
           channel: conversation.source?.type ?? null,
           openedAt: new Date(conversation.created_at * 1000),
           closedAt,
+          assigneeName,
         },
       });
       result.casesUpserted += 1;

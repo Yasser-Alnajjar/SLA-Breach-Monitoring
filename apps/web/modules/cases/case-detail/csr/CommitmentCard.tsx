@@ -14,6 +14,7 @@ import {
   formatCommitmentDeadline,
   formatCommitmentKind,
   formatDateTime,
+  formatMinutes,
   formatPolicyMatch,
   formatSeconds,
   formatWeeklyWindow,
@@ -119,9 +120,15 @@ export const CommitmentCard = ({
 
             <AccordionContent className="pb-0">
               <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
-                <dt className="text-muted-foreground">Policy version</dt>
+                <dt className="text-muted-foreground">Target</dt>
+                <dd>{formatMinutes(commitment.targetMinutes)}</dd>
+
+                <dt className="text-muted-foreground">Started</dt>
+                <dd>{formatDateTime(commitment.startedAt)}</dd>
+
+                <dt className="text-muted-foreground">Policy</dt>
                 <dd>
-                  v{commitment.policyVersion.version} (effective{" "}
+                  {commitment.policyVersion.name} — v{commitment.policyVersion.version} (effective{" "}
                   {formatDateTime(commitment.policyVersion.effectiveFrom)})
                 </dd>
 
@@ -154,6 +161,23 @@ export const CommitmentCard = ({
                     </>
                   )}
                 </dd>
+
+                {commitment.targetChangeHistory.length > 0 && (
+                  <>
+                    <dt className="text-muted-foreground">Target changes</dt>
+                    <dd>
+                      <ul className="space-y-1">
+                        {commitment.targetChangeHistory.map((change) => (
+                          <li key={change.changedAt}>
+                            {formatMinutes(change.previousTargetMinutes)} →{" "}
+                            {formatMinutes(change.newTargetMinutes)} ({formatDateTime(change.changedAt)} —{" "}
+                            {change.reason})
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
               </dl>
             </AccordionContent>
           </AccordionItem>

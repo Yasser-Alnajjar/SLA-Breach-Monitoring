@@ -132,9 +132,12 @@ export function deriveLegSpans(
         (event.type === "state_changed" || event.type === "case_created") &&
         event.toState
       ) {
-        if (event.system === "zendesk" || event.system === "intercom") zendeskState = event.toState;
+        // Filtered to state-bearing types above, so this is always a real
+        // NormalizedState, never a priority_changed value.
+        const toState = event.toState as NormalizedState;
+        if (event.system === "zendesk" || event.system === "intercom") zendeskState = toState;
         if (event.system === "jira" || event.system === "linear" || event.system === "github")
-          engineeringState = event.toState;
+          engineeringState = toState;
       }
       if (event.type === "issue_linked") linkedIssueCount++;
       if (event.type === "issue_unlinked")

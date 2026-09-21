@@ -21,6 +21,7 @@ const calendarRow = { id: "cal-24-7", version: 1, timezone: "UTC", weekly: [], h
 const policyRow = {
   id: "pv-1",
   policyId: "policy",
+  policy: { name: "Standard SLA" },
   version: 1,
   match: {},
   targets: [
@@ -112,6 +113,8 @@ function fakePrisma(
     organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
     sLAPolicyVersion: { findMany: async () => [policyRow] },
     businessCalendarVersion: { findMany: async () => [calendarRow] },
+    commitmentPolicyChange: { findMany: async () => [] },
+    notification: { findMany: async () => [] },
   } as unknown as PrismaClient;
 }
 

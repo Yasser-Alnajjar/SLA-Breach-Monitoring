@@ -1,5 +1,5 @@
 import { computeSourceHash } from "./hash";
-import type { IntercomCompany, IntercomContact, IntercomConversation, IntercomConversationPart } from "./types";
+import type { IntercomAdmin, IntercomCompany, IntercomContact, IntercomConversation, IntercomConversationPart } from "./types";
 
 /** What gets written to one RawEvent row, minus the integrationId FK. */
 export interface RawEventInput {
@@ -44,4 +44,11 @@ export function mapCompanyToRawEvent(company: IntercomCompany): RawEventInput {
 export function mapContactToRawEvent(contact: IntercomContact): RawEventInput {
   const sourceHash = computeSourceHash(contact);
   return { providerEventId: `contact:${contact.id}:${sourceHash}`, sourceHash, payload: contact };
+}
+
+/** Only `{ id, name }` is kept — the one field the normalizer reads to resolve `admin_assignee_id` (D10/3.6), mirroring `mapUserToRawEvent` in @sla/zendesk. */
+export function mapAdminToRawEvent(admin: IntercomAdmin): RawEventInput {
+  const payload = { id: admin.id, name: admin.name ?? null };
+  const sourceHash = computeSourceHash(payload);
+  return { providerEventId: `admin:${admin.id}:${sourceHash}`, sourceHash, payload };
 }

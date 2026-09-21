@@ -70,6 +70,7 @@ function fakePrisma(
         {
           id: "pv-6",
           policyId: "policy",
+          policy: { name: "Urgent SLA" },
           version: 6,
           match: { priority: ["urgent"] },
           targets: [
@@ -88,6 +89,8 @@ function fakePrisma(
         { id: "cal-24-7", version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true },
       ],
     },
+    commitmentPolicyChange: { findMany: async () => [] },
+    notification: { findMany: async () => [] },
   } as unknown as PrismaClient;
 }
 

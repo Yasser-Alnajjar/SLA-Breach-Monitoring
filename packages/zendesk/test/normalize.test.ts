@@ -45,6 +45,10 @@ function statusChange(value: string, previous_value: string) {
   return { id: 1, type: "Change", field_name: "status", value, previous_value };
 }
 
+function priorityChange(value: string | null, previous_value: string | null) {
+  return { id: 2, type: "Change", field_name: "priority", value, previous_value };
+}
+
 describe("normalizeZendeskStatus", () => {
   it("maps every known Zendesk status", () => {
     expect(normalizeZendeskStatus("new")).toBe("new");
@@ -261,13 +265,13 @@ describe("deriveNormalizedEventsForTicket", () => {
     expect(events[2]?.actor).toBe("agent");
   });
 
-  it("ignores non-status Change events and other event types", () => {
+  it("ignores Change events on fields other than status/priority, and other event types", () => {
     const audits = [
       audit({
         id: 1,
         created_at: "2026-01-01T09:05:00Z",
         events: [
-          { id: 1, type: "Change", field_name: "priority", value: "urgent", previous_value: "high" },
+          { id: 1, type: "Change", field_name: "group_id", value: "9", previous_value: "3" },
           { id: 2, type: "Comment", body: "looking into it" },
         ],
       }),
@@ -275,6 +279,41 @@ describe("deriveNormalizedEventsForTicket", () => {
     const events = deriveNormalizedEventsForTicket({ ...ticket, status: "new" }, audits, "raw_ticket_42");
     expect(events).toHaveLength(1);
     expect(events[0]?.type).toBe("case_created");
+  });
+
+  it("emits priority_changed for a priority Change event, display-only", () => {
+    const audits = [
+      audit({
+        id: 1,
+        created_at: "2026-01-01T09:05:00Z",
+        author_id: 501,
+        via: { channel: "web" },
+        events: [priorityChange("urgent", "high")],
+      }),
+    ];
+    const events = deriveNormalizedEventsForTicket({ ...ticket, status: "new" }, audits, "raw_ticket_42");
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      type: "priority_changed",
+      fromState: "high",
+      toState: "urgent",
+      actor: "customer",
+      sourceRawEventId: "raw_1",
+    });
+  });
+
+  it("emits priority_changed with a null side when priority is unset", () => {
+    const audits = [
+      audit({
+        id: 1,
+        created_at: "2026-01-01T09:05:00Z",
+        author_id: 501,
+        via: { channel: "web" },
+        events: [priorityChange(null, "low")],
+      }),
+    ];
+    const events = deriveNormalizedEventsForTicket({ ...ticket, status: "new" }, audits, "raw_ticket_42");
+    expect(events[1]).toMatchObject({ type: "priority_changed", fromState: "low", toState: null });
   });
 });
 
@@ -996,7 +1035,7 @@ describe("publicCommentBodiesInAudit", () => {
       author_id: 900,
       events: [{ id: 9, type: "Comment", public: true, body: "Any update?", author_id: 900 }],
     });
-    expect(result).toEqual([{ authorId: 900, body: "Any update?" }]);
+    expect(result).toEqual([{ id: 9, authorId: 900, body: "Any update?" }]);
   });
 
   it("prefers plain_body over body when both are present", () => {
@@ -1008,7 +1047,7 @@ describe("publicCommentBodiesInAudit", () => {
         { id: 9, type: "Comment", public: true, body: "<p>hi</p>", plain_body: "hi", author_id: 900 },
       ],
     });
-    expect(result).toEqual([{ authorId: 900, body: "hi" }]);
+    expect(result).toEqual([{ id: 9, authorId: 900, body: "hi" }]);
   });
 
   it("falls back to the audit's own author_id when the event carries none", () => {
@@ -1018,7 +1057,7 @@ describe("publicCommentBodiesInAudit", () => {
       author_id: 501,
       events: [{ id: 9, type: "Comment", public: true, body: "hello" }],
     });
-    expect(result).toEqual([{ authorId: 501, body: "hello" }]);
+    expect(result).toEqual([{ id: 9, authorId: 501, body: "hello" }]);
   });
 
   it("excludes private notes and non-comment events", () => {
@@ -1055,8 +1094,8 @@ describe("publicCommentBodiesInAudit", () => {
       ],
     });
     expect(result).toEqual([
-      { authorId: 900, body: "first" },
-      { authorId: 501, body: "second" },
+      { id: 9, authorId: 900, body: "first" },
+      { id: 10, authorId: 501, body: "second" },
     ]);
   });
 });

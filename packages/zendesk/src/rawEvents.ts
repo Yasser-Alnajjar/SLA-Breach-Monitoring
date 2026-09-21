@@ -37,16 +37,21 @@ export function mapAuditToRawEvent(audit: ZendeskAudit): RawEventInput {
  * a real change lands as a new, distinct RawEvent — append-only either way.
  *
  * `users` is the `include=users` sideload returned alongside the ticket
- * (`fetchTicket`/`fetchTicketsPage`/`fetchTicketsNextPage`) — used only to
- * resolve `ticket.requester_id` to a display name, embedded onto the
- * snapshot as `requester_name` before it's hashed and stored. This is the
- * only place the requester's name is persisted; no separate `user:` RawEvent
- * is written for it, so it never joins the audit-authors' `{id, role}`
- * stream `mapUserToRawEvent` writes.
+ * (`fetchTicket`/`fetchTicketsPage`/`fetchTicketsNextPage`) — used to
+ * resolve `ticket.requester_id`/`ticket.assignee_id` to display names,
+ * embedded onto the snapshot as `requester_name`/`assignee_name` before it's
+ * hashed and stored. This is the only place either name is persisted; no
+ * separate `user:` RawEvent is written for them, so they never join the
+ * audit-authors' `{id, role}` stream `mapUserToRawEvent` writes.
  */
 export function mapTicketToRawEvent(ticket: ZendeskTicket, users: ZendeskUser[] = []): RawEventInput {
   const requester = ticket.requester_id != null ? users.find((user) => user.id === ticket.requester_id) : undefined;
-  const payload: ZendeskTicket = { ...ticket, requester_name: requester?.name ?? null };
+  const assignee = ticket.assignee_id != null ? users.find((user) => user.id === ticket.assignee_id) : undefined;
+  const payload: ZendeskTicket = {
+    ...ticket,
+    requester_name: requester?.name ?? null,
+    assignee_name: assignee?.name ?? null,
+  };
   const sourceHash = computeSourceHash(payload);
   return { providerEventId: `ticket:${ticket.id}:${sourceHash}`, sourceHash, payload };
 }

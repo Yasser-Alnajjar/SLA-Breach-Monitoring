@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  mapAdminToRawEvent,
   mapCompanyToRawEvent,
   mapContactToRawEvent,
   mapConversationPartToRawEvent,
   mapConversationToRawEvent,
 } from "../src/rawEvents";
-import type { IntercomCompany, IntercomContact, IntercomConversation, IntercomConversationPart } from "../src/types";
+import type {
+  IntercomAdmin,
+  IntercomCompany,
+  IntercomContact,
+  IntercomConversation,
+  IntercomConversationPart,
+} from "../src/types";
 
 describe("mapConversationToRawEvent", () => {
   it("folds the content hash into the provider event id", () => {
@@ -43,5 +50,18 @@ describe("mapContactToRawEvent", () => {
     const contact: IntercomContact = { id: "contact-1" };
     const event = mapContactToRawEvent(contact);
     expect(event.providerEventId).toBe(`contact:contact-1:${event.sourceHash}`);
+  });
+});
+
+describe("mapAdminToRawEvent", () => {
+  it("keeps only id and name, keyed by a hash that changes only when the name does", () => {
+    const admin: IntercomAdmin = { id: "admin-1", name: "Ada Agent", email: "ada@example.com" };
+    const result = mapAdminToRawEvent(admin);
+    expect(result.payload).toEqual({ id: "admin-1", name: "Ada Agent" });
+    expect(result.providerEventId).toBe(`admin:admin-1:${result.sourceHash}`);
+    expect(mapAdminToRawEvent({ ...admin, email: "renamed@example.com" }).providerEventId).toBe(
+      result.providerEventId,
+    );
+    expect(mapAdminToRawEvent({ ...admin, name: "Renamed" }).providerEventId).not.toBe(result.providerEventId);
   });
 });

@@ -50,6 +50,7 @@ export interface IntercomConversation {
   updated_at: number;
   state: IntercomConversationState;
   priority?: string | null;
+  /** Resolved against the workspace's admin list (`IntercomAdmin`, fetched separately) to `Case.assigneeName` — see `runIntercomNormalization`. */
   admin_assignee_id?: number | string | null;
   contacts?: { contacts: IntercomConversationContactRef[] };
   source?: IntercomConversationSource;
@@ -115,6 +116,18 @@ export interface IntercomContact {
   email?: string | null;
   companies?: { data: { id: string }[] };
   [key: string]: unknown;
+}
+
+/** A workspace teammate — read only to resolve `conversation.admin_assignee_id` to a display name (D10/3.6). */
+export interface IntercomAdmin {
+  id: string;
+  name?: string | null;
+  [key: string]: unknown;
+}
+
+export interface IntercomAdminsPage {
+  type: "admin.list";
+  admins: IntercomAdmin[];
 }
 
 /**

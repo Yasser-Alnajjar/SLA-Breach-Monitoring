@@ -184,6 +184,7 @@ OAuth scope: **`read`**. No write scope is ever requested.
 - Organizations (become **Customers**)
 - SLA policy definitions
 - Business-hours schedules and holidays
+- Requester and assignee display names, resolved from the ticket's own sideloaded user list. Display only — shown on the case header, never used for policy matching, routing, or SLA calculations. See [Section 22](#22-security-and-access).
 
 ### Data used for calculations
 - Ticket status transitions drive the case timeline and the `pending_customer` pause state.
@@ -341,6 +342,8 @@ The **All cases** page (`/cases`) lists every case your organization has — ope
 
 **Columns:** Customer, Case (subject), Ticket number, Priority, Tier, Channel, **SLA status** (the worst status among the case's commitments), **Case status** (Open/Closed), Opened date, Closed date.
 
+The case detail page's header (Section 12) additionally shows the case's current fine-grained status (e.g. "Pending customer", not just Open/Closed) and its currently-assigned agent, when the connected system reports one.
+
 **What each field means:**
 - **SLA status** rolls up all of a case's commitments into one badge, in this priority order: Breached > At Risk > On Track > Met > Cancelled.
 - **Case status** is separate from SLA status — a case can be closed and still show a breached SLA status, because closing the ticket doesn't erase what already happened to its commitments.
@@ -354,13 +357,15 @@ The table supports full-text search, column sort, column reordering and resizing
 
 The case detail page (`/cases/[caseId]`) is where a specific number gets explained. It reconstructs the full lifecycle of one case from every recorded event, across every connected system.
 
-**Header:** customer, subject/ticket number, current leg, priority/tier/channel badges, opened and (if applicable) resolved timestamps, and a direct link back to the ticket in Zendesk.
+**Header:** customer, subject/ticket number, current leg, current status, priority/tier/channel badges, assignee (when the connected system reports one), opened and (if applicable) resolved timestamps, and a direct link back to the ticket in Zendesk.
 
-**Commitments:** one card per active commitment (first response, resolution), each showing its status, its headline number (remaining, overdue, or over-target), its target and due time, and a **"How this was calculated"** disclosure that shows exactly which policy version and calendar were used, what states pause it, and what its warning thresholds are — the number is never presented without a way to see how it was produced.
+**Commitments:** one card per active commitment (first response, resolution), each showing its target, when it started, its headline number (remaining, overdue, or over-target), its due time, and a **"How this was calculated"** disclosure that shows the policy's name and version, a plain-language description of which conditions matched it, the calendar used, what states pause it, what its warning thresholds are, and — when the commitment's target changed after a priority or policy update — the full history of those changes with each one's reason. The number is never presented without a way to see how it was produced.
 
 **Case journey:** a horizontal stage-timeline bar, one colored segment per period the case spent in a given leg (support, engineering, waiting on customer, unknown), with a legend showing total time per leg. Below it, a second bar shows the commitment's running vs. paused intervals across the same timeline, so you can see at a glance when the clock was and wasn't counting.
 
-**Activity timeline:** every normalized event on the case, in order, with an icon by type (created, status changed, issue linked/unlinked, case closed), who or what triggered it (customer, agent, or system), and which connected system it came from. A glossary (the "?" icon) explains every normalized status in plain language directly in the UI.
+**Activity timeline:** every normalized event on the case, in order, with an icon by type (created, status changed, issue linked/unlinked, case closed, priority changed), who or what triggered it (customer, agent, or system), and which connected system it came from. It also shows the SLA story alongside the ticket history — a policy re-match with the target change it caused, and each commitment's own lifecycle markers (started, at-risk threshold crossed, breached, met, cancelled) — all derived from data already recorded elsewhere (re-resolution history, evaluations, and sent alerts), never a second copy of it. A glossary (the "?" icon) explains every normalized status in plain language directly in the UI.
+
+**Conversation:** every public customer/agent message on the case, in order, labeled Customer, Agent, or — when confirmed to be the ticket's own requester — Requester. A ticket opened automatically (by a trigger, automation, or rule) shows its opening message as a neutral note rather than attributing it to a person. Internal/private notes are never shown here.
 
 **Linked records:** every external record this case is connected to — the Zendesk ticket itself, plus any linked Jira issue, Linear issue, or GitHub pull request — each showing how the link was established (see Section 15) and its live status label pulled from that system.
 
@@ -405,6 +410,8 @@ Closing a case ends any Next Reply cycle that was still waiting on an agent's an
 ### Priority changes
 
 Changing a case's priority, customer, or (where populated) tier is not ignored: on the next poll or webhook delivery, every commitment on that case that is still open (not yet met, and not terminally breached — see [Section 14](#14-at-risk-and-breached-states)) is re-matched against your current SLA policies, and moved onto whichever version now applies. The clock itself never resets — only the policy, target, and calendar version update, and elapsed time keeps being derived from the same original start time and event history. A commitment that has already completed (met, or breached and closed) keeps the policy version it finished under, permanently.
+
+A Zendesk priority change is shown on the case's Activity timeline (Section 12) as its own event, and the resulting target change — when it triggers a policy re-match — appears alongside it with its reason. Both are display only: recording them on the timeline never feeds back into policy matching or the SLA engine.
 
 ### Multiple SLA policies
 
@@ -494,16 +501,16 @@ There are two notification channels, and only one is self-service today.
 
 - **How to connect:** from Settings → Integrations, click Connect Slack and approve the OAuth prompt. Bot scopes requested: `chat:write`, `chat:write.public`, `channels:read`, `groups:read` — enough to post messages and list channels for the picker; nothing else.
 - **Choosing a channel:** after connecting, pick one channel from a list (public and private channels the bot can see) and save it. There is exactly **one alert channel per organization** in the current implementation — no per-severity or per-team routing.
-- **What messages look like:**
-  - Breach: `🚨 First response SLA breached — #4821 for Acme Corp, over target by 1h 12m.`
-  - At risk: `⚠️ Resolution SLA at risk — #4821 for Acme Corp, 80% of target used, 1h 36m remaining.`
+- **What messages look like:** each message names the commitment, ticket and customer, then a second line with the matched policy's name, the target, and when the commitment started (plus the exact breach time once breached), and a link straight to the case in this product.
+  - Breach: `🚨 First response SLA breached — #4821 for Acme Corp, over target by 1h 12m.`<br>`Policy: Urgent SLA · Target: 2h · Started: Sep 17, 2026, 09:00 UTC · Breached: Sep 17, 2026, 11:12 UTC`<br>`View ticket` (link)
+  - At risk: `⚠️ Resolution SLA at risk — #4821 for Acme Corp, 80% of target used, 1h 36m remaining.`<br>`Policy: Standard SLA · Target: 8h · Started: Sep 17, 2026, 09:00 UTC`<br>`View ticket` (link)
 - **When notifications are sent:** the moment a first-response or resolution commitment crosses a warning threshold (50/80/95%) or breaches, checked on every sync cycle (at minimum every 5 minutes for open cases) and immediately on a Zendesk/Jira webhook delivery if configured.
 - **Deduplication:** each commitment/threshold combination alerts at most once, ever — a poll that runs twice, or a webhook that fires alongside a scheduled poll, cannot double-alert.
 - **What happens when a notification fails:** the failure is recorded internally; it does not block the same alert from being attempted through the other configured channel (email), and it does not stop other cases from being evaluated or alerted.
 
 ### Email
 
-Email alerts use the same trigger and deduplication logic as Slack and go to **every user in your organization** — there is currently no per-user opt-out or preference and no way to route email differently from Slack.
+Email alerts use the same trigger and deduplication logic as Slack, carry the same policy/target/start/breach context and case link, and go to **every user in your organization** — each as its own individual email (never one message listing every recipient in `To`), so no recipient can see who else was alerted. There is currently no per-user opt-out or preference and no way to route email differently from Slack.
 
 **Configuring it:** from Settings → Integrations → Notifications, enter your SMTP host, port, security mode (None/STARTTLS/SSL-TLS), username, password, and from-address. Use **Test Connection** to check authentication and **Send Test Email** to confirm delivery before saving — each organization brings its own SMTP server, there is no shared deployment-level fallback. The password is encrypted at rest and never shown again once saved; leave it blank when editing other fields to keep the current one.
 
@@ -601,6 +608,7 @@ When the product cannot confidently determine something — a link, a leg bounda
 - **Read-only access:** Zendesk, Jira, Linear, and Intercom are connected under OAuth scopes that grant read-only access. GitHub is connected through a GitHub App your organization creates with read-only repository permissions (Pull requests: read, Contents: read) and installs only on the repositories you choose. Its token can't write to GitHub, and can't read any repository the App isn't installed on. Connections made before this change used a classic GitHub OAuth App with the broader, write-capable `repo` scope. That scope was never used to write, but if you connected GitHub that way, switch to a GitHub App and reconnect (see the GitHub integration docs).
 - **What SLA writes back to your connected systems:** nothing, in every case — Zendesk, Jira, Linear, Intercom, and GitHub are read-only in practice as well as by design. The only two outbound actions this product ever takes are posting a Slack message and sending an alert email — both are notifications about your data, not modifications to your source systems.
 - **Organization isolation:** every customer, case, integration, and setting is scoped to your organization; a request for a case that doesn't belong to your organization is treated as not found.
+- **Assignee names:** the case header (Section 12) shows the currently-assigned agent's display name, resolved from Zendesk's `assignee_id` or Intercom's `admin_assignee_id`. Only the name is stored — never the provider's internal numeric id — and it is display only: never used for policy matching, routing, scoring, or any calculation. It updates on the next sync after a reassignment; there is no history of past assignees.
 - **Credential storage:** OAuth tokens for connected integrations, and the OAuth application credentials you configure for your organization, are stored encrypted. Disconnecting an integration clears its stored credentials.
 - **Multi-user access:** the data model supports multiple users per organization, but the current sign-up flow always creates a brand-new organization along with the new user — there is no self-service "invite a teammate" flow today. See the FAQ.
 - **Permissions/roles:** not currently implemented. Any signed-in user in an organization has the same access to every screen and setting.

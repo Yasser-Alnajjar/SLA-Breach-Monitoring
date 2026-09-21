@@ -33,6 +33,15 @@ function ticketRawEvent(
   };
 }
 
+/** A small deterministic hash so distinct fixture rawEventIds default to distinct audit ids, even when neither carries digits (e.g. "raw-a" vs "raw-b"). */
+function defaultAuditId(rawEventId: string): number {
+  let hash = 0;
+  for (let i = 0; i < rawEventId.length; i++) {
+    hash = (hash * 31 + rawEventId.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+
 /** One Zendesk audit RawEvent row carrying a single Comment event. */
 function auditRawEvent(
   rawEventId: string,
@@ -41,18 +50,22 @@ function auditRawEvent(
     body: string;
     public?: boolean;
     createdAt?: string;
+    /** The underlying Zendesk audit's own id — defaults to digits parsed out of `rawEventId`; override to simulate two RawEvent rows resolving to the same audit (3.7/C-5 dedup). */
+    auditId?: number;
+    /** The comment event's own id within the audit — defaults to 1. */
+    commentId?: number;
   },
 ) {
   return {
     id: rawEventId,
     payload: {
-      id: Number(rawEventId.replace(/\D/g, "")) || 0,
+      id: overrides.auditId ?? defaultAuditId(rawEventId),
       ticket_id: 1,
       created_at: overrides.createdAt ?? "2026-09-17T09:00:00Z",
       author_id: overrides.authorId,
       events: [
         {
-          id: 1,
+          id: overrides.commentId ?? 1,
           type: "Comment",
           public: overrides.public ?? true,
           body: overrides.body,
@@ -123,6 +136,8 @@ function fakePrisma(options: {
     organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
     sLAPolicyVersion: { findMany: async () => [] },
     businessCalendarVersion: { findMany: async () => [] },
+    commitmentPolicyChange: { findMany: async () => [] },
+    notification: { findMany: async () => [] },
   } as unknown as PrismaClient;
 }
 
@@ -146,6 +161,7 @@ describe("getCaseDetailData: conversation", () => {
         actor: "customer",
         type: "customer_replied",
         authorName: "Jane Requester",
+        isRequester: true,
         body: "Hello, I need help",
       },
     ]);
@@ -276,6 +292,37 @@ describe("getCaseDetailData: conversation", () => {
     expect(dataB!.conversation.map((m) => m.id)).toEqual(["ev-customer", "ev-agent"]);
   });
 
+  it("dedupes two NormalizedEvents that resolve to the same underlying Zendesk comment (3.7/C-5 defense in depth)", async () => {
+    // Two distinct RawEvent snapshots that both happen to carry the exact
+    // same audit id + comment id — as a stray duplicate NormalizedEvent row
+    // from a normalization bug might produce, absent this display-layer
+    // guard (normalization itself is trusted to be unique in the happy path).
+    const events = [
+      normalizedEvent({
+        id: "ev-dup-1",
+        type: "customer_replied",
+        actor: "customer",
+        occurredAt: new Date("2026-09-17T09:10:00.000Z"),
+        sourceRawEventId: "raw-dup-1",
+      }),
+      normalizedEvent({
+        id: "ev-dup-2",
+        type: "customer_replied",
+        actor: "customer",
+        occurredAt: new Date("2026-09-17T09:10:00.000Z"),
+        sourceRawEventId: "raw-dup-2",
+        sourceSequence: 1,
+      }),
+    ];
+    const rawEvents = [
+      auditRawEvent("raw-dup-1", { authorId: REQUESTER_ID, body: "Hello, I need help", auditId: 500 }),
+      auditRawEvent("raw-dup-2", { authorId: REQUESTER_ID, body: "Hello, I need help", auditId: 500 }),
+    ];
+    const data = await getCaseDetailData(fakePrisma({ events, rawEvents }), "org-1", "case-1", AS_OF);
+    expect(data!.conversation).toHaveLength(1);
+    expect(data!.conversation[0]!.id).toBe("ev-dup-1");
+  });
+
   it("returns an empty conversation, and still resolves the case, when there are no reply events", async () => {
     const data = await getCaseDetailData(fakePrisma({ events: [], rawEvents: [] }), "org-1", "case-1", AS_OF);
     expect(data!.conversation).toEqual([]);
@@ -313,6 +360,7 @@ describe("getCaseDetailData: conversation — email-created ticket's initial des
         actor: "customer",
         type: "customer_replied",
         authorName: "Jane Requester",
+        isRequester: true,
         body: "My login is broken, please help.",
       },
     ]);
@@ -394,7 +442,7 @@ describe("getCaseDetailData: conversation — email-created ticket's initial des
     expect(data!.conversation[0]!.body).toBe("Sure, I'm checking this");
   });
 
-  it("skips the initial message when the ticket was opened by a system channel (no Customer/Agent bubble to attach it to)", async () => {
+  it("shows the initial message on a system-opened ticket as a neutral system note, not a Customer/Agent bubble (3.7)", async () => {
     const events = [
       normalizedEvent({
         id: "ev-created",
@@ -410,7 +458,16 @@ describe("getCaseDetailData: conversation — email-created ticket's initial des
       "case-1",
       AS_OF,
     );
-    expect(data!.conversation).toEqual([]);
+    expect(data!.conversation).toEqual([
+      {
+        id: "ev-created:description",
+        occurredAt: CASE_CREATED_AT.toISOString(),
+        actor: "system",
+        type: "case_created",
+        authorName: null,
+        body: "Auto-generated ticket body",
+      },
+    ]);
   });
 
   it("does not add the initial description to the Activity Timeline, and leaves SLA-relevant data untouched", async () => {

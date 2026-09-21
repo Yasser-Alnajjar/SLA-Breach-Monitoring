@@ -9,6 +9,9 @@ const baseCandidate = {
   status: "at_risk" as const,
   threshold: 80,
   remainingMinutes: 45,
+  policyName: "Urgent SLA",
+  targetMinutes: 240,
+  startedAt: "2026-09-17T09:00:00.000Z",
 };
 
 describe("formatSlackMessage", () => {
@@ -51,6 +54,42 @@ describe("formatSlackMessage", () => {
     expect(text).toContain("breached");
     expect(text).toContain("2h 10m");
     expect(text).not.toContain("%");
+  });
+
+  it("includes the policy name, target, and start time (3.9)", () => {
+    const text = formatSlackMessage(baseCandidate, { externalId: "4821", customerName: "Acme Co." });
+    expect(text).toContain("Policy: Urgent SLA");
+    expect(text).toContain("Target: 4h");
+    expect(text).toContain("Started: Sep 17, 2026, 09:00 UTC");
+  });
+
+  it("includes the exact breach time only once breached", () => {
+    const atRisk = formatSlackMessage(baseCandidate, { externalId: "4821", customerName: null });
+    expect(atRisk).not.toContain("Breached:");
+
+    const breached = formatSlackMessage(
+      {
+        ...baseCandidate,
+        status: "breached",
+        threshold: BREACH_NOTIFICATION_THRESHOLD,
+        breachedByMinutes: 130,
+        breachedAt: "2026-09-17T13:15:00.000Z",
+      },
+      { externalId: "4821", customerName: null },
+    );
+    expect(breached).toContain("Breached: Sep 17, 2026, 13:15 UTC");
+  });
+
+  it("includes a case link in Slack mrkdwn syntax only when caseUrl is provided (E-19)", () => {
+    const withoutLink = formatSlackMessage(baseCandidate, { externalId: "4821", customerName: null });
+    expect(withoutLink).not.toContain("View ticket");
+
+    const withLink = formatSlackMessage(baseCandidate, {
+      externalId: "4821",
+      customerName: null,
+      caseUrl: "https://app.example.com/cases/case_1",
+    });
+    expect(withLink).toContain("<https://app.example.com/cases/case_1|View ticket>");
   });
 });
 
@@ -121,13 +160,51 @@ describe("formatEmailMessage", () => {
     const withoutLink = formatEmailMessage(baseCandidate, { externalId: "4821", customerName: null });
     expect(withoutLink.html).not.toContain("View ticket");
 
-    const withLink = formatEmailMessage(
-      baseCandidate,
-      { externalId: "4821", customerName: null },
-      { caseUrl: "https://app.example.com/cases/case_1" },
-    );
+    const withLink = formatEmailMessage(baseCandidate, {
+      externalId: "4821",
+      customerName: null,
+      caseUrl: "https://app.example.com/cases/case_1",
+    });
     expect(withLink.html).toContain("View ticket");
     expect(withLink.html).toContain("https://app.example.com/cases/case_1");
+  });
+
+  it("includes the policy name, target, and start time in text and HTML (3.9)", () => {
+    const { text, html } = formatEmailMessage(baseCandidate, { externalId: "4821", customerName: null });
+    expect(text).toContain("Policy: Urgent SLA");
+    expect(text).toContain("Target: 4h");
+    expect(text).toContain("Started: Sep 17, 2026, 09:00 UTC");
+    expect(html).toContain("Urgent SLA");
+    expect(html).toContain("4h");
+    expect(html).toContain("Sep 17, 2026, 09:00 UTC");
+  });
+
+  it("includes the exact breach time only once breached", () => {
+    const { html: atRiskHtml } = formatEmailMessage(baseCandidate, { externalId: "4821", customerName: null });
+    expect(atRiskHtml).not.toContain("Breached:");
+
+    const { text, html } = formatEmailMessage(
+      {
+        ...baseCandidate,
+        status: "breached",
+        threshold: BREACH_NOTIFICATION_THRESHOLD,
+        breachedByMinutes: 130,
+        breachedAt: "2026-09-17T13:15:00.000Z",
+      },
+      { externalId: "4821", customerName: null },
+    );
+    expect(text).toContain("Breached: Sep 17, 2026, 13:15 UTC");
+    expect(html).toContain("Breached:");
+    expect(html).toContain("Sep 17, 2026, 13:15 UTC");
+  });
+
+  it("escapes a policy name containing HTML special characters", () => {
+    const { html } = formatEmailMessage(
+      { ...baseCandidate, policyName: "<b>VIP</b> & Co." },
+      { externalId: "4821", customerName: null },
+    );
+    expect(html).not.toContain("<b>VIP</b>");
+    expect(html).toContain("&lt;b&gt;VIP&lt;/b&gt; &amp; Co.");
   });
 
   it("escapes a customer name containing HTML special characters", () => {

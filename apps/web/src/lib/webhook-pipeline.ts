@@ -52,7 +52,15 @@ export async function runWebhookPipelineTail(
   const reResolution = await runCommitmentReResolutionPipeline(prisma, organizationId, { asOf });
   const cycles = await runNextReplyCyclePipeline(prisma, organizationId, { asOf });
   const evaluations = await runEvaluationPipeline(prisma, organizationId, { asOf, scope: "active" });
-  const notifications = await runNotificationPipeline(prisma, organizationId, evaluations.notificationCandidates);
+  // I-8: this tail previously omitted `appUrl` entirely, so a webhook-
+  // triggered alert's email carried no "View ticket" link — only the
+  // worker's own poll cycle (apps/worker/src/cycle.ts) passed it. Read
+  // directly from the env, like the worker does (`config.appUrl`), rather
+  // than `getAppUrl()`: that throws when unset, and a missing link must
+  // never fail sending the alert itself.
+  const notifications = await runNotificationPipeline(prisma, organizationId, evaluations.notificationCandidates, {
+    appUrl: process.env.NEXTAUTH_URL ?? null,
+  });
 
   return {
     commitmentsCreated: commitments.commitmentsCreated,

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@sla/db";
 import {
+  BREACH_NOTIFICATION_THRESHOLD,
   sortNormalizedEvents,
   computeElapsedWorkingMinutes,
   deriveLegSpans,
@@ -142,19 +143,60 @@ export async function getCaseDetailData(
   const calendarVersionIds = [
     ...new Set(caseRow.commitments.map((c) => c.calendarVersionId)),
   ];
+  const commitmentIds = caseRow.commitments.map((c) => c.id);
+  const commitmentKindById = new Map(
+    caseRow.commitments.map((c) => [c.id, c.kind]),
+  );
 
-  const [policyVersionRows, calendarVersionRows] = await Promise.all([
-    policyVersionIds.length > 0
-      ? prisma.sLAPolicyVersion.findMany({
-          where: { id: { in: policyVersionIds } },
-        })
-      : Promise.resolve([]),
-    calendarVersionIds.length > 0
-      ? prisma.businessCalendarVersion.findMany({
-          where: { id: { in: calendarVersionIds } },
-        })
-      : Promise.resolve([]),
-  ]);
+  const [policyVersionRows, calendarVersionRows, policyChangeRows, notificationRows] =
+    await Promise.all([
+      policyVersionIds.length > 0
+        ? prisma.sLAPolicyVersion.findMany({
+            where: { id: { in: policyVersionIds } },
+            include: { policy: { select: { name: true } } },
+          })
+        : Promise.resolve([]),
+      calendarVersionIds.length > 0
+        ? prisma.businessCalendarVersion.findMany({
+            where: { id: { in: calendarVersionIds } },
+          })
+        : Promise.resolve([]),
+      // 3.4's target-change history — every Active-Commitment Re-Resolution
+      // that changed one of this case's commitments in place. `in: []` is a
+      // safe no-op query (a case with no commitments yet), not worth a
+      // separate empty-array branch.
+      prisma.commitmentPolicyChange.findMany({
+        where: { commitmentId: { in: commitmentIds } },
+        orderBy: { changedAt: "asc" },
+      }),
+      // 3.3's "at-risk threshold crossed" markers — the exact instant each
+      // warn threshold was first detected, already persisted for alerting
+      // (Phase 13.7). The breach threshold (100) is excluded: 3.3 shows that
+      // as its own "breached" marker, from the live evaluation's
+      // `effectiveDueAt`, not from this table.
+      prisma.notification.findMany({
+        where: { commitmentId: { in: commitmentIds }, threshold: { not: BREACH_NOTIFICATION_THRESHOLD } },
+        orderBy: { sentAt: "asc" },
+      }),
+    ]);
+
+  const policyChangesByCommitmentId = new Map<string, typeof policyChangeRows>();
+  for (const row of policyChangeRows) {
+    const list = policyChangesByCommitmentId.get(row.commitmentId);
+    if (list) list.push(row);
+    else policyChangesByCommitmentId.set(row.commitmentId, [row]);
+  }
+
+  const notificationsByCommitmentId = new Map<string, typeof notificationRows>();
+  for (const row of notificationRows) {
+    const list = notificationsByCommitmentId.get(row.commitmentId);
+    if (list) list.push(row);
+    else notificationsByCommitmentId.set(row.commitmentId, [row]);
+  }
+
+  const policyNameByVersionId = new Map<string, string>(
+    policyVersionRows.map((row) => [row.id, row.policy.name]),
+  );
 
   const policyVersionsById = new Map<string, SLAPolicyVersion>(
     policyVersionRows.map((row) => [
@@ -247,6 +289,7 @@ export async function getCaseDetailData(
         pauseOnStates: pauseStatesFor(row.kind, policyVersion),
         policyVersion: {
           id: policyVersion.id,
+          name: policyNameByVersionId.get(policyVersion.id) ?? "Unknown policy",
           version: policyVersion.version,
           match: policyVersion.match,
           warnAtPercent: policyVersion.warnAtPercent,
@@ -260,6 +303,20 @@ export async function getCaseDetailData(
           holidays: calendar.holidays,
           alwaysOpen: calendar.alwaysOpen,
         },
+        // The completing event's own occurredAt (3.3's "met" marker) — only
+        // meaningful once the clock has actually stopped; a cancelled
+        // commitment's clock is forced to "stopped" above but never
+        // completed, so it's excluded too.
+        completionOccurredAt:
+          !isCancelled && evaluation.clock.state === "stopped"
+            ? (evaluation.inputs.lastEvent?.occurredAt ?? null)
+            : null,
+        targetChangeHistory: (policyChangesByCommitmentId.get(row.id) ?? []).map((change) => ({
+          changedAt: change.changedAt.toISOString(),
+          previousTargetMinutes: change.previousTargetMinutes,
+          newTargetMinutes: change.newTargetMinutes,
+          reason: change.reason,
+        })),
       };
     })
     .filter((c): c is CommitmentDetail => c !== null)
@@ -407,15 +464,122 @@ export async function getCaseDetailData(
         (link.evidence as { statusName?: string } | null)?.statusName ?? null,
     }));
 
-  const timeline: TimelineEventDetail[] = domainEvents.map((e) => ({
-    id: e.id,
-    occurredAt: e.occurredAt,
-    actor: e.actor,
-    system: e.system,
-    type: e.type,
-    fromState: e.fromState,
-    toState: e.toState,
-  }));
+  // 3.2/3.3: synthetic, display-only timeline rows with no NormalizedEvent of
+  // their own — derived entirely from `commitments` (already computed above)
+  // and the notifications already persisted for alerting. One "started"
+  // marker per commitment always; the rest only when that lifecycle instant
+  // actually happened.
+  const syntheticTimelineEntries: TimelineEventDetail[] = commitments.flatMap((c) => {
+    const entries: TimelineEventDetail[] = [
+      {
+        id: `lifecycle:${c.id}:started`,
+        occurredAt: c.startedAt,
+        actor: "system",
+        system: caseRow.system,
+        type: "commitment_started",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+      },
+    ];
+
+    for (const change of c.targetChangeHistory) {
+      entries.push({
+        id: `policy_change:${c.id}:${change.changedAt}`,
+        occurredAt: change.changedAt,
+        actor: "system",
+        system: caseRow.system,
+        type: "policy_changed",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+        previousTargetMinutes: change.previousTargetMinutes,
+        newTargetMinutes: change.newTargetMinutes,
+        reason: change.reason,
+      });
+    }
+
+    for (const notification of notificationsByCommitmentId.get(c.id) ?? []) {
+      entries.push({
+        id: `notification:${notification.id}`,
+        occurredAt: notification.sentAt.toISOString(),
+        actor: "system",
+        system: caseRow.system,
+        type: "commitment_at_risk",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+        thresholdPercent: notification.threshold,
+      });
+    }
+
+    if (c.status === "breached" && c.effectiveDueAt) {
+      entries.push({
+        id: `lifecycle:${c.id}:breached`,
+        occurredAt: c.effectiveDueAt,
+        actor: "system",
+        system: caseRow.system,
+        type: "commitment_breached",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+      });
+    }
+
+    if (c.status === "met" && c.completionOccurredAt) {
+      entries.push({
+        id: `lifecycle:${c.id}:met`,
+        occurredAt: c.completionOccurredAt,
+        actor: "system",
+        system: caseRow.system,
+        type: "commitment_met",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+      });
+    }
+
+    if (c.status === "cancelled" && c.closedAt) {
+      entries.push({
+        id: `lifecycle:${c.id}:cancelled`,
+        occurredAt: c.closedAt,
+        actor: "system",
+        system: caseRow.system,
+        type: "commitment_cancelled",
+        fromState: null,
+        toState: null,
+        commitmentKind: c.kind,
+      });
+    }
+
+    return entries;
+  });
+
+  const timeline: TimelineEventDetail[] = [
+    ...domainEvents.map(
+      (e): TimelineEventDetail => ({
+        id: e.id,
+        occurredAt: e.occurredAt,
+        actor: e.actor,
+        system: e.system,
+        type: e.type,
+        fromState: e.fromState,
+        toState: e.toState,
+      }),
+    ),
+    ...syntheticTimelineEntries,
+  ].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id));
+
+  // 3.5: the case's current ticket status, from the most recent state-bearing
+  // event in the same stream the engine itself reads — nothing new stored.
+  const latestStateEvent = [...domainEvents]
+    .reverse()
+    .find(
+      (e) =>
+        (e.type === "state_changed" || e.type === "case_created" || e.type === "case_closed") &&
+        e.toState,
+    );
+  const status = (latestStateEvent?.toState as NormalizedState | undefined) ?? null;
 
   return {
     asOf,
@@ -430,6 +594,8 @@ export async function getCaseDetailData(
       closedAt: caseRow.closedAt?.toISOString() ?? null,
       customerName: caseRow.customer?.name ?? null,
       requesterName: caseRow.requesterName ?? null,
+      assigneeName: caseRow.assigneeName ?? null,
+      status,
       system: caseRow.system,
       ticketUrl,
     },
@@ -537,20 +703,21 @@ async function buildZendeskConversationMessages(
     requesterId = ticketPayload?.requester_id ?? null;
 
     const description = ticketPayload?.description?.trim();
-    // Only "customer"/"agent" match ConversationMessageDetail.actor — a
-    // ticket opened by a system channel (trigger/automation/rule) has no
-    // Customer/Agent bubble to attach its description to, so it's skipped
-    // rather than mislabeled.
-    if (description && caseCreatedEvent && (caseCreatedEvent.actor === "customer" || caseCreatedEvent.actor === "agent")) {
+    // 3.7: shown for every actor, including "system" (a trigger/automation/
+    // rule created the ticket) — a neutral, centered bubble rather than a
+    // Customer/Agent one (see ConversationMessageBubble).
+    if (description && caseCreatedEvent) {
+      const actor = caseCreatedEvent.actor;
       initialMessage = {
         // Namespaced off the case_created event's own id (a cuid, unique per
         // case) — never a raw Zendesk comment/audit event id, so this can
         // never collide with a real agent_replied/customer_replied message.
         id: `${caseCreatedEvent.id}:description`,
         occurredAt: caseCreatedEvent.occurredAt,
-        actor: caseCreatedEvent.actor,
-        type: caseCreatedEvent.actor === "agent" ? "agent_replied" : "customer_replied",
-        authorName: caseCreatedEvent.actor === "customer" ? caseRow.requesterName : null,
+        actor,
+        type: actor === "agent" ? "agent_replied" : actor === "customer" ? "customer_replied" : "case_created",
+        authorName: actor === "customer" ? caseRow.requesterName : null,
+        isRequester: actor === "customer" ? true : undefined,
         body: description,
       };
     }
@@ -577,6 +744,13 @@ async function buildZendeskConversationMessages(
   }
 
   const bodyByEventId = new Map<string, ZendeskCommentBody>();
+  // Explicit dedupe by the audit's own id + the comment's own id within it
+  // (3.7/C-5) — a globally stable key (unlike `sourceRawEventId`, which
+  // names a RawEvent snapshot, not the underlying Zendesk audit) — on top
+  // of, not instead of, normalization's own uniqueness: guards display
+  // against ever double-rendering the same underlying comment even if two
+  // NormalizedEvent rows, or two RawEvent snapshots, somehow both point at it.
+  const seenComments = new Set<string>();
   for (const [rawEventId, group] of groups) {
     const audit = payloadById.get(rawEventId) as ZendeskAudit | undefined;
     if (!audit) continue;
@@ -591,28 +765,29 @@ async function buildZendeskConversationMessages(
     // than guessing or throwing.
     ordered.forEach((event, index) => {
       const comment = comments[index];
-      if (comment) bodyByEventId.set(event.id, comment);
+      if (!comment) return;
+      const dedupeKey = `${audit.id}:${comment.id}`;
+      if (seenComments.has(dedupeKey)) return;
+      seenComments.add(dedupeKey);
+      bodyByEventId.set(event.id, comment);
     });
   }
 
-  const messages = replyEvents.flatMap((event) => {
+  const messages: ConversationMessageDetail[] = [];
+  for (const event of replyEvents) {
     const comment = bodyByEventId.get(event.id);
-    if (!comment) return [];
-    const authorName =
-      event.actor === "customer" && comment.authorId != null && comment.authorId === requesterId
-        ? caseRow.requesterName
-        : null;
-    return [
-      {
-        id: event.id,
-        occurredAt: event.occurredAt,
-        actor: event.actor,
-        type: event.type,
-        authorName,
-        body: comment.body,
-      },
-    ];
-  });
+    if (!comment) continue;
+    const isRequester = event.actor === "customer" && comment.authorId != null && comment.authorId === requesterId;
+    messages.push({
+      id: event.id,
+      occurredAt: event.occurredAt,
+      actor: event.actor,
+      type: event.type,
+      authorName: isRequester ? caseRow.requesterName : null,
+      isRequester: isRequester ? true : undefined,
+      body: comment.body,
+    });
+  }
 
   return initialMessage ? [initialMessage, ...messages] : messages;
 }
@@ -621,11 +796,16 @@ function buildIntercomConversationMessages(
   replyEvents: (NormalizedEvent & { actor: "customer" | "agent"; type: "agent_replied" | "customer_replied" })[],
   payloadById: Map<string, unknown>,
 ): ConversationMessageDetail[] {
+  // Explicit dedupe by source part id (3.7/C-5), on top of — not instead of —
+  // normalization's own uniqueness (each RawEvent is one Intercom part).
+  const seenParts = new Set<string>();
   return replyEvents.flatMap((event) => {
+    if (seenParts.has(event.sourceRawEventId)) return [];
     const part = payloadById.get(event.sourceRawEventId) as IntercomConversationPart | undefined;
     if (!part) return [];
     const message = extractIntercomMessageBody(part);
     if (!message) return [];
+    seenParts.add(event.sourceRawEventId);
     return [
       {
         id: event.id,

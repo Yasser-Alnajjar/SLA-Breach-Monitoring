@@ -89,6 +89,56 @@ describe("proxy rate limiting — /api/auth/callback/credentials", () => {
   });
 });
 
+describe("proxy rate limiting — /api/webhooks keyed by integrationId, not IP (roadmap task 2.5)", () => {
+  function webhookRequest(provider: string, integrationId: string, ip: string) {
+    return new NextRequest(`https://app.example.com/api/webhooks/${provider}/${integrationId}`, {
+      method: "POST",
+      headers: { "x-forwarded-for": ip },
+    });
+  }
+
+  it("two different integrationIds from the same IP get independent buckets", async () => {
+    for (let i = 0; i < 60; i += 1) {
+      const response = await proxy(webhookRequest("zendesk", "int-a", "203.0.113.20"));
+      expect(response?.status).not.toBe(429);
+    }
+    const blockedA = await proxy(webhookRequest("zendesk", "int-a", "203.0.113.20"));
+    expect(blockedA.status).toBe(429);
+
+    // Different integration, same IP, same request volume — unaffected.
+    const unaffectedB = await proxy(webhookRequest("zendesk", "int-b", "203.0.113.20"));
+    expect(unaffectedB.status).not.toBe(429);
+  });
+
+  it("the same integrationId from different IPs shares one bucket", async () => {
+    for (let i = 0; i < 30; i += 1) {
+      const response = await proxy(webhookRequest("jira", "int-c", "203.0.113.30"));
+      expect(response?.status).not.toBe(429);
+    }
+    for (let i = 0; i < 30; i += 1) {
+      const response = await proxy(webhookRequest("jira", "int-c", "203.0.113.31"));
+      expect(response?.status).not.toBe(429);
+    }
+    // 60 requests already spent across the two IPs — the 61st, from either, is blocked.
+    const blocked = await proxy(webhookRequest("jira", "int-c", "203.0.113.30"));
+    expect(blocked.status).toBe(429);
+  });
+
+  it("falls back to IP-keying when the path doesn't match the /api/webhooks/{provider}/{id} shape", async () => {
+    const malformed = () =>
+      new NextRequest("https://app.example.com/api/webhooks", {
+        method: "POST",
+        headers: { "x-forwarded-for": "203.0.113.40" },
+      });
+    for (let i = 0; i < 60; i += 1) {
+      const response = await proxy(malformed());
+      expect(response?.status).not.toBe(429);
+    }
+    const blocked = await proxy(malformed());
+    expect(blocked.status).toBe(429);
+  });
+});
+
 describe("proxy rate limiting — other routes keep the plain error body", () => {
   it("/api/sign-up still returns a plain { error } body on 429, not the url-bridge shape", async () => {
     const request = () =>

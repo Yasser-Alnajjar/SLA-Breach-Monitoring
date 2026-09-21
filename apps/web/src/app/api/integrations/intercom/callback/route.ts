@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { exchangeCodeForToken } from "@sla/intercom";
-import { getPrismaClient, type Prisma } from "@sla/db";
+import { encryptCredentials, getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getIntercomOAuthConfig, INTERCOM_STATE_COOKIE } from "@/lib/intercom-env";
 import { validateOAuthState } from "@/lib/oauth-state";
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     returnedState: url.searchParams.get("state"),
     cookieState,
     sessionOrganizationId: session.user.organizationId,
+    sessionUserId: session.user.id,
   });
   if (!validation.ok) {
     return NextResponse.json(
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
 
   const config = await getIntercomOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(code, config);
+  const encryptedCredentials = encryptCredentials(credentials);
 
   const prisma = getPrismaClient();
   await prisma.integration.upsert({
@@ -53,12 +55,12 @@ export async function GET(request: Request) {
     create: {
       organizationId: state.organizationId,
       provider: "intercom",
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
     },
     // Reconnecting always clears any prior disconnected/reauth_required state
     // and stale sync error, whether this is a first connect or a reconnect.
     update: {
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
       status: "connected",
       disconnectedAt: null,
       lastSyncError: null,

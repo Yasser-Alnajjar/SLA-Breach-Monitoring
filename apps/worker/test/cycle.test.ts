@@ -135,12 +135,18 @@ function stubFetch(...responses: (() => Response)[]) {
   return fetchMock;
 }
 
+const ORIGINAL_INTEGRATION_TOKEN_ENCRYPTION_KEY = process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+
 beforeEach(() => {
   captureExceptionMock.mockClear();
+  // Linear's real tokenLifecycle (unmocked here) encrypts credentials before
+  // every write, including the reauthRequired flag it sets on a 401.
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "test-integration-token-secret";
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = ORIGINAL_INTEGRATION_TOKEN_ENCRYPTION_KEY;
 });
 
 describe("runCycle — provider permission loss (roadmap step 32)", () => {

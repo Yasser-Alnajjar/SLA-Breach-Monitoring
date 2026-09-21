@@ -91,6 +91,30 @@ const RATE_LIMITS: RateLimitRule[] = [
 ];
 
 /**
+ * `/api/webhooks/{provider}/{integrationId}` — matches both webhook
+ * receivers' route shape (see `apps/web/src/app/api/webhooks/{zendesk,jira}/
+ * [integrationId]/route.ts`). Keying the "webhook" bucket by this instead of
+ * the caller's IP (roadmap task 2.5) means one noisy or malicious Zendesk/
+ * Jira integration can no longer exhaust the shared budget for every other
+ * integration a customer might be calling from the same egress IP (a
+ * concern for on-prem Jira in particular, which can share an IP across many
+ * tenants) — and, in the other direction, a burst of deliveries for many
+ * different integrations from the same provider can no longer share one
+ * bucket just because they came from the same IP. Falls back to IP-keying
+ * when the path doesn't match this shape (defensive only — the bucket only
+ * ever matches `/api/webhooks/**` to begin with).
+ */
+const WEBHOOK_INTEGRATION_ID_PATTERN = /^\/api\/webhooks\/[^/]+\/([^/]+)/;
+
+function rateLimitKey(rule: RateLimitRule, pathname: string, request: NextRequest): string {
+  if (rule.bucket === "webhook") {
+    const integrationId = pathname.match(WEBHOOK_INTEGRATION_ID_PATTERN)?.[1];
+    if (integrationId) return `${rule.bucket}:${integrationId}`;
+  }
+  return `${rule.bucket}:${getClientIp(request)}`;
+}
+
+/**
  * API routes exempt from the Origin check (roadmap step 33). Webhooks are
  * called server-to-server by Zendesk/Jira with no `Origin` header and no
  * session cookie — they authenticate via their own secret. NextAuth's
@@ -106,7 +130,7 @@ export async function proxy(request: NextRequest) {
 
   const rateLimit = RATE_LIMITS.find((rule) => rule.match(pathname));
   if (rateLimit) {
-    const key = `${rateLimit.bucket}:${getClientIp(request)}`;
+    const key = rateLimitKey(rateLimit, pathname, request);
     const result = checkRateLimit(key, rateLimit.limit, rateLimit.windowMs);
     if (!result.allowed) {
       const retryAfterSeconds = result.retryAfterSeconds ?? 60;

@@ -28,7 +28,10 @@ export default function GithubIntegrationPage() {
     <DocsLayout toc={toc}>
       <div className="space-y-12">
         <header className="space-y-4">
-          <Badge variant="outline">Integrations</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Integrations</Badge>
+            <Badge variant="beta">Beta</Badge>
+          </div>
 
           <div className="space-y-3">
             <h1 className="text-4xl font-bold tracking-tight">GitHub</h1>
@@ -36,7 +39,11 @@ export default function GithubIntegrationPage() {
             <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
               Tracks engineering-leg time directly from pull requests, for teams
               whose escalations show up as code changes before they show up as
-              tickets.
+              tickets. This integration is in Beta — see{" "}
+              <Link href="#limitations" className="underline underline-offset-4">
+                Known limitations
+              </Link>
+              .
             </p>
           </div>
         </header>

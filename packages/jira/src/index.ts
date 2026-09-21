@@ -1,6 +1,8 @@
 export {
   mapChangelogHistoryToRawEvent,
+  mapIssueDeletedToRawEvent,
   mapIssueToRawEvent,
+  mapRemoteLinkManifestToRawEvent,
   mapRemoteLinkToRawEvent,
   mapStatusToRawEvent,
 } from "./rawEvents";
@@ -37,13 +39,16 @@ export type {
   ChangelogRecord,
   DerivedNormalizedEvent,
   JiraNormalizationResult,
+  JiraNormalizationScope,
 } from "./normalize";
 export { parseZendeskTicketId, runJiraCorrelation } from "./correlate";
-export type { CorrelationResult } from "./correlate";
+export type { CorrelationResult, JiraCorrelationScope } from "./correlate";
 export {
   extractJiraWebhookIssueKey,
   generateWebhookSecret,
+  isJiraIssueDeletedEvent,
   isJiraWebhookTimestampFresh,
+  markCaseLinksUnlinkedForIssue,
   runJiraWebhookIngest,
   shouldIngestJiraWebhookEvent,
   verifyJiraWebhookSecret,

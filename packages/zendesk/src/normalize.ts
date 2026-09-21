@@ -375,6 +375,20 @@ function groupAuditsByTicketId(
   return byTicketId;
 }
 
+export interface ZendeskNormalizationScope {
+  /**
+   * Limits the run to these tickets' own RawEvents — used by the webhook
+   * receiver so a single ticket update doesn't re-derive NormalizedEvents
+   * for every ticket the integration has ever seen (roadmap task 2.4).
+   * Organizations and users still load unscoped: they're small reference
+   * tables, not the per-ticket audit history that makes an unscoped run
+   * expensive, and a ticket's `organization_id`/comment authors aren't known
+   * until the ticket itself is read. Omit for the worker's full-account
+   * cycle, which must still see every ticket.
+   */
+  ticketIds?: number[];
+}
+
 /**
  * Projects everything ingested so far for one integration into
  * Customer/Case/NormalizedEvent. Idempotent and safe to re-run: customers
@@ -384,9 +398,11 @@ function groupAuditsByTicketId(
 export async function runZendeskNormalization(
   prisma: PrismaClient,
   integrationId: string,
+  scope: ZendeskNormalizationScope = {},
 ): Promise<NormalizationResult> {
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
   const organizationId = integration.organizationId;
+  const { ticketIds } = scope;
 
   const result: NormalizationResult = {
     customersUpserted: 0,
@@ -402,12 +418,23 @@ export async function runZendeskNormalization(
       orderBy: { fetchedAt: "asc" },
     }),
     prisma.rawEvent.findMany({
-      where: { integrationId, providerEventId: { startsWith: "ticket:" } },
+      where: {
+        integrationId,
+        providerEventId: { startsWith: "ticket:" },
+        ...(ticketIds ? { OR: ticketIds.map((id) => ({ providerEventId: { startsWith: `ticket:${id}:` } })) } : {}),
+      },
       select: { id: true, payload: true, fetchedAt: true },
       orderBy: { fetchedAt: "asc" },
     }),
     prisma.rawEvent.findMany({
-      where: { integrationId, providerEventId: { startsWith: "ticket_audit:" } },
+      where: {
+        integrationId,
+        providerEventId: { startsWith: "ticket_audit:" },
+        // Audits carry no ticket id in their own providerEventId (they're
+        // keyed by the audit's own id — see rawEvents.ts) — the ticket
+        // scope has to go through the JSON payload instead.
+        ...(ticketIds ? { OR: ticketIds.map((id) => ({ payload: { path: ["ticket_id"], equals: id } })) } : {}),
+      },
       select: { id: true, payload: true, fetchedAt: true },
     }),
     prisma.rawEvent.findMany({

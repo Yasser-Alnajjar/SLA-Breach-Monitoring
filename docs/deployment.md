@@ -40,8 +40,9 @@ scripts/rotate-secrets.sh .env.prod
 
 `scripts/rotate-secrets.sh` replaces the `change-me` placeholders for
 `POSTGRES_PASSWORD` (and the matching password in `DATABASE_URL`),
-`NEXTAUTH_SECRET`, and both encryption keys with fresh random values, without
-printing them. Then set `NEXTAUTH_URL` and any optional values by hand.
+`NEXTAUTH_SECRET`, and all three encryption keys with fresh random values,
+without printing them. Then set `NEXTAUTH_URL` and any optional values by
+hand.
 
 | Variable | Used by | Notes |
 | --- | --- | --- |
@@ -51,7 +52,8 @@ printing them. Then set `NEXTAUTH_URL` and any optional values by hand.
 | `NEXTAUTH_URL` | web, worker | The public URL the app is served at, e.g. `https://sla.example.com`. The worker uses this to build OAuth redirect URIs — it must match what's registered with each provider. |
 | `PLATFORM_ADMIN_EMAILS` | web | Comma-separated emails of the platform operators who run this deployment. Only these accounts (checked server-side against the signed-in session's email, not a `UserRole`) may change Worker/Monitoring settings; every tenant, including an org owner, gets a read-only view. |
 | `INTEGRATION_CONFIG_ENCRYPTION_KEY` | web, worker | Encrypts each org's Zendesk/Jira/Slack OAuth client secrets at rest. Generate with `openssl rand -base64 32`. Rotating it invalidates every saved integration config. |
-| `SMTP_ENCRYPTION_KEY` | web, worker | Encrypts each org's saved SMTP password at rest. Generate with `openssl rand -base64 32`, keep distinct from the two secrets above so rotating one doesn't invalidate the others. |
+| `SMTP_ENCRYPTION_KEY` | web, worker | Encrypts each org's saved SMTP password at rest. Generate with `openssl rand -base64 32`, keep distinct from the other encryption keys so rotating one doesn't invalidate the others. |
+| `INTEGRATION_TOKEN_ENCRYPTION_KEY` | web, worker | Encrypts each connected integration's OAuth access/refresh tokens at rest. Generate with `openssl rand -base64 32`, keep distinct from the other encryption keys. Rotating it makes every connected integration's tokens unreadable — each organization must reconnect. Existing plaintext rows from before this key was introduced are migrated with `pnpm db:encrypt-tokens`. |
 | `WORKER_ACTIVE_POLL_MS`, `WORKER_RECONCILIATION_MS` | web, worker | Optional; bootstrap defaults are 300000 (5 min) and 3600000 (1 hour), used only to seed the database on a fresh install. Once a platform operator changes either interval from the Monitoring settings page, the saved database value is authoritative and these env vars are no longer read. |
 | `SENTRY_DSN` | web, worker | Optional. Enables error tracking in both apps when set; omit it and the SDK stays disabled with no other effect. See [Health checks and observability](#health-checks-and-observability). |
 | `WORKER_HEALTH_PORT` | worker | Optional, defaults to `8081`. The port `GET /health` listens on inside the worker container. |
@@ -120,11 +122,12 @@ a restore before you need one.
 1. **The database**, with [`scripts/backup.sh`](../scripts/backup.sh).
 2. **`.env.prod`**, stored separately and securely (for example, in a
    password manager). A database dump without the matching
-   `INTEGRATION_CONFIG_ENCRYPTION_KEY` and `SMTP_ENCRYPTION_KEY` still
-   restores, but every saved integration OAuth secret and SMTP password in it
-   becomes unreadable, and each organization would have to re-enter them.
-   Never put `.env.prod` in the same place as the dumps: whoever holds both
-   holds everything.
+   `INTEGRATION_CONFIG_ENCRYPTION_KEY`, `SMTP_ENCRYPTION_KEY`, and
+   `INTEGRATION_TOKEN_ENCRYPTION_KEY` still restores, but every saved
+   integration OAuth secret, connected integration's tokens, and SMTP
+   password in it becomes unreadable, and each organization would have to
+   re-enter/reconnect them. Never put `.env.prod` in the same place as the
+   dumps: whoever holds both holds everything.
 
 ### Scheduled backups
 
@@ -243,12 +246,12 @@ so run the check at a quiet time.
   load balancer sits in front of your proxy. Too low and every visitor
   shares the CDN's rate-limit bucket; too high and clients can spoof their
   IP again.
-- `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`, and
-  `SMTP_ENCRYPTION_KEY` are three independent secrets by design — see the
-  table above and the comments on each in `.env.example`. Back them up
-  with the database, but store them separately (see [Backups](#backups)):
-  losing any of them makes the data it encrypts unrecoverable, not just
-  un-decryptable-until-fixed.
+- `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`,
+  `SMTP_ENCRYPTION_KEY`, and `INTEGRATION_TOKEN_ENCRYPTION_KEY` are four
+  independent secrets by design — see the table above and the comments on
+  each in `.env.example`. Back them up with the database, but store them
+  separately (see [Backups](#backups)): losing any of them makes the data
+  it encrypts unrecoverable, not just un-decryptable-until-fixed.
 - `.env.prod` is never committed. It was tracked in this repository until
   roadmap step 39, so every value in any copy of it from before then must
   be treated as leaked — **rotated 2026-09-19** (see

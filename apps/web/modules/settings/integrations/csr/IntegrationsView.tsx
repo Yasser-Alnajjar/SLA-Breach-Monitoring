@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { PermissionDeniedBanner } from "@/components/shared/permission-denied-banner";
 import { Reveal } from "@/components/shared/reveal";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,7 @@ function IntegrationCard({
   icon,
   tone,
   title,
+  badge,
   status,
   children,
 }: {
@@ -113,6 +115,8 @@ function IntegrationCard({
   icon: React.ReactNode;
   tone: ProviderTone;
   title: string;
+  /** Optional label next to the title — e.g. `<Badge variant="beta">Beta</Badge>` for Intercom/Linear/GitHub (roadmap task 2.10). */
+  badge?: React.ReactNode;
   status?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -138,6 +142,8 @@ function IntegrationCard({
             <CardTitle className="truncate text-base font-medium">
               {title}
             </CardTitle>
+
+            {badge}
           </div>
 
           {status}
@@ -321,6 +327,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             icon={<Workflow className="size-4" />}
             tone="accent"
             title="Linear"
+            badge={<Badge variant="beta">Beta</Badge>}
             status={
               linear.connected ? (
                 <ConnectedStatus view={linear} />
@@ -370,6 +377,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             icon={<LifeBuoy className="size-4" />}
             tone="primary"
             title="Intercom"
+            badge={<Badge variant="beta">Beta</Badge>}
             status={
               intercomConfig.configured &&
               (intercom.connected ? (
@@ -420,6 +428,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
             icon={<GitPullRequest className="size-4" />}
             tone="muted"
             title="GitHub"
+            badge={<Badge variant="beta">Beta</Badge>}
             status={
               githubConfig.configured &&
               (github.connected ? (
@@ -501,12 +510,13 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                     )}
                   </div>
 
-                  <div className="mt-auto pt-6">
+                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
                     {slack.channelId ? (
                       <SlackChannelChangeButton />
                     ) : (
                       <SlackChannelPicker />
                     )}
+                    <DisconnectButton provider="slack" providerLabel="Slack" />
                   </div>
                 </div>
               ) : (

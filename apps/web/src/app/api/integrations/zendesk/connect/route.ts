@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/zendesk";
 import { authOptions } from "@/lib/auth";
 import { getZendeskOAuthConfig, ZENDESK_STATE_COOKIE } from "@/lib/zendesk-env";
+import { signOAuthState } from "@/lib/oauth-state";
 
 const SUBDOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/i;
 
@@ -27,9 +28,7 @@ export async function GET(request: Request) {
   }
 
   const nonce = randomBytes(16).toString("hex");
-  const state = Buffer.from(
-    JSON.stringify({ nonce, subdomain, organizationId: session.user.organizationId }),
-  ).toString("base64url");
+  const state = signOAuthState({ nonce, subdomain, organizationId: session.user.organizationId, userId: session.user.id });
 
   const response = NextResponse.redirect(buildAuthorizeUrl(subdomain, config, state));
   response.cookies.set(ZENDESK_STATE_COOKIE, state, {

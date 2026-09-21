@@ -107,7 +107,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     }
 
     const pipeline = await withOrganizationSlaLock(prisma, integration.organizationId, async () => {
-      await runZendeskNormalization(prisma, integration.id);
+      await runZendeskNormalization(prisma, integration.id, { ticketIds: [ticketId] });
       return runWebhookPipelineTail(prisma, integration.organizationId);
     });
 

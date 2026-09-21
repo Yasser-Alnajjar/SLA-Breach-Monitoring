@@ -26,6 +26,12 @@ const realDatabaseSuites = [
   "apps/web/test/sla-import-summary.test.ts",
   "apps/web/test/zendesk-sla-policy-position.test.ts",
   "apps/web/test/sla-golden-scenarios.test.ts",
+  "apps/web/test/zendesk-normalization-scope.test.ts",
+  "apps/web/test/jira-normalization-scope.test.ts",
+  "apps/web/test/jira-correlation-scope.test.ts",
+  "apps/web/test/jira-remote-link-unlink.test.ts",
+  "apps/web/test/zendesk-webhook-route.test.ts",
+  "apps/web/test/jira-webhook-route.test.ts",
 ];
 
 export default defineConfig({

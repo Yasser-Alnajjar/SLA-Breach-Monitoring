@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { decryptCredentials, encryptCredentials, isEncryptedToken } from "@sla/db";
 import {
   loadFreshZendeskCredentials,
   refreshAfterUnauthorized,
@@ -7,6 +8,12 @@ import {
 import type { ZendeskCredentials } from "../src/types";
 
 const config = { clientId: "client-123", clientSecret: "secret-xyz", redirectUri: "https://app.example.com/cb" };
+
+const ORIGINAL_ENCRYPTION_KEY = process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+
+beforeEach(() => {
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "test-integration-token-secret";
+});
 
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -17,9 +24,16 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-/** Emulates Postgres jsonb `equals` semantics (deep, order-independent) closely enough for these tests. */
+/**
+ * Emulates Postgres jsonb `equals` semantics (deep, order-independent)
+ * closely enough for these tests. Seeds the row already encrypted at rest
+ * (mirroring a migrated production row), so the CAS `where.credentials.equals`
+ * comparison in tokenLifecycle.ts is exercised against real ciphertext —
+ * `_getRow()` decrypts back to plaintext for assertions, since that's what
+ * every existing assertion below expects to read.
+ */
 function createFakePrisma(initial: ZendeskCredentials) {
-  let row: ZendeskCredentials = structuredClone(initial);
+  let row: ZendeskCredentials = encryptCredentials(structuredClone(initial));
   return {
     integration: {
       findUniqueOrThrow: vi.fn(async () => ({ credentials: structuredClone(row) })),
@@ -29,7 +43,8 @@ function createFakePrisma(initial: ZendeskCredentials) {
         return { count: 1 };
       }),
     },
-    _getRow: () => row,
+    _getRow: () => decryptCredentials(structuredClone(row)),
+    _getRawRow: () => structuredClone(row),
   } as const;
 }
 
@@ -39,6 +54,31 @@ function jsonResponse(status: number, body: unknown): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = ORIGINAL_ENCRYPTION_KEY;
+});
+
+describe("credentials at rest", () => {
+  it("stores accessToken/refreshToken encrypted, never plaintext, after a refresh", async () => {
+    const prisma = createFakePrisma({
+      subdomain: "acme",
+      accessToken: "access-1",
+      refreshToken: "refresh-1",
+      tokenType: "bearer",
+      scope: "read",
+      expiresAt: Date.now() + 30 * 1000,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, { access_token: "access-2", refresh_token: "refresh-2", token_type: "bearer", scope: "read", expires_in: 3600 }),
+      ),
+    );
+
+    await loadFreshZendeskCredentials(prisma as never, "integration-1", config);
+
+    expect(isEncryptedToken(prisma._getRawRow().accessToken)).toBe(true);
+    expect(isEncryptedToken(prisma._getRawRow().refreshToken!)).toBe(true);
+  });
 });
 
 describe("loadFreshZendeskCredentials", () => {

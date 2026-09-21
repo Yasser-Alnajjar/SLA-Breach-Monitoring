@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/github";
 import { authOptions } from "@/lib/auth";
 import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
+import { signOAuthState } from "@/lib/oauth-state";
 
 const OWNER_REPO_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
 
@@ -27,9 +28,7 @@ export async function GET(request: Request) {
   }
 
   const nonce = randomBytes(16).toString("hex");
-  const state = Buffer.from(
-    JSON.stringify({ nonce, repo, organizationId: session.user.organizationId }),
-  ).toString("base64url");
+  const state = signOAuthState({ nonce, repo, organizationId: session.user.organizationId, userId: session.user.id });
 
   const response = NextResponse.redirect(buildAuthorizeUrl(config, state));
   response.cookies.set(GITHUB_STATE_COOKIE, state, {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { computeSourceHash } from "./hash";
 import type { JiraChangelogHistory, JiraIssue, JiraRemoteLink, JiraStatus } from "./types";
 
@@ -51,4 +52,50 @@ export function mapRemoteLinkToRawEvent(issueKey: string, link: JiraRemoteLink):
 export function mapStatusToRawEvent(status: JiraStatus): RawEventInput {
   const sourceHash = computeSourceHash(status);
   return { providerEventId: `status:${status.id}:${sourceHash}`, sourceHash, payload: status };
+}
+
+/** What the importer reads back to tell "no longer on this issue in Jira" (removed) apart from "never fetched". */
+export interface RemoteLinkManifest {
+  linkIds: number[];
+}
+
+/**
+ * `client.fetchRemoteLinks(issueKey)` (backfill and webhook ingest alike)
+ * re-fetches one issue's *entire* remote-link set every run — no
+ * incremental filter exists for it — so the full set of link ids seen in one
+ * run is exactly the set currently attached to that issue in Jira. Recorded
+ * as its own per-issue snapshot, separate from the per-link `remote_link:`
+ * rows, mirroring `mapJiraLinkManifestToRawEvent` (packages/zendesk/src/
+ * rawEvents.ts) — the same reasoning applies here, just scoped to one issue
+ * instead of the whole Zendesk account: `runJiraCorrelation`'s manifest-diff
+ * sweep needs to tell "this remote link was removed from this issue" apart
+ * from "we just haven't re-fetched it yet", and a Jira remote-link removal
+ * has no deletion event of its own.
+ *
+ * Deliberately does NOT fold the content hash into `providerEventId`, for
+ * the same reason as the Zendesk mapper: the correlator picks the *latest*
+ * manifest per issue by `fetchedAt`, and a link set can legitimately
+ * oscillate back to one it held before (removed, then re-added) —
+ * content-hash dedup would collapse that onto the original row's stale
+ * timestamp. `randomUUID` guarantees every run gets its own row.
+ */
+export function mapRemoteLinkManifestToRawEvent(issueKey: string, linkIds: number[]): RawEventInput {
+  const payload: RemoteLinkManifest = { linkIds: [...linkIds].sort((a, b) => a - b) };
+  const sourceHash = computeSourceHash(payload);
+  return { providerEventId: `remote_link_manifest:${issueKey}:${randomUUID()}`, sourceHash, payload };
+}
+
+/**
+ * Records the fact "this issue was found deleted", so `markCaseLinksUnlinkedForIssue`
+ * (./webhook.ts) has a real RawEvent to cite as `NormalizedEvent.sourceRawEventId`
+ * — required, not nullable — for the `issue_unlinked` event(s) it emits.
+ * There's no fetched payload to snapshot (the issue is gone), unlike every
+ * other mapper in this file, so this is the one RawEvent that documents an
+ * absence rather than a resource. `randomUUID`, not content-hashed: each
+ * detection is its own occurrence, not a snapshot that could collide with an
+ * earlier identical one.
+ */
+export function mapIssueDeletedToRawEvent(issueKey: string): RawEventInput {
+  const payload = { issueKey };
+  return { providerEventId: `issue_deleted:${issueKey}:${randomUUID()}`, sourceHash: computeSourceHash(payload), payload };
 }

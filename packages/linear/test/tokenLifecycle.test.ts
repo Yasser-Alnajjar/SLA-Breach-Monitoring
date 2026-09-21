@@ -1,6 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { decryptCredentials, encryptCredentials, isEncryptedToken } from "@sla/db";
 import { loadFreshLinearCredentials, LinearReauthRequiredError, markReauthRequired } from "../src/tokenLifecycle";
 import type { LinearCredentials } from "../src/types";
+
+const ORIGINAL_ENCRYPTION_KEY = process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+
+beforeEach(() => {
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "test-integration-token-secret";
+});
+
+afterEach(() => {
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = ORIGINAL_ENCRYPTION_KEY;
+});
 
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -11,9 +22,15 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-/** Emulates Postgres jsonb `equals` semantics (deep, order-independent) closely enough for these tests. */
+/**
+ * Emulates Postgres jsonb `equals` semantics (deep, order-independent)
+ * closely enough for these tests. Seeds the row already encrypted at rest
+ * (mirroring a migrated production row) — `_getRow()` decrypts back to
+ * plaintext for assertions, since that's what every existing assertion
+ * below expects to read.
+ */
 function createFakePrisma(initial: LinearCredentials) {
-  let row: LinearCredentials = structuredClone(initial);
+  let row: LinearCredentials = encryptCredentials(structuredClone(initial));
   return {
     integration: {
       findUniqueOrThrow: vi.fn(async () => ({ credentials: structuredClone(row) })),
@@ -31,7 +48,8 @@ function createFakePrisma(initial: LinearCredentials) {
         },
       ),
     },
-    _getRow: () => row,
+    _getRow: () => decryptCredentials(structuredClone(row)),
+    _getRawRow: () => structuredClone(row),
   } as const;
 }
 
@@ -96,5 +114,16 @@ describe("markReauthRequired", () => {
         scope: "read",
       }),
     ).rejects.toBeInstanceOf(LinearReauthRequiredError);
+  });
+
+  it("stores accessToken encrypted, never plaintext, after marking reauth", async () => {
+    const failed: LinearCredentials = { accessToken: "access-1", tokenType: "Bearer", scope: "read" };
+    const prisma = createFakePrisma(failed);
+
+    await expect(markReauthRequired(prisma as never, "integration-1", failed)).rejects.toBeInstanceOf(
+      LinearReauthRequiredError,
+    );
+
+    expect(isEncryptedToken(prisma._getRawRow().accessToken)).toBe(true);
   });
 });

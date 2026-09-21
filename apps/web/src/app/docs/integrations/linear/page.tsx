@@ -28,7 +28,10 @@ export default function LinearIntegrationPage() {
     <DocsLayout toc={toc}>
       <div className="space-y-12">
         <header className="space-y-4">
-          <Badge variant="outline">Integrations</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Integrations</Badge>
+            <Badge variant="beta">Beta</Badge>
+          </div>
 
           <div className="space-y-3">
             <h1 className="text-4xl font-bold tracking-tight">Linear</h1>
@@ -36,7 +39,11 @@ export default function LinearIntegrationPage() {
             <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
               An alternative engineering-leg source alongside Jira, not a
               replacement — connect whichever tracker your engineers actually
-              use.
+              use. This integration is in Beta — see{" "}
+              <Link href="#limitations" className="underline underline-offset-4">
+                Known limitations
+              </Link>
+              .
             </p>
           </div>
         </header>

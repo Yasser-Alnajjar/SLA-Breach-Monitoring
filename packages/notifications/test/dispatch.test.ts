@@ -11,6 +11,9 @@ vi.mock("@sla/email", () => ({ sendEmail: vi.fn() }));
 vi.mock("@sla/db", () => ({
   getEmailSettings: vi.fn(),
   EmailSettingsUnreadableError: class EmailSettingsUnreadableError extends Error {},
+  // Fixtures below use plaintext tokens (e.g. "xoxb-1") — mirrors the real
+  // decryptToken's tolerance for a not-yet-migrated plaintext value.
+  decryptToken: vi.fn((value: string) => value),
 }));
 
 const postMessageMock = vi.mocked(postMessage);

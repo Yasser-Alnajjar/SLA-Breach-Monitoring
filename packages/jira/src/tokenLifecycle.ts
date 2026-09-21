@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@sla/db";
+import { decryptCredentials, encryptCredentials, type Prisma, type PrismaClient } from "@sla/db";
 import { refreshAccessToken, JiraOAuthError, type JiraOAuthConfig } from "./oauth";
 import type { JiraCredentials } from "./types";
 
@@ -23,31 +23,48 @@ function isExpiringSoon(credentials: JiraCredentials): boolean {
   return credentials.expiresAt - EXPIRY_SAFETY_MARGIN_MS <= Date.now();
 }
 
-async function readCredentials(prisma: PrismaClient, integrationId: string): Promise<JiraCredentials> {
+/**
+ * Returns both the raw (possibly still-encrypted) JSON exactly as stored —
+ * the only value ever valid as `expected` in the CAS below, since re-running
+ * it through encrypt/decrypt would produce a different ciphertext (random
+ * IV) and the compare-and-swap would then always lose — and the decrypted
+ * plaintext, which is what every caller actually reads/compares/uses.
+ */
+async function readCredentials(
+  prisma: PrismaClient,
+  integrationId: string,
+): Promise<{ raw: JiraCredentials; plaintext: JiraCredentials }> {
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
-  return integration.credentials as unknown as JiraCredentials;
+  const raw = integration.credentials as unknown as JiraCredentials;
+  return { raw, plaintext: decryptCredentials(raw) };
 }
 
 /**
  * Compare-and-swap on the whole credentials JSON blob: only writes if the row
- * still holds exactly `expected` (Postgres jsonb equality is deep, so key
+ * still holds exactly `expectedRaw` (Postgres jsonb equality is deep, so key
  * order doesn't matter). If another process already rotated the tokens
  * (or marked reauthRequired) in the meantime, we lose the race harmlessly and
  * defer to whatever it wrote instead of clobbering it.
+ *
+ * `expectedRaw` must be the literal raw value read moments earlier — never a
+ * decrypt-then-re-encrypt round-trip of it, since AES-GCM's random IV means
+ * that would never equal what's actually in the row. `next` is plaintext;
+ * only the value being written is freshly encrypted.
  */
 async function persistCredentialsIfUnchanged(
   prisma: PrismaClient,
   integrationId: string,
-  expected: JiraCredentials,
+  expectedRaw: JiraCredentials,
   next: JiraCredentials,
 ): Promise<JiraCredentials> {
+  const nextRaw = encryptCredentials(next);
   const result = await prisma.integration.updateMany({
-    where: { id: integrationId, credentials: { equals: expected as unknown as Prisma.InputJsonValue } },
-    data: { credentials: next as unknown as Prisma.InputJsonValue },
+    where: { id: integrationId, credentials: { equals: expectedRaw as unknown as Prisma.InputJsonValue } },
+    data: { credentials: nextRaw as unknown as Prisma.InputJsonValue },
   });
 
   if (result.count > 0) return next;
-  return readCredentials(prisma, integrationId);
+  return (await readCredentials(prisma, integrationId)).plaintext;
 }
 
 /**
@@ -65,6 +82,7 @@ async function doRefresh(
   integrationId: string,
   config: JiraOAuthConfig,
   current: JiraCredentials,
+  currentRaw: JiraCredentials,
   options: { onMissingRefreshToken: "returnUnchanged" | "requireReauth" },
 ): Promise<JiraCredentials> {
   if (current.reauthRequired) throw new JiraReauthRequiredError();
@@ -74,7 +92,7 @@ async function doRefresh(
     // A 401 with nothing to refresh with is unambiguous: this token is dead and
     // unrecoverable without the user reconnecting. Mark it rather than silently
     // retrying the same dead token forever.
-    await persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, reauthRequired: true });
+    await persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, { ...current, reauthRequired: true });
     throw new JiraReauthRequiredError();
   }
 
@@ -83,13 +101,13 @@ async function doRefresh(
     refreshed = await refreshAccessToken(current, current.refreshToken, config);
   } catch (error) {
     if (error instanceof JiraOAuthError && error.requiresReauth) {
-      await persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, reauthRequired: true });
+      await persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, { ...current, reauthRequired: true });
       throw new JiraReauthRequiredError();
     }
     throw error;
   }
 
-  return persistCredentialsIfUnchanged(prisma, integrationId, current, refreshed);
+  return persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, refreshed);
 }
 
 function refreshWithSingleFlight(
@@ -97,12 +115,13 @@ function refreshWithSingleFlight(
   integrationId: string,
   config: JiraOAuthConfig,
   current: JiraCredentials,
+  currentRaw: JiraCredentials,
   options: { onMissingRefreshToken: "returnUnchanged" | "requireReauth" },
 ): Promise<JiraCredentials> {
   const existing = inFlightRefreshes.get(integrationId);
   if (existing) return existing;
 
-  const promise = doRefresh(prisma, integrationId, config, current, options).finally(() => {
+  const promise = doRefresh(prisma, integrationId, config, current, currentRaw, options).finally(() => {
     inFlightRefreshes.delete(integrationId);
   });
   inFlightRefreshes.set(integrationId, promise);
@@ -115,12 +134,12 @@ export async function loadFreshJiraCredentials(
   integrationId: string,
   config: JiraOAuthConfig,
 ): Promise<JiraCredentials> {
-  const current = await readCredentials(prisma, integrationId);
-  if (current.reauthRequired) throw new JiraReauthRequiredError();
-  if (!isExpiringSoon(current)) return current;
+  const { raw, plaintext } = await readCredentials(prisma, integrationId);
+  if (plaintext.reauthRequired) throw new JiraReauthRequiredError();
+  if (!isExpiringSoon(plaintext)) return plaintext;
   // No refresh token and no known expiry is the normal "legacy/non-expiring" shape —
   // not itself evidence of a problem, so don't mark reauth just because it's absent here.
-  return refreshWithSingleFlight(prisma, integrationId, config, current, { onMissingRefreshToken: "returnUnchanged" });
+  return refreshWithSingleFlight(prisma, integrationId, config, plaintext, raw, { onMissingRefreshToken: "returnUnchanged" });
 }
 
 /**
@@ -137,8 +156,8 @@ export async function refreshAfterUnauthorized(
   config: JiraOAuthConfig,
   failedCredentials: JiraCredentials,
 ): Promise<JiraCredentials> {
-  const current = await readCredentials(prisma, integrationId);
-  if (current.reauthRequired) throw new JiraReauthRequiredError();
-  if (current.accessToken !== failedCredentials.accessToken) return current;
-  return refreshWithSingleFlight(prisma, integrationId, config, current, { onMissingRefreshToken: "requireReauth" });
+  const { raw, plaintext } = await readCredentials(prisma, integrationId);
+  if (plaintext.reauthRequired) throw new JiraReauthRequiredError();
+  if (plaintext.accessToken !== failedCredentials.accessToken) return plaintext;
+  return refreshWithSingleFlight(prisma, integrationId, config, plaintext, raw, { onMissingRefreshToken: "requireReauth" });
 }

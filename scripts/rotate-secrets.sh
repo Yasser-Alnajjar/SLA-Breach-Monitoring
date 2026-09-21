@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
 # Generates new values for the secrets in a production env file, in place:
 # POSTGRES_PASSWORD (and the password inside DATABASE_URL), NEXTAUTH_SECRET,
-# INTEGRATION_CONFIG_ENCRYPTION_KEY, and SMTP_ENCRYPTION_KEY. See "Rotating
-# secrets" in docs/deployment.md. New values are never printed.
+# INTEGRATION_CONFIG_ENCRYPTION_KEY, SMTP_ENCRYPTION_KEY, and
+# INTEGRATION_TOKEN_ENCRYPTION_KEY. See "Rotating secrets" in
+# docs/deployment.md. New values are never printed.
 #
 # Usage: scripts/rotate-secrets.sh [--apply-to-db] [--yes] [ENV_FILE]
 #
@@ -15,11 +16,11 @@
 # Environment (optional):
 #   COMPOSE_FILE   compose file with the `postgres` service   (docker-compose.prod.yml)
 #
-# Rotating the two encryption keys makes every saved integration OAuth
-# secret and SMTP password in the database unreadable. Each organization then
-# has to re-enter them. Third-party credentials (OPS_ALERT_SMTP_PASSWORD,
-# OAuth apps, webhooks) can't be generated here: revoke and replace those
-# with their provider.
+# Rotating the three encryption keys makes every saved integration OAuth
+# secret, connected integration's tokens, and SMTP password in the database
+# unreadable. Each organization then has to re-enter/reconnect them.
+# Third-party credentials (OPS_ALERT_SMTP_PASSWORD, OAuth apps, webhooks)
+# can't be generated here: revoke and replace those with their provider.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -42,7 +43,7 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-for key in POSTGRES_PASSWORD DATABASE_URL NEXTAUTH_SECRET INTEGRATION_CONFIG_ENCRYPTION_KEY SMTP_ENCRYPTION_KEY; do
+for key in POSTGRES_PASSWORD DATABASE_URL NEXTAUTH_SECRET INTEGRATION_CONFIG_ENCRYPTION_KEY SMTP_ENCRYPTION_KEY INTEGRATION_TOKEN_ENCRYPTION_KEY; do
   if ! grep -q "^$key=" "$ENV_FILE"; then
     echo "$ENV_FILE has no $key= line" >&2
     exit 1
@@ -58,9 +59,10 @@ POSTGRES_DB_VALUE="$(read_var POSTGRES_DB)"
 
 if [ "$ASSUME_YES" -ne 1 ]; then
   echo "This replaces POSTGRES_PASSWORD, DATABASE_URL's password, NEXTAUTH_SECRET,"
-  echo "INTEGRATION_CONFIG_ENCRYPTION_KEY, and SMTP_ENCRYPTION_KEY in $ENV_FILE."
-  echo "Existing sessions are signed out, and saved integration secrets and SMTP"
-  echo "passwords become unreadable."
+  echo "INTEGRATION_CONFIG_ENCRYPTION_KEY, SMTP_ENCRYPTION_KEY, and"
+  echo "INTEGRATION_TOKEN_ENCRYPTION_KEY in $ENV_FILE."
+  echo "Existing sessions are signed out, and saved integration secrets, connected"
+  echo "integration tokens, and SMTP passwords become unreadable."
   printf 'Type "rotate" to continue: '
   read -r answer
   if [ "$answer" != "rotate" ]; then
@@ -75,6 +77,7 @@ NEW_POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 NEW_NEXTAUTH_SECRET="$(openssl rand -base64 32)"
 NEW_INTEGRATION_CONFIG_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 NEW_SMTP_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+NEW_INTEGRATION_TOKEN_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 
 if [ "$APPLY_TO_DB" -eq 1 ]; then
   if [ -z "$POSTGRES_USER_VALUE" ] || [ -z "$POSTGRES_DB_VALUE" ]; then
@@ -103,11 +106,13 @@ NEW_POSTGRES_PASSWORD="$NEW_POSTGRES_PASSWORD" \
 NEW_NEXTAUTH_SECRET="$NEW_NEXTAUTH_SECRET" \
 NEW_INTEGRATION_CONFIG_ENCRYPTION_KEY="$NEW_INTEGRATION_CONFIG_ENCRYPTION_KEY" \
 NEW_SMTP_ENCRYPTION_KEY="$NEW_SMTP_ENCRYPTION_KEY" \
+NEW_INTEGRATION_TOKEN_ENCRYPTION_KEY="$NEW_INTEGRATION_TOKEN_ENCRYPTION_KEY" \
 awk '
   /^POSTGRES_PASSWORD=/ { print "POSTGRES_PASSWORD=" ENVIRON["NEW_POSTGRES_PASSWORD"]; next }
   /^NEXTAUTH_SECRET=/ { print "NEXTAUTH_SECRET=" ENVIRON["NEW_NEXTAUTH_SECRET"]; next }
   /^INTEGRATION_CONFIG_ENCRYPTION_KEY=/ { print "INTEGRATION_CONFIG_ENCRYPTION_KEY=" ENVIRON["NEW_INTEGRATION_CONFIG_ENCRYPTION_KEY"]; next }
   /^SMTP_ENCRYPTION_KEY=/ { print "SMTP_ENCRYPTION_KEY=" ENVIRON["NEW_SMTP_ENCRYPTION_KEY"]; next }
+  /^INTEGRATION_TOKEN_ENCRYPTION_KEY=/ { print "INTEGRATION_TOKEN_ENCRYPTION_KEY=" ENVIRON["NEW_INTEGRATION_TOKEN_ENCRYPTION_KEY"]; next }
   /^DATABASE_URL=/ {
     line = $0
     at = index(line, "@")

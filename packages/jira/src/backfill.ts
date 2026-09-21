@@ -4,6 +4,7 @@ import type { JiraOAuthConfig } from "./oauth";
 import {
   mapChangelogHistoryToRawEvent,
   mapIssueToRawEvent,
+  mapRemoteLinkManifestToRawEvent,
   mapRemoteLinkToRawEvent,
   mapStatusToRawEvent,
   type RawEventInput,
@@ -113,7 +114,13 @@ export async function runJiraBackfill(
 
   async function backfillRemoteLinksForIssue(issueKey: string): Promise<number> {
     const links = await client.fetchRemoteLinks(issueKey);
-    await writeRawEvents(links.map((link) => mapRemoteLinkToRawEvent(issueKey, link)));
+    await writeRawEvents([
+      ...links.map((link) => mapRemoteLinkToRawEvent(issueKey, link)),
+      // This full per-issue fetch is exactly the set `runJiraCorrelation`'s
+      // remote-link sweep (roadmap task 2.6) needs to detect a removal —
+      // see mapRemoteLinkManifestToRawEvent's doc comment.
+      mapRemoteLinkManifestToRawEvent(issueKey, links.map((link) => link.id)),
+    ]);
     return links.length;
   }
 

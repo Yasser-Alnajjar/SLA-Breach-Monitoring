@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { exchangeCodeForToken, GithubClient, GithubPermissionDeniedError } from "@sla/github";
-import { getPrismaClient, type Prisma } from "@sla/db";
+import { encryptCredentials, getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
 import { validateOAuthState } from "@/lib/oauth-state";
@@ -27,11 +27,12 @@ export async function GET(request: Request) {
     returnedState: url.searchParams.get("state"),
     cookieState,
     sessionOrganizationId: session.user.organizationId,
+    sessionUserId: session.user.id,
   });
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: validation.status });
   }
-  const state = validation.state as { repo: string; organizationId: string };
+  const state = validation.state as unknown as { repo: string; organizationId: string };
   const [owner, repo] = state.repo.split("/");
   if (!owner || !repo) {
     return NextResponse.json({ error: "Invalid or expired OAuth state" }, { status: 400 });
@@ -58,19 +59,21 @@ export async function GET(request: Request) {
     throw error;
   }
 
+  const encryptedCredentials = encryptCredentials(credentials);
+
   const prisma = getPrismaClient();
   await prisma.integration.upsert({
     where: { organizationId_provider: { organizationId: state.organizationId, provider: "github" } },
     create: {
       organizationId: state.organizationId,
       provider: "github",
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
     },
     // Reconnecting always clears any prior disconnected/reauth_required state
     // and stale sync error, whether this is a first connect or a reconnect.
     // Also picks up a newly-entered repo, if the user reconnected with one.
     update: {
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
       status: "connected",
       disconnectedAt: null,
       lastSyncError: null,

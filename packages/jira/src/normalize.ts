@@ -242,14 +242,29 @@ function groupHistoriesByIssueKey(
  * Jira issues are internal engineering work with no customer-facing case to
  * attach to, and correlation coverage is expected to be partial (Phase 15).
  */
+export interface JiraNormalizationScope {
+  /**
+   * Limits the run to these issues' own RawEvents/CaseLinks — used by the
+   * webhook receiver so a single issue update doesn't re-derive
+   * NormalizedEvents for every issue the integration has ever seen (roadmap
+   * task 2.4). The site-wide status list still loads unscoped: it's a small
+   * reference table, not the per-issue changelog history that makes an
+   * unscoped run expensive. Omit for the worker's full-account cycle, which
+   * must still see every issue.
+   */
+  issueKeys?: string[];
+}
+
 export async function runJiraNormalization(
   prisma: PrismaClient,
   integrationId: string,
+  scope: JiraNormalizationScope = {},
 ): Promise<JiraNormalizationResult> {
   const integration = await prisma.integration.findUniqueOrThrow({
     where: { id: integrationId },
   });
   const organizationId = integration.organizationId;
+  const { issueKeys } = scope;
 
   const result: JiraNormalizationResult = {
     issuesProcessed: 0,
@@ -260,7 +275,11 @@ export async function runJiraNormalization(
 
   const [issueRows, historyRows, statusRows, caseLinks] = await Promise.all([
     prisma.rawEvent.findMany({
-      where: { integrationId, providerEventId: { startsWith: "issue:" } },
+      where: {
+        integrationId,
+        providerEventId: { startsWith: "issue:" },
+        ...(issueKeys ? { OR: issueKeys.map((key) => ({ providerEventId: { startsWith: `issue:${key}:` } })) } : {}),
+      },
       select: { id: true, payload: true, fetchedAt: true },
       orderBy: { fetchedAt: "asc" },
     }),
@@ -268,6 +287,9 @@ export async function runJiraNormalization(
       where: {
         integrationId,
         providerEventId: { startsWith: "issue_changelog:" },
+        ...(issueKeys
+          ? { OR: issueKeys.map((key) => ({ providerEventId: { startsWith: `issue_changelog:${key}:` } })) }
+          : {}),
       },
       select: { id: true, providerEventId: true, payload: true },
     }),
@@ -280,6 +302,7 @@ export async function runJiraNormalization(
         system: "jira",
         confidence: "certain",
         case: { organizationId },
+        ...(issueKeys ? { externalId: { in: issueKeys } } : {}),
       },
       select: { id: true, caseId: true, externalId: true, evidence: true },
     }),

@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@sla/db";
+import { decryptCredentials, encryptCredentials, type Prisma, type PrismaClient } from "@sla/db";
 import { GithubOAuthError, refreshAccessToken, type GithubOAuthConfig } from "./oauth";
 import type { GithubCredentials } from "./types";
 
@@ -24,31 +24,48 @@ function isExpiringSoon(credentials: GithubCredentials): boolean {
   return credentials.expiresAt - EXPIRY_SAFETY_MARGIN_MS <= Date.now();
 }
 
-async function readCredentials(prisma: PrismaClient, integrationId: string): Promise<GithubCredentials> {
+/**
+ * Returns both the raw (possibly still-encrypted) JSON exactly as stored —
+ * the only value ever valid as `expected` in the CAS below, since re-running
+ * it through encrypt/decrypt would produce a different ciphertext (random
+ * IV) and the compare-and-swap would then always lose — and the decrypted
+ * plaintext, which is what every caller actually reads/compares/uses.
+ */
+async function readCredentials(
+  prisma: PrismaClient,
+  integrationId: string,
+): Promise<{ raw: GithubCredentials; plaintext: GithubCredentials }> {
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
-  return integration.credentials as unknown as GithubCredentials;
+  const raw = integration.credentials as unknown as GithubCredentials;
+  return { raw, plaintext: decryptCredentials(raw) };
 }
 
 /**
  * Compare-and-swap on the whole credentials JSON blob: only writes if the row
- * still holds exactly `expected` (Postgres jsonb equality is deep, so key
+ * still holds exactly `expectedRaw` (Postgres jsonb equality is deep, so key
  * order doesn't matter). If another process already rotated the tokens, marked
  * reauthRequired, or the user reconnected in the meantime, we lose the race
  * harmlessly and defer to whatever it wrote instead of clobbering it.
+ *
+ * `expectedRaw` must be the literal raw value read moments earlier — never a
+ * decrypt-then-re-encrypt round-trip of it, since AES-GCM's random IV means
+ * that would never equal what's actually in the row. `next` is plaintext;
+ * only the value being written is freshly encrypted.
  */
 async function persistCredentialsIfUnchanged(
   prisma: PrismaClient,
   integrationId: string,
-  expected: GithubCredentials,
+  expectedRaw: GithubCredentials,
   next: GithubCredentials,
 ): Promise<GithubCredentials> {
+  const nextRaw = encryptCredentials(next);
   const result = await prisma.integration.updateMany({
-    where: { id: integrationId, credentials: { equals: expected as unknown as Prisma.InputJsonValue } },
-    data: { credentials: next as unknown as Prisma.InputJsonValue },
+    where: { id: integrationId, credentials: { equals: expectedRaw as unknown as Prisma.InputJsonValue } },
+    data: { credentials: nextRaw as unknown as Prisma.InputJsonValue },
   });
 
   if (result.count > 0) return next;
-  return readCredentials(prisma, integrationId);
+  return (await readCredentials(prisma, integrationId)).plaintext;
 }
 
 /**
@@ -64,6 +81,7 @@ async function doRefresh(
   integrationId: string,
   config: Pick<GithubOAuthConfig, "clientId" | "clientSecret">,
   current: GithubCredentials,
+  currentRaw: GithubCredentials,
   options: { onMissingRefreshToken: "returnUnchanged" | "requireReauth" },
 ): Promise<GithubCredentials> {
   if (current.reauthRequired) throw new GithubReauthRequiredError();
@@ -72,7 +90,7 @@ async function doRefresh(
     if (options.onMissingRefreshToken === "returnUnchanged") return current;
     // A 401 with nothing to refresh with is unambiguous: this token is dead and
     // unrecoverable without the user reconnecting.
-    await persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, reauthRequired: true });
+    await persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, { ...current, reauthRequired: true });
     throw new GithubReauthRequiredError();
   }
 
@@ -84,11 +102,11 @@ async function doRefresh(
       // Another instance may have used this single-use refresh token first.
       // If the row has moved on, adopt its tokens instead of marking reauth.
       const latest = await readCredentials(prisma, integrationId);
-      if (latest.refreshToken !== current.refreshToken || latest.accessToken !== current.accessToken) {
-        if (latest.reauthRequired) throw new GithubReauthRequiredError();
-        return latest;
+      if (latest.plaintext.refreshToken !== current.refreshToken || latest.plaintext.accessToken !== current.accessToken) {
+        if (latest.plaintext.reauthRequired) throw new GithubReauthRequiredError();
+        return latest.plaintext;
       }
-      await persistCredentialsIfUnchanged(prisma, integrationId, current, { ...current, reauthRequired: true });
+      await persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, { ...current, reauthRequired: true });
       throw new GithubReauthRequiredError();
     }
     throw error;
@@ -99,7 +117,7 @@ async function doRefresh(
   const next: GithubCredentials = { ...current, ...refreshed };
   if (refreshed.expiresAt === undefined) delete next.expiresAt;
   if (refreshed.refreshToken === undefined) delete next.refreshToken;
-  return persistCredentialsIfUnchanged(prisma, integrationId, current, next);
+  return persistCredentialsIfUnchanged(prisma, integrationId, currentRaw, next);
 }
 
 function refreshWithSingleFlight(
@@ -107,12 +125,13 @@ function refreshWithSingleFlight(
   integrationId: string,
   config: Pick<GithubOAuthConfig, "clientId" | "clientSecret">,
   current: GithubCredentials,
+  currentRaw: GithubCredentials,
   options: { onMissingRefreshToken: "returnUnchanged" | "requireReauth" },
 ): Promise<GithubCredentials> {
   const existing = inFlightRefreshes.get(integrationId);
   if (existing) return existing;
 
-  const promise = doRefresh(prisma, integrationId, config, current, options).finally(() => {
+  const promise = doRefresh(prisma, integrationId, config, current, currentRaw, options).finally(() => {
     inFlightRefreshes.delete(integrationId);
   });
   inFlightRefreshes.set(integrationId, promise);
@@ -125,10 +144,10 @@ export async function loadFreshGithubCredentials(
   integrationId: string,
   config: Pick<GithubOAuthConfig, "clientId" | "clientSecret">,
 ): Promise<GithubCredentials> {
-  const current = await readCredentials(prisma, integrationId);
-  if (current.reauthRequired) throw new GithubReauthRequiredError();
-  if (!isExpiringSoon(current)) return current;
-  return refreshWithSingleFlight(prisma, integrationId, config, current, { onMissingRefreshToken: "returnUnchanged" });
+  const { raw, plaintext } = await readCredentials(prisma, integrationId);
+  if (plaintext.reauthRequired) throw new GithubReauthRequiredError();
+  if (!isExpiringSoon(plaintext)) return plaintext;
+  return refreshWithSingleFlight(prisma, integrationId, config, plaintext, raw, { onMissingRefreshToken: "returnUnchanged" });
 }
 
 /**
@@ -143,8 +162,8 @@ export async function refreshAfterUnauthorized(
   config: Pick<GithubOAuthConfig, "clientId" | "clientSecret">,
   failedCredentials: GithubCredentials,
 ): Promise<GithubCredentials> {
-  const current = await readCredentials(prisma, integrationId);
-  if (current.reauthRequired) throw new GithubReauthRequiredError();
-  if (current.accessToken !== failedCredentials.accessToken) return current;
-  return refreshWithSingleFlight(prisma, integrationId, config, current, { onMissingRefreshToken: "requireReauth" });
+  const { raw, plaintext } = await readCredentials(prisma, integrationId);
+  if (plaintext.reauthRequired) throw new GithubReauthRequiredError();
+  if (plaintext.accessToken !== failedCredentials.accessToken) return plaintext;
+  return refreshWithSingleFlight(prisma, integrationId, config, plaintext, raw, { onMissingRefreshToken: "requireReauth" });
 }

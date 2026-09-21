@@ -60,7 +60,7 @@ export class IntegrationConfigUnreadableError extends Error {
   }
 }
 
-const ENCRYPTION_SALT = "sla-breach-monitoring/integration-config";
+const ENCRYPTION_SALT = "elapsed/integration-config";
 
 /**
  * Derives a stable AES-256 key from the dedicated INTEGRATION_CONFIG_ENCRYPTION_KEY secret —
@@ -146,7 +146,9 @@ export async function saveIntegrationConfig(
     throw new Error("clientSecret is required to configure this integration");
   }
 
-  const encryptedSecret = input.clientSecret ? encryptSecret(input.clientSecret) : undefined;
+  const encryptedSecret = input.clientSecret
+    ? encryptSecret(input.clientSecret)
+    : undefined;
 
   // Deliberately two separate calls rather than one `upsert`: Prisma
   // validates an `upsert`'s `create` *and* `update` argument shapes before

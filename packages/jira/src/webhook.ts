@@ -4,7 +4,9 @@ import { JiraClient } from "./client";
 import type { JiraOAuthConfig } from "./oauth";
 import {
   mapChangelogHistoryToRawEvent,
+  mapIssueDeletedToRawEvent,
   mapIssueToRawEvent,
+  mapRemoteLinkManifestToRawEvent,
   mapRemoteLinkToRawEvent,
   mapStatusToRawEvent,
   type RawEventInput,
@@ -51,10 +53,11 @@ export function verifyJiraWebhookSecret(expected: string, provided: string | nul
 }
 
 /**
- * Jira classic webhook events this receiver acts on. `jira:issue_deleted`
- * (and anything else Jira might send to the same URL) is accepted but
- * ignored — the issue is gone by the time a refetch would run, and deletion
- * handling is out of scope here the same way it is for the poller.
+ * Jira classic webhook events this receiver refetches the issue for.
+ * `jira:issue_deleted` is handled separately — see `isJiraIssueDeletedEvent`
+ * and `markCaseLinksUnlinkedForIssue` below (roadmap task 2.6) — since the
+ * issue is gone by the time a refetch would run; anything else Jira might
+ * send to the same URL is accepted but ignored.
  */
 const INGESTIBLE_EVENTS = new Set(["jira:issue_created", "jira:issue_updated"]);
 
@@ -66,6 +69,11 @@ export interface JiraWebhookPayload {
 
 export function shouldIngestJiraWebhookEvent(payload: JiraWebhookPayload): boolean {
   return typeof payload.webhookEvent === "string" && INGESTIBLE_EVENTS.has(payload.webhookEvent);
+}
+
+/** `jira:issue_deleted` — checked before `shouldIngestJiraWebhookEvent`'s gate, since this event needs its own handling, not silent ignoring (roadmap task 2.6). */
+export function isJiraIssueDeletedEvent(payload: JiraWebhookPayload): boolean {
+  return payload.webhookEvent === "jira:issue_deleted";
 }
 
 export function extractJiraWebhookIssueKey(payload: JiraWebhookPayload): string | null {
@@ -94,6 +102,66 @@ export interface WebhookIngestResult {
   changelogHistoriesFetched: number;
   remoteLinksFetched: number;
   statusesFetched: number;
+}
+
+/**
+ * Marks every currently-active CaseLink for `issueKey` in this integration's
+ * organization `unlinkedAt` and emits a matching `issue_unlinked` event for
+ * each — the Jira-side mirror of `markCaseDeletedForTicket` (packages/
+ * zendesk/src/webhook.ts). Unlike a Zendesk ticket, a Jira issue is never a
+ * Case's anchor — only ever a linked engineering leg (see ./correlate.ts) —
+ * so there's no Case to soft-delete here; ending its CaseLink(s) is the
+ * complete analogue. Used both for an explicit `jira:issue_deleted` webhook
+ * event and for a 404 on the targeted refetch (an issue deleted between the
+ * webhook firing and the fetch) — both are the same fact from two different
+ * angles (roadmap task 2.6).
+ *
+ * A no-op when nothing is currently linked (already unlinked, or never was)
+ * — safe against a redelivered/duplicate webhook, since the query only ever
+ * finds rows with `unlinkedAt: null`.
+ */
+export async function markCaseLinksUnlinkedForIssue(
+  prisma: PrismaClient,
+  integrationId: string,
+  issueKey: string,
+): Promise<void> {
+  const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+  const activeCaseLinks = await prisma.caseLink.findMany({
+    where: { system: "jira", externalId: issueKey, unlinkedAt: null, case: { organizationId: integration.organizationId } },
+    select: { id: true, caseId: true },
+  });
+  if (activeCaseLinks.length === 0) return;
+
+  // NormalizedEvent.sourceRawEventId is a required FK — there's no fetched
+  // payload to cite here (the issue is gone), so this RawEvent documents the
+  // deletion itself (see mapIssueDeletedToRawEvent's doc comment).
+  const deletionEvent = mapIssueDeletedToRawEvent(issueKey);
+  const rawEvent = await prisma.rawEvent.create({
+    data: {
+      integrationId,
+      providerEventId: deletionEvent.providerEventId,
+      sourceHash: deletionEvent.sourceHash,
+      payload: deletionEvent.payload as Prisma.InputJsonValue,
+    },
+  });
+
+  await prisma.$transaction(
+    activeCaseLinks.flatMap((caseLink) => [
+      prisma.caseLink.update({ where: { id: caseLink.id }, data: { unlinkedAt: rawEvent.fetchedAt } }),
+      prisma.normalizedEvent.create({
+        data: {
+          caseId: caseLink.caseId,
+          sourceRawEventId: rawEvent.id,
+          type: "issue_unlinked" as const,
+          occurredAt: rawEvent.fetchedAt,
+          actor: "system" as const,
+          system: "jira" as const,
+          fromState: null,
+          toState: null,
+        },
+      }),
+    ]),
+  );
 }
 
 /**
@@ -139,6 +207,9 @@ export async function runJiraWebhookIngest(
 
   const remoteLinks = await client.fetchRemoteLinks(issueKey);
   rawEvents.push(...remoteLinks.map((link) => mapRemoteLinkToRawEvent(issueKey, link)));
+  // Same per-issue full fetch the manifest-diff sweep needs (roadmap task
+  // 2.6) — see mapRemoteLinkManifestToRawEvent's doc comment.
+  rawEvents.push(mapRemoteLinkManifestToRawEvent(issueKey, remoteLinks.map((link) => link.id)));
 
   await prisma.rawEvent.createMany({
     data: rawEvents.map((input) => ({

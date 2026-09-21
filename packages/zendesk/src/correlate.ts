@@ -101,6 +101,21 @@ export interface JiraLinkCorrelationResult {
 interface CaseLinkEvidence {
   officialLink?: ZendeskJiraLink;
   remoteLink?: unknown;
+  /**
+   * Set by `runJiraCorrelation`'s own remote-link sweep (packages/jira/src/
+   * correlate.ts, roadmap task 2.6) the moment it detects `remoteLink` above
+   * is gone from the issue's current manifest — even while this CaseLink
+   * stays active because `officialLink` still proves it. Lets
+   * `sweepUnlinkedOfficialLinks` below tell "the other source still proves
+   * this" from "the other source was ALSO removed, it just hasn't been
+   * swept yet" — without this marker, a CaseLink whose official link and
+   * remote link are *both* eventually removed would stay linked forever,
+   * since each sweep's `!= null` exemption check alone can never tell the
+   * difference (each only ever adds this evidence key, never clears it).
+   */
+  remoteLinkRemovedAt?: string;
+  /** The mirror image, set by this file's own sweep — see `remoteLinkRemovedAt`. */
+  officialLinkRemovedAt?: string;
   [key: string]: unknown;
 }
 
@@ -315,9 +330,19 @@ async function latestJiraLinkManifest(prisma: PrismaClient, integrationId: strin
  * CaseLink whose link id is missing from the latest full `jira_link_manifest:`
  * listing.
  *
- * A `remote_link` still present in the same CaseLink's evidence exempts it:
- * one evidence source disappearing must never delete a relationship another
- * source still proves (see `runJiraCorrelation`'s doc comment).
+ * A `remote_link` still present in the same CaseLink's evidence exempts it
+ * from actually unlinking — one evidence source disappearing must never
+ * delete a relationship another source still proves (see
+ * `runJiraCorrelation`'s doc comment) — **unless** that remote link was
+ * itself already marked removed by `runJiraCorrelation`'s own sweep
+ * (`evidence.remoteLinkRemovedAt`). Without that second check, a CaseLink
+ * whose official link and remote link are both eventually removed — just
+ * not in the same run — would stay linked forever: each sweep's evidence
+ * only ever gains a `*Link` key, never loses it, so a naive `!= null`
+ * exemption can't otherwise distinguish "still proven" from "also gone, not
+ * yet swept". An exempted-but-since-removed official link stamps
+ * `evidence.officialLinkRemovedAt` (not `unlinkedAt`, only this bookkeeping
+ * field) so a later remote-link removal sees it and finishes the unlink.
  */
 async function sweepUnlinkedOfficialLinks(
   prisma: PrismaClient,
@@ -335,10 +360,29 @@ async function sweepUnlinkedOfficialLinks(
     const officialLinkId = evidence?.officialLink?.id;
     if (officialLinkId == null) continue; // never had official-link evidence — nothing for this sweep to say
     if (manifest.activeLinkIds.has(officialLinkId)) continue; // still current
-    if (evidence?.remoteLink != null) continue; // an independent remote_link still proves the relationship
+
+    const remoteLinkStillProvesIt = evidence?.remoteLink != null && evidence?.remoteLinkRemovedAt == null;
+    if (remoteLinkStillProvesIt) {
+      // Record that the official link is gone, without unlinking — a later
+      // remote-link removal (packages/jira's sweep) needs this to finish the
+      // job instead of exempting forever on stale `remoteLink != null` evidence.
+      if (evidence?.officialLinkRemovedAt == null) {
+        await prisma.caseLink.update({
+          where: { id: caseLink.id },
+          data: { evidence: { ...evidence, officialLinkRemovedAt: manifest.fetchedAt.toISOString() } as Prisma.InputJsonValue },
+        });
+      }
+      continue;
+    }
 
     await prisma.$transaction([
-      prisma.caseLink.update({ where: { id: caseLink.id }, data: { unlinkedAt: manifest.fetchedAt } }),
+      prisma.caseLink.update({
+        where: { id: caseLink.id },
+        data: {
+          unlinkedAt: manifest.fetchedAt,
+          evidence: { ...evidence, officialLinkRemovedAt: manifest.fetchedAt.toISOString() } as Prisma.InputJsonValue,
+        },
+      }),
       prisma.normalizedEvent.create({
         data: {
           caseId: caseLink.caseId,

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { exchangeCodeForToken } from "@sla/slack";
-import { getPrismaClient } from "@sla/db";
+import { encryptToken, getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getSlackOAuthConfig, SLACK_STATE_COOKIE } from "@/lib/slack-env";
 import { validateOAuthState } from "@/lib/oauth-state";
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     returnedState: url.searchParams.get("state"),
     cookieState,
     sessionOrganizationId: session.user.organizationId,
+    sessionUserId: session.user.id,
   });
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: validation.status });
@@ -36,12 +37,14 @@ export async function GET(request: Request) {
   const config = await getSlackOAuthConfig(state.organizationId);
   const credentials = await exchangeCodeForToken(code, config);
 
+  const encryptedAccessToken = encryptToken(credentials.accessToken);
+
   const prisma = getPrismaClient();
   await prisma.slackIntegration.upsert({
     where: { organizationId: state.organizationId },
     create: {
       organizationId: state.organizationId,
-      accessToken: credentials.accessToken,
+      accessToken: encryptedAccessToken,
       teamId: credentials.teamId,
       teamName: credentials.teamName,
       botUserId: credentials.botUserId,
@@ -49,7 +52,7 @@ export async function GET(request: Request) {
     // Re-installing keeps the previously chosen channel — Slack's install
     // flow doesn't re-ask for it, so there's nothing new to overwrite there.
     update: {
-      accessToken: credentials.accessToken,
+      accessToken: encryptedAccessToken,
       teamId: credentials.teamId,
       teamName: credentials.teamName,
       botUserId: credentials.botUserId,

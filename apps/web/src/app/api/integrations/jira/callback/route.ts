@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { exchangeCodeForToken, generateWebhookSecret } from "@sla/jira";
-import { getPrismaClient, type Prisma } from "@sla/db";
+import { encryptCredentials, getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 import { getJiraOAuthConfig, JIRA_STATE_COOKIE } from "@/lib/jira-env";
 import { validateOAuthState } from "@/lib/oauth-state";
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     returnedState: url.searchParams.get("state"),
     cookieState,
     sessionOrganizationId: session.user.organizationId,
+    sessionUserId: session.user.id,
   });
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: validation.status });
@@ -37,12 +38,47 @@ export async function GET(request: Request) {
   const credentials = await exchangeCodeForToken(code, config);
 
   const prisma = getPrismaClient();
+
+  // Reconnecting to a *different* Jira site than the one already connected
+  // is refused once any history exists (roadmap task 2.7) — same reasoning
+  // as the Zendesk callback's own check (see its comment): the unique key
+  // here is (organizationId, provider), not site, so a switch would
+  // silently reuse the same Integration row while old and new issues can
+  // collide by key under the same integration id. Unlike Zendesk's
+  // subdomain (entered by the user before the OAuth redirect), the target
+  // site is only known after the token exchange — Jira's authorize flow
+  // doesn't ask for one upfront (see JiraCredentials's doc comment) — so
+  // this check can only run here, after `exchangeCodeForToken`.
+  const existingIntegration = await prisma.integration.findUnique({
+    where: { organizationId_provider: { organizationId: state.organizationId, provider: "jira" } },
+  });
+  if (existingIntegration) {
+    const existingCloudId = (existingIntegration.credentials as { cloudId?: string; siteUrl?: string } | null)?.cloudId;
+    if (existingCloudId && existingCloudId !== credentials.cloudId) {
+      const hasHistory = await prisma.rawEvent.findFirst({
+        where: { integrationId: existingIntegration.id },
+        select: { id: true },
+      });
+      if (hasHistory) {
+        const existingSiteUrl = (existingIntegration.credentials as { siteUrl?: string } | null)?.siteUrl ?? existingCloudId;
+        return NextResponse.json(
+          {
+            error: `This organization is already connected to Jira site "${existingSiteUrl}" with existing issue history. Disconnect it first before connecting a different site ("${credentials.siteUrl}") — switching directly would risk mixing up issues between the two sites.`,
+          },
+          { status: 409 },
+        );
+      }
+    }
+  }
+
+  const encryptedCredentials = encryptCredentials(credentials);
+
   await prisma.integration.upsert({
     where: { organizationId_provider: { organizationId: state.organizationId, provider: "jira" } },
     create: {
       organizationId: state.organizationId,
       provider: "jira",
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
       // Generated once, here, and never rotated on reconnect — see
       // Integration.webhookSecret's doc comment (roadmap step 20).
       webhookSecret: generateWebhookSecret(),
@@ -50,7 +86,7 @@ export async function GET(request: Request) {
     // Reconnecting always clears any prior disconnected/reauth_required state
     // and stale sync error, whether this is a first connect or a reconnect.
     update: {
-      credentials: credentials as unknown as Prisma.InputJsonValue,
+      credentials: encryptedCredentials as unknown as Prisma.InputJsonValue,
       status: "connected",
       disconnectedAt: null,
       lastSyncError: null,

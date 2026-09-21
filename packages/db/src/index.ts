@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 export * from "../generated/prisma/client";
+export { deriveEncryptionKey, aesGcmEncrypt, aesGcmDecrypt } from "./crypto";
 export {
   isConfigurableIntegrationProvider,
   getIntegrationConfig,
@@ -15,6 +16,14 @@ export type {
   IntegrationOAuthCredentials,
   IntegrationConfigStatus,
 } from "./integration-config";
+export {
+  isEncryptedToken,
+  encryptToken,
+  decryptToken,
+  encryptCredentials,
+  decryptCredentials,
+  IntegrationCredentialsUnreadableError,
+} from "./integration-credentials";
 export {
   getEmailSettings,
   getEmailSettingsStatus,

@@ -42,7 +42,10 @@ export default function IntercomIntegrationPage() {
     <DocsLayout toc={toc}>
       <div className="space-y-12">
         <header className="space-y-4">
-          <Badge variant="outline">Integrations</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Integrations</Badge>
+            <Badge variant="beta">Beta</Badge>
+          </div>
 
           <div className="space-y-3">
             <h1 className="text-4xl font-bold tracking-tight">Intercom</h1>
@@ -51,7 +54,11 @@ export default function IntercomIntegrationPage() {
               An alternative ticket source alongside Zendesk, not a replacement
               — it contributes conversations, customers, and support-side
               timeline events, with a few real differences from Zendesk worth
-              knowing before you rely on it.
+              knowing before you rely on it. This integration is in Beta — see{" "}
+              <Link href="#limitations" className="underline underline-offset-4">
+                Known limitations
+              </Link>
+              .
             </p>
           </div>
         </header>

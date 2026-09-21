@@ -1,10 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { decryptCredentials, encryptCredentials, isEncryptedToken } from "@sla/db";
 import {
   GithubReauthRequiredError,
   loadFreshGithubCredentials,
   refreshAfterUnauthorized,
 } from "../src/tokenLifecycle";
 import type { GithubCredentials } from "../src/types";
+
+const ORIGINAL_ENCRYPTION_KEY = process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+
+beforeEach(() => {
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = "test-integration-token-secret";
+});
 
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -15,9 +22,18 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-/** Emulates Postgres jsonb `equals` semantics (deep, order-independent) closely enough for these tests. */
+/**
+ * Emulates Postgres jsonb `equals` semantics (deep, order-independent)
+ * closely enough for these tests. Seeds the row already encrypted at rest
+ * (mirroring a migrated production row), so the CAS `where.credentials.equals`
+ * comparison in tokenLifecycle.ts is exercised against real ciphertext —
+ * `_getRow()` decrypts back to plaintext for assertions, since that's what
+ * every existing assertion below expects to read. `_getRawRow()` returns the
+ * literal stored (encrypted) value, needed by the one test below that
+ * simulates a concurrent writer directly against the fake `updateMany`.
+ */
 function createFakePrisma(initial: GithubCredentials) {
-  let row: GithubCredentials = structuredClone(initial);
+  let row: GithubCredentials = encryptCredentials(structuredClone(initial));
   return {
     integration: {
       findUniqueOrThrow: vi.fn(async () => ({ credentials: structuredClone(row) })),
@@ -35,7 +51,8 @@ function createFakePrisma(initial: GithubCredentials) {
         },
       ),
     },
-    _getRow: () => row,
+    _getRow: () => decryptCredentials(structuredClone(row)),
+    _getRawRow: () => structuredClone(row),
   } as const;
 }
 
@@ -62,6 +79,24 @@ function jsonResponse(status: number, body: unknown): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = ORIGINAL_ENCRYPTION_KEY;
+});
+
+describe("credentials at rest", () => {
+  it("stores accessToken/refreshToken encrypted, never plaintext, after a refresh", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, { access_token: "access-2", token_type: "bearer", expires_in: 28800, refresh_token: "refresh-2" }),
+      ),
+    );
+    const prisma = createFakePrisma(expiringCredentials);
+
+    await loadFreshGithubCredentials(prisma as never, "integration-1", config);
+
+    expect(isEncryptedToken(prisma._getRawRow().accessToken)).toBe(true);
+    expect(isEncryptedToken(prisma._getRawRow().refreshToken!)).toBe(true);
+  });
 });
 
 describe("loadFreshGithubCredentials", () => {
@@ -184,8 +219,8 @@ describe("refreshAfterUnauthorized", () => {
       vi.fn().mockImplementation(async () => {
         // Simulates another instance winning the race and rotating first.
         await prisma.integration.updateMany({
-          where: { credentials: { equals: prisma._getRow() } },
-          data: { credentials: { ...expiringCredentials, accessToken: "access-other", refreshToken: "refresh-other" } },
+          where: { credentials: { equals: prisma._getRawRow() } },
+          data: { credentials: encryptCredentials({ ...expiringCredentials, accessToken: "access-other", refreshToken: "refresh-other" }) },
         });
         return jsonResponse(200, { error: "bad_refresh_token" });
       }),

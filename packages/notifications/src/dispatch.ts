@@ -1,4 +1,4 @@
-import { getEmailSettings, EmailSettingsUnreadableError, type PrismaClient } from "@sla/db";
+import { decryptToken, getEmailSettings, EmailSettingsUnreadableError, type PrismaClient } from "@sla/db";
 import { postMessage } from "@sla/slack";
 import { sendEmail, type EmailConfig } from "@sla/email";
 import type { NotificationCandidate } from "@sla/commitments";
@@ -139,7 +139,7 @@ export async function runNotificationPipeline(
 
     if (slackReady) {
       try {
-        await postMessage(slack!.accessToken, slack!.channelId!, formatSlackMessage(candidate, context));
+        await postMessage(decryptToken(slack!.accessToken), slack!.channelId!, formatSlackMessage(candidate, context));
         delivered.push("slack");
       } catch (error) {
         errors.push(`slack: ${errorMessage(error)}`);

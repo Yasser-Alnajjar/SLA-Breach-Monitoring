@@ -54,8 +54,9 @@ Requires Node 22, pnpm 10, and Docker (for Postgres).
    cp .env.example .env
    ```
 
-   Set `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY` and
-   `SMTP_ENCRYPTION_KEY` to three different values, each generated with:
+   Set `NEXTAUTH_SECRET`, `INTEGRATION_CONFIG_ENCRYPTION_KEY`,
+   `SMTP_ENCRYPTION_KEY` and `INTEGRATION_TOKEN_ENCRYPTION_KEY` to four
+   different values, each generated with:
 
    ```bash
    openssl rand -base64 32

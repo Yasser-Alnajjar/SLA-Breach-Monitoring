@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   extractJiraWebhookIssueKey,
+  isJiraIssueDeletedEvent,
   isJiraWebhookTimestampFresh,
   JiraApiError,
   JiraPermissionDeniedError,
   JiraReauthRequiredError,
+  markCaseLinksUnlinkedForIssue,
   runJiraCorrelation,
   runJiraNormalization,
   runJiraWebhookIngest,
@@ -81,6 +83,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     return NextResponse.json({ error: "Webhook timestamp missing or expired" }, { status: 401 });
   }
 
+  // Checked before shouldIngestJiraWebhookEvent's gate: the issue is gone,
+  // so it must never reach runJiraWebhookIngest's refetch — this is its own
+  // handling, not silent ignoring (roadmap task 2.6).
+  if (isJiraIssueDeletedEvent(payload)) {
+    const deletedIssueKey = extractJiraWebhookIssueKey(payload);
+    if (deletedIssueKey === null) {
+      return NextResponse.json({ error: "No issue key found in webhook payload" }, { status: 400 });
+    }
+    await withOrganizationSlaLock(prisma, integration.organizationId, () =>
+      markCaseLinksUnlinkedForIssue(prisma, integration.id, deletedIssueKey),
+    );
+    await prisma.integration.update({
+      where: { id: integration.id },
+      data: { lastSyncAt: new Date(), lastSyncError: null },
+    });
+    return NextResponse.json({ status: "processed", issueKey: deletedIssueKey, reason: "issue deleted" });
+  }
+
   if (!shouldIngestJiraWebhookEvent(payload)) {
     return NextResponse.json({ status: "ignored", reason: "event type not ingested" });
   }
@@ -103,8 +123,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
   try {
     await runJiraWebhookIngest(prisma, integration.id, config, issueKey);
     const pipeline = await withOrganizationSlaLock(prisma, integration.organizationId, async () => {
-      await runJiraCorrelation(prisma, integration.id);
-      await runJiraNormalization(prisma, integration.id);
+      await runJiraCorrelation(prisma, integration.id, { issueKey });
+      await runJiraNormalization(prisma, integration.id, { issueKeys: [issueKey] });
       return runWebhookPipelineTail(prisma, integration.organizationId);
     });
 
@@ -123,8 +143,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
   } catch (error) {
     // An issue the webhook referenced but that 404s on direct fetch (deleted
     // between the event firing and our fetch) is a normal race, not a
-    // failure to retry.
+    // failure to retry — but it's the same "issue is gone" fact as an
+    // explicit jira:issue_deleted event, so it gets the same handling
+    // instead of being silently swallowed (roadmap task 2.6).
     if (error instanceof JiraApiError && error.status === 404) {
+      await withOrganizationSlaLock(prisma, integration.organizationId, () =>
+        markCaseLinksUnlinkedForIssue(prisma, integration.id, issueKey),
+      );
       return NextResponse.json({ status: "ignored", reason: "issue not found" });
     }
 

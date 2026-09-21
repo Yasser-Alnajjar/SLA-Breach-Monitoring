@@ -219,7 +219,7 @@ describe("runJiraWebhookIngest", () => {
       remoteLinksFetched: 1,
       statusesFetched: 2,
     });
-    expect(prisma._rawEvents).toHaveLength(6);
+    expect(prisma._rawEvents).toHaveLength(7);
     expect(prisma._rawEvents.map((e) => e.providerEventId)).toEqual(
       expect.arrayContaining([
         expect.stringContaining("status:1:"),
@@ -228,6 +228,7 @@ describe("runJiraWebhookIngest", () => {
         "issue_changelog:ENG-42:h1",
         "issue_changelog:ENG-42:h2",
         expect.stringContaining("remote_link:ENG-42:1:"),
+        expect.stringContaining("remote_link_manifest:ENG-42:"),
       ]),
     );
     expect(prisma.integration.update).not.toHaveBeenCalled();

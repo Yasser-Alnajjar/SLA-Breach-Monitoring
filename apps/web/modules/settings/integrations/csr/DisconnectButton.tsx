@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface DisconnectButtonProps {
-  provider: IntegrationProvider;
+  provider: IntegrationProvider | "slack";
   providerLabel: string;
 }
 

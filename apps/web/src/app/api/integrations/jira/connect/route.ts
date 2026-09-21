@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/jira";
 import { authOptions } from "@/lib/auth";
 import { getJiraOAuthConfig, JIRA_STATE_COOKIE } from "@/lib/jira-env";
+import { signOAuthState } from "@/lib/oauth-state";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -20,9 +21,7 @@ export async function GET(request: Request) {
   }
 
   const nonce = randomBytes(16).toString("hex");
-  const state = Buffer.from(
-    JSON.stringify({ nonce, organizationId: session.user.organizationId }),
-  ).toString("base64url");
+  const state = signOAuthState({ nonce, organizationId: session.user.organizationId, userId: session.user.id });
 
   const response = NextResponse.redirect(buildAuthorizeUrl(config, state));
   response.cookies.set(JIRA_STATE_COOKIE, state, {

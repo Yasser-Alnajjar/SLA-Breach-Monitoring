@@ -69,11 +69,60 @@ function latestRemoteLinksByKey(
   return byKey;
 }
 
+interface RemoteLinkManifestSnapshot {
+  rawEventId: string;
+  fetchedAt: Date;
+  activeLinkIds: Set<number>;
+}
+
+/**
+ * The latest `remote_link_manifest:{issueKey}:` RawEvent for each issue key
+ * present in this integration (or just the one issue, when `issueKeyFilter`
+ * narrows the underlying query) — mirrors `latestJiraLinkManifest`
+ * (packages/zendesk/src/correlate.ts), just one manifest per issue instead
+ * of one for the whole account, since Jira remote links are fetched
+ * per-issue rather than as a single global registry (see
+ * `mapRemoteLinkManifestToRawEvent`'s doc comment). An issue with no entry
+ * in the returned map never had a manifest written for it (a caller seeding
+ * `remote_link:` RawEvents directly, e.g. a targeted test, or a row ingested
+ * before this manifest existed).
+ */
+async function latestRemoteLinkManifests(
+  prisma: PrismaClient,
+  integrationId: string,
+  issueKeyFilter?: string,
+): Promise<Map<string, RemoteLinkManifestSnapshot>> {
+  const rows = await prisma.rawEvent.findMany({
+    where: {
+      integrationId,
+      providerEventId: {
+        startsWith: issueKeyFilter ? `remote_link_manifest:${issueKeyFilter}:` : "remote_link_manifest:",
+      },
+    },
+    select: { id: true, providerEventId: true, payload: true, fetchedAt: true },
+    orderBy: { fetchedAt: "desc" },
+  });
+
+  const byIssueKey = new Map<string, RemoteLinkManifestSnapshot>();
+  for (const row of rows) {
+    const issueKey = row.providerEventId.split(":")[1];
+    if (!issueKey || byIssueKey.has(issueKey)) continue; // rows are fetchedAt-desc, so the first one seen per issue is the latest
+    byIssueKey.set(issueKey, {
+      rawEventId: row.id,
+      fetchedAt: row.fetchedAt,
+      activeLinkIds: new Set((row.payload as { linkIds?: number[] }).linkIds ?? []),
+    });
+  }
+  return byIssueKey;
+}
+
 export interface CorrelationResult {
   remoteLinksEvaluated: number;
   caseLinksCreated: number;
-  /** A CaseLink that was `unlinkedAt`-marked (e.g. by `runZendeskJiraLinkCorrelation`'s unlink sweep) and became active again this run because a remote link still/again evidences it. Not counted in `caseLinksCreated`. */
+  /** A CaseLink that was `unlinkedAt`-marked (e.g. by either sweep below, or `runZendeskJiraLinkCorrelation`'s) and became active again this run because a remote link still/again evidences it. Not counted in `caseLinksCreated`. */
   caseLinksReactivated: number;
+  /** A previously-active remote-link CaseLink whose link id no longer appears in its issue's current manifest (and has no independent `official_link` evidence), marked `unlinkedAt` this run — see `sweepUnlinkedRemoteLinks`. */
+  caseLinksUnlinked: number;
   unmatchedNotZendeskUrl: number;
   unmatchedNoCase: number;
 }
@@ -92,6 +141,10 @@ export interface CorrelationResult {
 interface CaseLinkEvidence {
   remoteLink?: JiraRemoteLink;
   officialLink?: unknown;
+  /** Set by `runZendeskJiraLinkCorrelation`'s own sweep (packages/zendesk/src/correlate.ts) the moment it detects `officialLink` above is gone — see that file's doc comment on why this currency marker exists. */
+  officialLinkRemovedAt?: string;
+  /** The mirror image, set by this file's own `sweepUnlinkedRemoteLinks` below. */
+  remoteLinkRemovedAt?: string;
   [key: string]: unknown;
 }
 
@@ -118,10 +171,44 @@ interface CaseLinkEvidence {
  * `official_link` always wins the `method` field once present — it's the
  * authoritative signal — regardless of which producer runs first.
  *
+ * Unlink lifecycle (roadmap task 2.6): a Jira remote-link removal has no
+ * deletion event of its own — the only signal is a link's absence from a
+ * fresh full per-issue listing (`remote_link_manifest:`, written by
+ * `backfillRemoteLinksForIssue` and `runJiraWebhookIngest` alike). This
+ * function therefore does two passes, mirroring `runZendeskJiraLinkCorrelation`
+ * (packages/zendesk/src/correlate.ts — see its doc comment for the full
+ * reasoning, including why a manifest-less issue falls back to "every latest
+ * snapshot is active"):
+ *  1. Filter `latestRemoteLinksByKey`'s results to link ids each issue's
+ *     *latest* manifest actually reports, then upsert as before.
+ *  2. Sweep every currently-active remote-link CaseLink for this
+ *     organization whose link id is missing from its issue's manifest and
+ *     mark it `unlinkedAt` — unless an `official_link` still independently
+ *     evidences the same relationship. Account-wide and only ever run
+ *     unscoped (the worker's full-account cycle) — never from a per-issue
+ *     webhook call, since it has to see every issue's manifest to sweep
+ *     correctly.
+ *
  * Must run before `runJiraNormalization`, which relies on the CaseLinks
  * created here to know which Case a Jira issue's events belong to.
  */
-export async function runJiraCorrelation(prisma: PrismaClient, integrationId: string): Promise<CorrelationResult> {
+export interface JiraCorrelationScope {
+  /**
+   * Limits the run to one issue's own remote links — used by the webhook
+   * receiver so a single issue update doesn't re-evaluate every remote link
+   * the integration has ever seen (roadmap task 2.4). Omit for the worker's
+   * full-account cycle, which must still see every issue — including the
+   * manifest-diff sweep (task 2.6), which is inherently account-wide and
+   * never scoped this way.
+   */
+  issueKey?: string;
+}
+
+export async function runJiraCorrelation(
+  prisma: PrismaClient,
+  integrationId: string,
+  scope: JiraCorrelationScope = {},
+): Promise<CorrelationResult> {
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
   const organizationId = integration.organizationId;
 
@@ -129,6 +216,7 @@ export async function runJiraCorrelation(prisma: PrismaClient, integrationId: st
     remoteLinksEvaluated: 0,
     caseLinksCreated: 0,
     caseLinksReactivated: 0,
+    caseLinksUnlinked: 0,
     unmatchedNotZendeskUrl: 0,
     unmatchedNoCase: 0,
   };
@@ -139,15 +227,32 @@ export async function runJiraCorrelation(prisma: PrismaClient, integrationId: st
   const subdomain = (zendeskIntegration?.credentials as { subdomain?: string } | null)?.subdomain;
   if (!subdomain) return result;
 
-  const remoteLinkRows = await prisma.rawEvent.findMany({
-    where: { integrationId, providerEventId: { startsWith: "remote_link:" } },
-    select: { id: true, providerEventId: true, payload: true, fetchedAt: true },
-  });
+  const [remoteLinkRows, manifests] = await Promise.all([
+    prisma.rawEvent.findMany({
+      where: {
+        integrationId,
+        providerEventId: { startsWith: scope.issueKey ? `remote_link:${scope.issueKey}:` : "remote_link:" },
+      },
+      select: { id: true, providerEventId: true, payload: true, fetchedAt: true },
+    }),
+    latestRemoteLinkManifests(prisma, integrationId, scope.issueKey),
+  ]);
 
   const latestLinks = latestRemoteLinksByKey(remoteLinkRows);
   result.remoteLinksEvaluated = latestLinks.size;
 
-  for (const { issueKey, link, firstRawEventId, firstObservedAt, latestRawEventId, latestObservedAt } of latestLinks.values()) {
+  // A link id missing from its issue's latest manifest is skipped here even
+  // though its RawEvents are still readable (append-only) — otherwise its
+  // own stale history would "reconfirm" it every run, for the sweep below to
+  // immediately undo. An issue with no manifest at all falls back to
+  // treating every latest snapshot as active (see this function's doc
+  // comment).
+  const currentlyActive = [...latestLinks.values()].filter(({ issueKey, link }) => {
+    const manifest = manifests.get(issueKey);
+    return !manifest || manifest.activeLinkIds.has(link.id);
+  });
+
+  for (const { issueKey, link, firstRawEventId, firstObservedAt, latestRawEventId, latestObservedAt } of currentlyActive) {
     const ticketId = parseZendeskTicketId(link.object.url, subdomain);
     if (!ticketId) {
       result.unmatchedNotZendeskUrl += 1;
@@ -238,5 +343,87 @@ export async function runJiraCorrelation(prisma: PrismaClient, integrationId: st
     }
   }
 
+  // Account-wide by nature (has to see every issue's manifest) — only run
+  // from an unscoped (worker) call, never a per-issue webhook one.
+  if (!scope.issueKey) {
+    await sweepUnlinkedRemoteLinks(prisma, organizationId, manifests, result);
+  }
+
   return result;
+}
+
+/**
+ * Detects a Jira remote-link removal: a currently-active, remote-link-
+ * evidenced CaseLink whose link id is missing from its issue's latest
+ * `remote_link_manifest:` listing.
+ *
+ * An `official_link` still present in the same CaseLink's evidence exempts
+ * it from actually unlinking — one evidence source disappearing must never
+ * delete a relationship another source still proves — **unless** that
+ * official link was itself already marked removed by
+ * `runZendeskJiraLinkCorrelation`'s own sweep (`evidence.officialLinkRemovedAt`).
+ * Mirrors `sweepUnlinkedOfficialLinks` (packages/zendesk/src/correlate.ts) —
+ * see its doc comment for the full reasoning behind this second check: without
+ * it, a CaseLink whose official link and remote link are both eventually
+ * removed — just not in the same run — would stay linked forever. An
+ * exempted-but-since-removed remote link stamps `evidence.remoteLinkRemovedAt`
+ * so a later official-link removal sees it and finishes the unlink.
+ *
+ * `caseLink.externalId` is the issue key (CaseLink identity is
+ * `(caseId, system, externalId)`), so it doubles as the lookup key into
+ * `manifests` here.
+ */
+async function sweepUnlinkedRemoteLinks(
+  prisma: PrismaClient,
+  organizationId: string,
+  manifests: Map<string, RemoteLinkManifestSnapshot>,
+  result: CorrelationResult,
+): Promise<void> {
+  const activeJiraLinks = await prisma.caseLink.findMany({
+    where: { system: "jira", unlinkedAt: null, case: { organizationId } },
+    select: { id: true, caseId: true, externalId: true, evidence: true },
+  });
+
+  for (const caseLink of activeJiraLinks) {
+    const evidence = caseLink.evidence as CaseLinkEvidence | null;
+    const remoteLinkId = evidence?.remoteLink?.id;
+    if (remoteLinkId == null) continue; // never had remote-link evidence — nothing for this sweep to say
+    const manifest = manifests.get(caseLink.externalId);
+    if (!manifest) continue; // no manifest for this issue — nothing to diff against
+    if (manifest.activeLinkIds.has(remoteLinkId)) continue; // still current
+
+    const officialLinkStillProvesIt = evidence?.officialLink != null && evidence?.officialLinkRemovedAt == null;
+    if (officialLinkStillProvesIt) {
+      if (evidence?.remoteLinkRemovedAt == null) {
+        await prisma.caseLink.update({
+          where: { id: caseLink.id },
+          data: { evidence: { ...evidence, remoteLinkRemovedAt: manifest.fetchedAt.toISOString() } as unknown as Prisma.InputJsonValue },
+        });
+      }
+      continue;
+    }
+
+    await prisma.$transaction([
+      prisma.caseLink.update({
+        where: { id: caseLink.id },
+        data: {
+          unlinkedAt: manifest.fetchedAt,
+          evidence: { ...evidence, remoteLinkRemovedAt: manifest.fetchedAt.toISOString() } as unknown as Prisma.InputJsonValue,
+        },
+      }),
+      prisma.normalizedEvent.create({
+        data: {
+          caseId: caseLink.caseId,
+          sourceRawEventId: manifest.rawEventId,
+          type: "issue_unlinked" as const,
+          occurredAt: manifest.fetchedAt,
+          actor: "system" as const,
+          system: "jira" as const,
+          fromState: null,
+          toState: null,
+        },
+      }),
+    ]);
+    result.caseLinksUnlinked += 1;
+  }
 }

@@ -156,7 +156,7 @@ export const Actions = {
         input,
       );
     },
-    async disconnect(provider: IntegrationProvider) {
+    async disconnect(provider: IntegrationProvider | "slack") {
       const response = await fetch(`/api/integrations/${provider}/disconnect`, {
         method: "POST",
       });

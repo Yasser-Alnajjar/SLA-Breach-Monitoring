@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/slack";
 import { authOptions } from "@/lib/auth";
 import { getSlackOAuthConfig, SLACK_STATE_COOKIE } from "@/lib/slack-env";
+import { signOAuthState } from "@/lib/oauth-state";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,9 +21,7 @@ export async function GET() {
   }
 
   const nonce = randomBytes(16).toString("hex");
-  const state = Buffer.from(JSON.stringify({ nonce, organizationId: session.user.organizationId })).toString(
-    "base64url",
-  );
+  const state = signOAuthState({ nonce, organizationId: session.user.organizationId, userId: session.user.id });
 
   const response = NextResponse.redirect(buildAuthorizeUrl(config, state));
   response.cookies.set(SLACK_STATE_COOKIE, state, {

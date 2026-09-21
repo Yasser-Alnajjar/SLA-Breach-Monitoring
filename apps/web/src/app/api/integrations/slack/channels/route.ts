@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { listChannels } from "@sla/slack";
-import { getPrismaClient } from "@sla/db";
+import { decryptToken, getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 
 export async function GET() {
@@ -15,7 +15,7 @@ export async function GET() {
   if (!slack) return NextResponse.json({ error: "Slack is not connected" }, { status: 404 });
 
   try {
-    const channels = await listChannels(slack.accessToken);
+    const channels = await listChannels(decryptToken(slack.accessToken));
     return NextResponse.json({ channels });
   } catch (error) {
     return NextResponse.json(

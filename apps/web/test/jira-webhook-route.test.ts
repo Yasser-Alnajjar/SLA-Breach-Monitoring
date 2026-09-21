@@ -123,14 +123,17 @@ describe.skipIf(!TEST_DATABASE_URL)("POST /api/webhooks/jira/[integrationId] (re
       if (url.includes("/rest/api/3/status")) {
         return jsonResponse(200, [{ id: "1", name: "To Do", statusCategory: { key: "new" } }]);
       }
-      if (url.includes(`/rest/api/3/issue/${key}`)) {
-        return jsonResponse(200, issue(key));
-      }
+      // Checked before the plain issue-fetch match below: both the changelog
+      // and remotelink URLs also contain `/rest/api/3/issue/${key}` as a
+      // substring, so matching that first would swallow these two requests.
       if (url.includes("/changelog")) {
         return jsonResponse(200, { values: [], startAt: 0, maxResults: 100, total: 0, isLast: true });
       }
       if (url.includes("/remotelink")) {
         return jsonResponse(200, []);
+      }
+      if (url.includes(`/rest/api/3/issue/${key}`)) {
+        return jsonResponse(200, issue(key));
       }
       throw new Error(`Unexpected fetch: ${url}`);
     });

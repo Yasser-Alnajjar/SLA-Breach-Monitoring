@@ -261,6 +261,13 @@ describe.skipIf(!TEST_DATABASE_URL)("Jira remote-link unlink lifecycle (real Pos
 
   it("tenant isolation: a remote-link sweep in one organization never marks another organization's CaseLink unlinked", async () => {
     const orgB = await prisma.organization.create({ data: { name: "Bravo" } });
+    // runJiraCorrelation resolves the Zendesk ticket URL against this org's
+    // own connected subdomain — without it, org B's correlation bails out
+    // before ever creating a CaseLink, and this test would be proving
+    // nothing.
+    await prisma.integration.create({
+      data: { organizationId: orgB.id, provider: "zendesk", credentials: { subdomain: "acme", accessToken: "token", tokenType: "bearer", scope: "read" } },
+    });
     const jiraB = await prisma.integration.create({
       data: { organizationId: orgB.id, provider: "jira", credentials: { cloudId: "cloud-b", siteUrl: "https://bravo.atlassian.net", accessToken: "t", tokenType: "bearer" } },
     });

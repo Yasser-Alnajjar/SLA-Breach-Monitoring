@@ -1,4 +1,4 @@
-import type { CommitmentKind } from "@sla/core";
+import type { CommitmentKind, PolicyCondition, SLAPolicyMatch } from "@sla/core";
 
 /** Formats a signed minute count as "1d 2h 3m", dropping leading zero units. */
 export function formatMinutes(totalMinutes: number): string {
@@ -102,16 +102,85 @@ export function latestCommitmentOfKind<
 }
 
 /** Human-readable summary of an SLAPolicyVersion's match conditions, e.g. "priority in [urgent] · customer-specific". */
-export function formatPolicyMatch(match: {
-  priority?: string[];
-  tier?: string[];
-  customerIds?: string[];
-}): string {
+const CONDITION_FIELD_LABELS: Record<string, string> = {
+  priority: "Priority",
+  status: "Zendesk status",
+  type: "Ticket type",
+  group_id: "Group",
+  assignee_id: "Assignee",
+  requester_id: "Requester",
+  brand_id: "Brand",
+  ticket_form_id: "Ticket form",
+  form_id: "Ticket form",
+  recipient: "Recipient email",
+  tags: "Tags",
+  current_tags: "Tags",
+  via_id: "Channel",
+  current_via_id: "Channel",
+};
+
+/** A raw Zendesk condition field (`"group_id"`, `"custom_fields_123"`) in plain language, best-effort for anything not in `CONDITION_FIELD_LABELS`. */
+function humanizeConditionField(field: string): string {
+  if (CONDITION_FIELD_LABELS[field]) return CONDITION_FIELD_LABELS[field];
+  if (field.startsWith("custom_fields_")) {
+    return `Custom field ${field.slice("custom_fields_".length)}`;
+  }
+  return field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Every operator `matchesCondition` (@sla/core) actually implements — see `evaluateCondition` in packages/core/src/commitments.ts. */
+const CONDITION_OPERATOR_LABELS: Record<string, string> = {
+  is: "is",
+  equals: "is",
+  is_not: "is not",
+  not_equals: "is not",
+  includes: "includes",
+  contains: "includes",
+  not_includes: "does not include",
+  not_contains: "does not include",
+  less_than: "is less than",
+  less_than_equal: "is at most",
+  greater_than: "is greater than",
+  greater_than_equal: "is at least",
+  present: "is set",
+  not_present: "is not set",
+};
+
+/** One generic condition in plain language, e.g. "Priority is Urgent" or "Group is set". */
+function describeCondition(condition: PolicyCondition): string {
+  const field = humanizeConditionField(condition.field);
+  const operator = CONDITION_OPERATOR_LABELS[condition.operator] ?? condition.operator;
+  if (condition.operator === "present" || condition.operator === "not_present") {
+    return `${field} ${operator}`;
+  }
+  return `${field} ${operator} ${String(condition.value)}`;
+}
+
+function describeConditionGroup(conditions: SLAPolicyMatch["conditions"]): string[] {
+  if (!conditions) return [];
+  const parts: string[] = [];
+  if (conditions.all && conditions.all.length > 0) {
+    parts.push(`all of: ${conditions.all.map(describeCondition).join(", ")}`);
+  }
+  if (conditions.any && conditions.any.length > 0) {
+    parts.push(`any of: ${conditions.any.map(describeCondition).join(", ")}`);
+  }
+  return parts;
+}
+
+/**
+ * Plain-language description of an SLA policy's match conditions (3.4) —
+ * both the legacy `priority`/`tier`/`customerIds` fields (native policies)
+ * and the generic `conditions` an imported Zendesk policy carries
+ * (`extractMatchFromFilter`, @sla/zendesk).
+ */
+export function formatPolicyMatch(match: SLAPolicyMatch): string {
   return (
     [
       match.priority && `priority in [${match.priority.join(", ")}]`,
       match.tier && `tier in [${match.tier.join(", ")}]`,
       match.customerIds && "customer-specific",
+      ...describeConditionGroup(match.conditions),
     ]
       .filter(Boolean)
       .join(" · ") || "Any case (default)"

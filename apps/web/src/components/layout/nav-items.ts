@@ -8,6 +8,7 @@ import {
   Settings,
   Settings2,
   Timer,
+  TriangleAlert,
   UserRound,
 } from "lucide-react";
 
@@ -55,13 +56,13 @@ export const SETTINGS_NAV_ITEMS: NavItem[] = [
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "All cases", icon: ListChecks },
+  { href: "/at-risk", label: "At Risk", icon: TriangleAlert },
   {
     href: "/settings",
     label: "Settings",
     icon: Settings,
     items: SETTINGS_NAV_ITEMS,
   },
-
   { href: "/docs", label: "Documentation", icon: Book },
 ];
 

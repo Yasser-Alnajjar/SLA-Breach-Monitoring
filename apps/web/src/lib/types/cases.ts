@@ -47,6 +47,8 @@ export interface CommitmentDetail {
   pauseOnStates: NormalizedState[];
   policyVersion: {
     id: string;
+    /** The policy's own name (`SLAPolicy.name`), joined in — a version carries no name of its own. */
+    name: string;
     version: number;
     match: SLAPolicyMatch;
     warnAtPercent: number[];
@@ -60,6 +62,24 @@ export interface CommitmentDetail {
     holidays: string[];
     alwaysOpen: boolean;
   };
+  /**
+   * When the clock actually stopped because the commitment completed
+   * (`clockState === "stopped"`) — the completing event's own `occurredAt`,
+   * exact to the millisecond (3.3's "met" lifecycle marker; also the breach
+   * instant on a completed reply-less-close breach, though `effectiveDueAt`
+   * already covers breach display). Null while still open.
+   */
+  completionOccurredAt: string | null;
+  /**
+   * Every Active-Commitment Re-Resolution that changed this commitment's
+   * target in place (`CommitmentPolicyChange`), oldest first (3.4).
+   */
+  targetChangeHistory: {
+    changedAt: string;
+    previousTargetMinutes: number;
+    newTargetMinutes: number;
+    reason: string;
+  }[];
 }
 
 export interface CaseLinkDetail {
@@ -71,14 +91,42 @@ export interface CaseLinkDetail {
   statusName: string | null;
 }
 
+/**
+ * Synthetic timeline rows (3.2/3.3) with no `NormalizedEvent` of their own —
+ * derived entirely from existing data (`CommitmentPolicyChange`, the live
+ * evaluation, and persisted `Notification` rows), nothing new stored.
+ */
+export type SyntheticTimelineEventType =
+  | "policy_changed"
+  | "commitment_started"
+  | "commitment_at_risk"
+  | "commitment_breached"
+  | "commitment_met"
+  | "commitment_cancelled";
+
 export interface TimelineEventDetail {
   id: string;
   occurredAt: string;
   actor: string;
   system: string;
-  type: NormalizedEventType;
-  fromState: NormalizedState | null;
-  toState: NormalizedState | null;
+  type: NormalizedEventType | SyntheticTimelineEventType;
+  /**
+   * A `NormalizedState` for every real `NormalizedEvent`-backed type except
+   * `priority_changed`, which carries raw priority strings instead (see
+   * `NormalizedEvent`, @sla/core). Always null for a synthetic row.
+   */
+  fromState: NormalizedState | string | null;
+  toState: NormalizedState | string | null;
+  /** Set only on a synthetic row — which commitment it's about. */
+  commitmentKind?: CommitmentKind;
+  /** `policy_changed` only. */
+  previousTargetMinutes?: number;
+  /** `policy_changed` only. */
+  newTargetMinutes?: number;
+  /** `policy_changed` only — the re-resolution's reason code (e.g. `"policy_switched"`). */
+  reason?: string;
+  /** `commitment_at_risk` only — the `warnAtPercent` threshold crossed. */
+  thresholdPercent?: number;
 }
 
 /**
@@ -97,8 +145,16 @@ export interface ConversationMessageDetail {
   /** The source `NormalizedEvent.id` — stable within one render, not across normalization re-runs. */
   id: string;
   occurredAt: string;
-  actor: "customer" | "agent";
-  type: "agent_replied" | "customer_replied";
+  /**
+   * `"system"` only for a ticket's opening message on a ticket created by a
+   * trigger/automation/rule (3.7) — no reply of that kind exists otherwise.
+   */
+  actor: "customer" | "agent" | "system";
+  /**
+   * `"case_created"` only for the synthetic opening-message entry on a
+   * system-created ticket — every other message is a real reply.
+   */
+  type: "agent_replied" | "customer_replied" | "case_created";
   /**
    * The message's own author name, when the source system carries one
    * (Intercom always does; Zendesk only when the author is provably the
@@ -108,6 +164,13 @@ export interface ConversationMessageDetail {
    * name when that link can't be confirmed.
    */
   authorName: string | null;
+  /**
+   * True only when this message is confirmed to be from the case's own
+   * requester (3.7's "customer / agent / requester" sender labels) — never
+   * guessed; Zendesk confirms this by comment author id, the opening
+   * message by construction. Undefined (not false) otherwise.
+   */
+  isRequester?: boolean;
   /** Plain text, safe to render without HTML interpretation. */
   body: string;
 }
@@ -154,6 +217,20 @@ export interface CaseDetailData {
     customerName: string | null;
     /** The individual who submitted the ticket (e.g. a Zendesk ticket's requester), or null when unknown. Independent of `customerName` — never merged with it. */
     requesterName: string | null;
+    /**
+     * The currently-assigned agent's display name (Zendesk `assignee_id` /
+     * Intercom `admin_assignee_id`, resolved to a name). Display only
+     * (D10/3.6) — never used for matching or routing. Null when the case has
+     * no current assignee, or the source/normalizer doesn't resolve one.
+     */
+    assigneeName: string | null;
+    /**
+     * The case's current ticket status (3.5) — the `toState` of its most
+     * recent state-bearing `NormalizedEvent` (`case_created`/`state_changed`/
+     * `case_closed`), derived at read time from the same event stream the
+     * timeline and engine use. Null for a case with no events yet.
+     */
+    status: NormalizedState | null;
     /** Which ticket source created this case. */
     system: "zendesk" | "jira" | "linear" | "intercom" | "github";
     /** Outbound link to the source ticket (Zendesk ticket or Intercom conversation), when buildable. */

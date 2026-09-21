@@ -7,6 +7,12 @@ export interface NotificationContext {
   customerName: string | null;
   /** The source ticket's subject/title (`Case.subject`) — optional since it postdates existing cases and not every ticket-source normalizer populates it. Shown in the HTML email body when present; omitted from the Slack message and email subject line to keep those short. */
   subject?: string | null;
+  /**
+   * Deep link to the ticket, e.g. `${appUrl}/cases/${caseId}` (3.9/E-19) —
+   * shared by both channels, unlike `EmailBrand`'s cosmetic-only fields.
+   * Null/undefined omits the link entirely (e.g. no `appUrl` configured).
+   */
+  caseUrl?: string | null;
 }
 
 /** Falls back to this when the organization hasn't set an SMTP "from name" — the email still needs a brand to show in its header. */
@@ -16,8 +22,6 @@ export const DEFAULT_EMAIL_BRAND_NAME = "SLA Breach Monitoring";
 export interface EmailBrand {
   /** Shown in the email header and footer — the organization's configured SMTP "from name", or `DEFAULT_EMAIL_BRAND_NAME`. */
   name?: string | null;
-  /** Deep link to the ticket, e.g. `${appUrl}/cases/${caseId}` — renders a "View ticket" button when set. */
-  caseUrl?: string | null;
 }
 
 /** Recipients are resolved by the dispatcher, not the formatter — mirrors `formatSlackMessage` not knowing the channel. */
@@ -43,6 +47,34 @@ function formatMinutes(minutes: number): string {
   return `${hours}h ${mins}m`;
 }
 
+/** e.g. "Sep 17, 2026, 09:00 UTC" — fixed UTC so the instant reads the same regardless of the server's or reader's own timezone. */
+function formatInstant(iso: string): string {
+  const formatted = new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+  return `${formatted} UTC`;
+}
+
+/**
+ * 3.9's shared alert context line — policy, target, start and (once
+ * breached) breach time — in the given `parts` array, ready to `join`.
+ */
+function contextParts(candidate: NotificationCandidate, isBreach: boolean): string[] {
+  const parts = [
+    `Policy: ${candidate.policyName}`,
+    `Target: ${formatMinutes(candidate.targetMinutes)}`,
+    `Started: ${formatInstant(candidate.startedAt)}`,
+  ];
+  if (isBreach && candidate.breachedAt) parts.push(`Breached: ${formatInstant(candidate.breachedAt)}`);
+  return parts;
+}
+
 /**
  * Plain-text Slack message for one notification candidate. Pure and
  * side-effect free so message content can be unit tested without a Slack
@@ -52,14 +84,18 @@ export function formatSlackMessage(candidate: NotificationCandidate, context: No
   const kindLabel = KIND_LABEL[candidate.kind];
   const who = context.customerName ? ` for ${context.customerName}` : "";
   const ticket = `#${context.externalId}`;
+  const isBreach = candidate.threshold === BREACH_NOTIFICATION_THRESHOLD;
 
-  if (candidate.threshold === BREACH_NOTIFICATION_THRESHOLD) {
-    const over = formatMinutes(candidate.breachedByMinutes ?? 0);
-    return `:rotating_light: *${kindLabel} SLA breached* — ${ticket}${who}, over target by ${over}.`;
-  }
+  const headline = isBreach
+    ? `:rotating_light: *${kindLabel} SLA breached* — ${ticket}${who}, over target by ${formatMinutes(candidate.breachedByMinutes ?? 0)}.`
+    : `:warning: *${kindLabel} SLA at risk* — ${ticket}${who}, ${candidate.threshold}% of target used, ${formatMinutes(candidate.remainingMinutes)} remaining.`;
 
-  const remaining = formatMinutes(candidate.remainingMinutes);
-  return `:warning: *${kindLabel} SLA at risk* — ${ticket}${who}, ${candidate.threshold}% of target used, ${remaining} remaining.`;
+  const metaLine = contextParts(candidate, isBreach).join(" · ");
+  // Slack mrkdwn link syntax — E-19: Slack alerts previously carried no case
+  // link at all, unlike email's "View ticket" button.
+  const link = context.caseUrl ? `\n<${context.caseUrl}|View ticket>` : "";
+
+  return `${headline}\n${metaLine}${link}`;
 }
 
 /**
@@ -78,13 +114,23 @@ export function formatEmailMessage(
   const who = context.customerName ? ` (${context.customerName})` : "";
   const ticket = `#${context.externalId}`;
   const brandName = brand.name?.trim() || DEFAULT_EMAIL_BRAND_NAME;
+  const isBreach = candidate.threshold === BREACH_NOTIFICATION_THRESHOLD;
 
-  if (candidate.threshold === BREACH_NOTIFICATION_THRESHOLD) {
+  // 3.9: policy, target, start and (once breached) breach time — the same
+  // context Slack now carries, joined into the plain-text body and passed
+  // as structured fields to the HTML template (which escapes `policyName`).
+  const meta = contextParts(candidate, isBreach);
+  const metaText = meta.join(" · ");
+  const targetText = formatMinutes(candidate.targetMinutes);
+  const startedText = formatInstant(candidate.startedAt);
+  const breachedText = isBreach && candidate.breachedAt ? formatInstant(candidate.breachedAt) : undefined;
+
+  if (isBreach) {
     const over = formatMinutes(candidate.breachedByMinutes ?? 0);
     const detailLine = `Over target by <strong>${over}</strong>.`;
     return {
       subject: `SLA breached: ${kindLabel} on ${ticket}${who}`,
-      text: `${kindLabel} SLA breached on ticket ${ticket}${who}.\n\nOver target by ${over}.`,
+      text: `${kindLabel} SLA breached on ticket ${ticket}${who}.\n\nOver target by ${over}.\n\n${metaText}`,
       html: renderNotificationEmailHtml({
         brandName,
         severity: "breach",
@@ -93,7 +139,11 @@ export function formatEmailMessage(
         ticketName: context.subject,
         customerName: context.customerName,
         detailLine,
-        caseUrl: brand.caseUrl,
+        caseUrl: context.caseUrl,
+        policyName: candidate.policyName,
+        targetText,
+        startedText,
+        breachedText,
       }),
     };
   }
@@ -102,7 +152,7 @@ export function formatEmailMessage(
   const detailLine = `<strong>${candidate.threshold}%</strong> of target used, <strong>${remaining}</strong> remaining.`;
   return {
     subject: `SLA at risk: ${kindLabel} on ${ticket}${who}`,
-    text: `${kindLabel} SLA at risk on ticket ${ticket}${who}.\n\n${candidate.threshold}% of target used, ${remaining} remaining.`,
+    text: `${kindLabel} SLA at risk on ticket ${ticket}${who}.\n\n${candidate.threshold}% of target used, ${remaining} remaining.\n\n${metaText}`,
     html: renderNotificationEmailHtml({
       brandName,
       severity: "at_risk",
@@ -111,7 +161,10 @@ export function formatEmailMessage(
       ticketName: context.subject,
       customerName: context.customerName,
       detailLine,
-      caseUrl: brand.caseUrl,
+      caseUrl: context.caseUrl,
+      policyName: candidate.policyName,
+      targetText,
+      startedText,
     }),
   };
 }

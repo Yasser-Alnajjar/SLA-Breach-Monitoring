@@ -9,6 +9,7 @@ import { NotificationsActions } from "./notifications";
 import { WorkerSettingsActions } from "./worker-settings";
 import { ConciergeActions } from "./concierge";
 import { ProfileActions } from "./profile";
+import { AtRiskActions } from "./at-risk";
 
 /**
  * Server-only data layer, imported exclusively by `ssr/` (async server)
@@ -17,6 +18,7 @@ import { ProfileActions } from "./profile";
  * imports so it never gets pulled into the browser bundle.
  */
 export const Actions = {
+  AtRisk: AtRiskActions,
   Dashboard: DashboardActions,
   Cases: CasesActions,
   Onboarding: OnboardingActions,

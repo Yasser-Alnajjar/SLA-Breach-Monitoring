@@ -211,6 +211,16 @@ export interface NotificationCandidate {
   threshold: number;
   remainingMinutes: number;
   breachedByMinutes?: number;
+  /** The matched policy's own name (`SLAPolicy.name`) — 3.9's alert context. */
+  policyName: string;
+  targetMinutes: number;
+  startedAt: string; // ISO 8601
+  /**
+   * The exact breach instant (`Evaluation.effectiveDueAt`) when this
+   * candidate's threshold is the breach one — null while still at_risk. 3.9's
+   * alert context: "start and breach times".
+   */
+  breachedAt?: string | null;
 }
 
 export interface EvaluationPipelineResult {
@@ -285,6 +295,7 @@ export async function runEvaluationPipeline(
   ] = await Promise.all([
     prisma.sLAPolicyVersion.findMany({
       where: { id: { in: policyVersionIds } },
+      include: { policy: { select: { name: true } } },
     }),
     prisma.businessCalendarVersion.findMany({
       where: { id: { in: calendarVersionIds } },
@@ -320,6 +331,11 @@ export async function runEvaluationPipeline(
         effectiveFrom: row.effectiveFrom.toISOString(),
       },
     ]),
+  );
+
+  // 3.9's alert context — the policy name a version carries no field of its own.
+  const policyNameByVersionId = new Map<string, string>(
+    policyVersionRows.map((row) => [row.id, row.policy.name]),
   );
 
   const calendarsById = new Map<string, BusinessCalendarVersion>(
@@ -390,6 +406,10 @@ export async function runEvaluationPipeline(
           threshold: evaluation.warnThresholdCrossed,
           remainingMinutes: evaluation.remainingMinutes,
           breachedByMinutes: evaluation.breachedByMinutes,
+          policyName: policyNameByVersionId.get(row.policyVersionId) ?? "Unknown policy",
+          targetMinutes: row.targetMinutes,
+          startedAt: row.startedAt.toISOString(),
+          breachedAt: evaluation.status === "breached" ? evaluation.effectiveDueAt : null,
         });
       }
 

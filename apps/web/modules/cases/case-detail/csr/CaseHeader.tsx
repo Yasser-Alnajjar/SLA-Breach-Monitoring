@@ -5,7 +5,8 @@ import { ExternalLink } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, formatLeg, formatTicketSource } from "@/lib/format";
+import { formatDateTime, formatLeg, formatNormalizedState, formatTicketSource } from "@/lib/format";
+import { NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
 import { Priority, PRIORITY_VARIANT } from "@/lib/status-styles";
 import type { CaseDetailData } from "@/lib/types/cases";
 
@@ -58,6 +59,12 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {caseData.status && (
+              <Badge variant={NORMALIZED_STATE_VARIANT[caseData.status] ?? "default"}>
+                {formatNormalizedState(caseData.status)}
+              </Badge>
+            )}
+
             {caseData.priority && (
               <Badge variant={PRIORITY_VARIANT[caseData.priority as Priority]}>
                 {caseData.priority}
@@ -76,6 +83,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
             {caseData.closedAt
               ? ` · Resolved ${formatDateTime(caseData.closedAt)}`
               : ` · Currently in ${formatLeg(currentLeg)}`}
+            {caseData.assigneeName && ` · Assigned to ${caseData.assigneeName}`}
           </p>
         </div>
 

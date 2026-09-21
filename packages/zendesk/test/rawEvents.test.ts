@@ -59,6 +59,23 @@ describe("mapTicketToRawEvent", () => {
     const second = mapTicketToRawEvent({ ...ticket });
     expect(second.providerEventId).toBe(first.providerEventId);
   });
+
+  it("resolves requester_name and assignee_name from the users sideload (D10/3.6)", () => {
+    const users = [
+      { id: 501, role: "end-user" as const, name: "Rae Requester" },
+      { id: 900, role: "agent" as const, name: "Ada Agent" },
+    ];
+    const result = mapTicketToRawEvent(
+      { ...ticket, requester_id: 501, assignee_id: 900 },
+      users,
+    );
+    expect(result.payload).toMatchObject({ requester_name: "Rae Requester", assignee_name: "Ada Agent" });
+  });
+
+  it("resolves to null when the requester/assignee is missing or not in the sideload", () => {
+    const result = mapTicketToRawEvent({ ...ticket, requester_id: 501, assignee_id: null }, []);
+    expect(result.payload).toMatchObject({ requester_name: null, assignee_name: null });
+  });
 });
 
 describe("mapOrganizationToRawEvent", () => {

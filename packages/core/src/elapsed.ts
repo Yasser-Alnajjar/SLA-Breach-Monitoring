@@ -79,9 +79,12 @@ export function foldClockIntervals(
     if (event.type !== "state_changed" && event.type !== "case_created" && event.type !== "case_closed")
       continue;
     if (!event.toState) continue;
+    // Filtered to the three state-bearing types above, so this is always a
+    // real NormalizedState, never a priority_changed value.
+    const toState = event.toState as NormalizedState;
 
-    if (pauseSet.has(event.toState)) {
-      pausingStateBySystem.set(event.system, event.toState);
+    if (pauseSet.has(toState)) {
+      pausingStateBySystem.set(event.system, toState);
     } else {
       pausingStateBySystem.delete(event.system);
     }
@@ -95,7 +98,7 @@ export function foldClockIntervals(
     const boundary = occurredAt < windowStart ? windowStart : occurredAt;
     closeSegment(boundary);
     segmentStart = boundary;
-    pauseCause = shouldBePaused ? event.toState : null;
+    pauseCause = shouldBePaused ? toState : null;
     pausedSince = shouldBePaused ? occurredAt : null;
   }
 

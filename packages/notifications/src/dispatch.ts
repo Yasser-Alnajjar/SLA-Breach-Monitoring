@@ -133,7 +133,14 @@ export async function runNotificationPipeline(
       continue;
     }
 
-    const context = { externalId: caseRow.externalId, customerName: caseRow.customer?.name ?? null, subject: caseRow.subject };
+    const context = {
+      externalId: caseRow.externalId,
+      customerName: caseRow.customer?.name ?? null,
+      subject: caseRow.subject,
+      // 3.9/E-19: shared by both channels — Slack alerts previously carried
+      // no case link at all.
+      caseUrl: options.appUrl ? `${options.appUrl}/cases/${caseRow.id}` : null,
+    };
     const delivered: string[] = [];
     const errors: string[] = [];
 
@@ -147,17 +154,23 @@ export async function runNotificationPipeline(
     }
 
     if (emailReady) {
-      try {
-        const brand = {
-          name: emailConfig!.fromName,
-          caseUrl: options.appUrl ? `${options.appUrl}/cases/${caseRow.id}` : null,
-        };
-        const { subject, text, html } = formatEmailMessage(candidate, context, brand);
-        await sendEmail(emailConfig!, { to: emailTo, subject, text, html });
-        delivered.push("email");
-      } catch (error) {
-        errors.push(`email: ${errorMessage(error)}`);
+      const brand = { name: emailConfig!.fromName };
+      const { subject, text, html } = formatEmailMessage(candidate, context, brand);
+      // 3.10: one send per recipient, not everyone listed in one `To` — a
+      // bad address for one recipient doesn't block the others, and no
+      // recipient can see who else was alerted.
+      const recipientErrors: string[] = [];
+      let anyEmailSent = false;
+      for (const recipient of emailTo) {
+        try {
+          await sendEmail(emailConfig!, { to: [recipient], subject, text, html });
+          anyEmailSent = true;
+        } catch (error) {
+          recipientErrors.push(`${recipient}: ${errorMessage(error)}`);
+        }
       }
+      if (anyEmailSent) delivered.push("email");
+      if (recipientErrors.length > 0) errors.push(`email: ${recipientErrors.join("; ")}`);
     }
 
     if (delivered.length === 0) {

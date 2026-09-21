@@ -247,6 +247,14 @@ export default function IntercomIntegrationPage() {
               conversation)
             </li>
             <li>• Companies (become Customers)</li>
+            <li>
+              • Admins/teammates (workspace name list only — resolves{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                admin_assignee_id
+              </code>{" "}
+              to a display name for the case header&apos;s assignee. Display
+              only — never used for matching, routing, or SLA calculations.)
+            </li>
           </ul>
         </section>
 

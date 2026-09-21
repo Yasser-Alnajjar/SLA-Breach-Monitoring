@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   allowedDevOrigins: [
-    "poking-hypertext-fade.ngrok-free.dev",
+    "outsmart-module-sensation.ngrok-free.dev",
     "192.168.1.46",
     "192.168.1.49",
   ],

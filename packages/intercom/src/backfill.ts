@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@sla/db";
 import { IntercomApiError, IntercomClient } from "./client";
 import {
+  mapAdminToRawEvent,
   mapCompanyToRawEvent,
   mapContactToRawEvent,
   mapConversationPartToRawEvent,
@@ -17,6 +18,7 @@ export interface BackfillResult {
   conversationPartsFetched: number;
   contactsFetched: number;
   companiesFetched: number;
+  adminsFetched: number;
 }
 
 /**
@@ -52,12 +54,14 @@ export async function runIntercomBackfill(
     conversationPartsFetched: 0,
     contactsFetched: 0,
     companiesFetched: 0,
+    adminsFetched: 0,
   };
   const contactIdsFetchedThisRun = new Set<string>();
 
   await recordWorkspaceIdIfMissing();
   await backfillConversations();
   await backfillCompanies();
+  await backfillAdmins();
 
   cursor.backfillCompletedAt = new Date().toISOString();
   await persistCursor();
@@ -130,6 +134,13 @@ export async function runIntercomBackfill(
       if (page >= companiesPage.pages.total_pages) break;
       page += 1;
     }
+  }
+
+  /** Small, full snapshot every run (like companies) — resolves `admin_assignee_id` to a name (D10/3.6). Not paginated; workspaces have few teammates. */
+  async function backfillAdmins(): Promise<void> {
+    const admins = await client.fetchAdmins();
+    await writeRawEvents(admins.admins.map(mapAdminToRawEvent));
+    result.adminsFetched += admins.admins.length;
   }
 
   async function writeRawEvents(inputs: RawEventInput[]): Promise<void> {

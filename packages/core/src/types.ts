@@ -40,7 +40,14 @@ export type NormalizedEventType =
   // A public reply from the customer on the ticket source, after the case was
   // opened (the opening message is `case_created`). Internal notes never
   // produce it. Carries no state and completes no commitment on its own.
-  | "customer_replied";
+  | "customer_replied"
+  // A priority change read straight off the ticket source's own audit log
+  // (Zendesk ticket audits' `field_name: "priority"`). Display-only (E-14):
+  // `Case.priority` is still what drives policy matching/re-resolution
+  // (`packages/commitments`) — this only gives the Activity Timeline a "why
+  // did the target change" trail. Never produced for Intercom today: its
+  // conversation_parts stream carries no priority-change part type.
+  | "priority_changed";
 
 export interface NormalizedEvent {
   id: string;
@@ -49,8 +56,17 @@ export interface NormalizedEvent {
   occurredAt: string; // ISO 8601
   actor: Actor;
   system: SourceSystem;
-  fromState: NormalizedState | null;
-  toState: NormalizedState | null;
+  /**
+   * A semantic ticket state for every type except `priority_changed`, which
+   * overloads these two fields to carry the ticket source's raw priority
+   * strings instead (e.g. "normal" -> "urgent") — display-only, so it's
+   * exempt from the `NormalizedState` vocabulary. Every engine fold that
+   * reads these for SLA math (`foldClockIntervals`, `deriveNextReplyCycles`,
+   * `legs.ts`) filters by `type` first, so a `priority_changed` event never
+   * reaches them.
+   */
+  fromState: NormalizedState | string | null;
+  toState: NormalizedState | string | null;
   sourceRawEventId: string;
   /**
    * The event's position in its provider's own ordering (e.g. Zendesk audit
@@ -207,7 +223,7 @@ export interface EvaluationEventRef {
   system: SourceSystem;
   type: NormalizedEventType;
   occurredAt: string; // ISO 8601
-  toState: NormalizedState | null;
+  toState: NormalizedState | string | null;
 }
 
 export interface Evaluation {

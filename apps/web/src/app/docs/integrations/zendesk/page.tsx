@@ -171,6 +171,11 @@ export default function ZendeskIntegrationPage() {
             <li>• Organizations (become Customers)</li>
             <li>• SLA policy definitions</li>
             <li>• Business-hours schedules and holidays</li>
+            <li>
+              • Requester and assignee display names (from the ticket&apos;s
+              own user sideload). Display only — shown on the case header,
+              never used for matching, routing, or SLA calculations.
+            </li>
           </ul>
         </section>
 

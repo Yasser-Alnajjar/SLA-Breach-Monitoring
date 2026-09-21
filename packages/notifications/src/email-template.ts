@@ -19,6 +19,16 @@ export interface EmailTemplateInput {
   /** Pre-built inline HTML (e.g. `Over target by <strong>2h</strong>.`) — built from formatted numbers and constant labels only, never from free-text customer/ticket data, so it's trusted and passed through unescaped. */
   detailLine: string;
   caseUrl?: string | null;
+  /**
+   * 3.9's alert context — the matched policy's own name (`SLAPolicy.name`),
+   * free text and escaped here, unlike `targetText`/`startedText`/
+   * `breachedText` below (algorithmically formatted durations/instants, safe
+   * to interpolate as-is).
+   */
+  policyName?: string;
+  targetText?: string;
+  startedText?: string;
+  breachedText?: string;
 }
 
 const SEVERITY_STYLE: Record<
@@ -52,6 +62,16 @@ export function renderNotificationEmailHtml(input: EmailTemplateInput): string {
   const customerRow = input.customerName
     ? `<tr><td style="padding:2px 0;color:#64748b;font-size:14px;">Customer: <span style="color:#0f172a;font-weight:600;">${escapeHtml(input.customerName)}</span></td></tr>`
     : "";
+  const metaParts = [
+    input.policyName ? `Policy: <span style="color:#0f172a;font-weight:600;">${escapeHtml(input.policyName)}</span>` : null,
+    input.targetText ? `Target: <span style="color:#0f172a;font-weight:600;">${escapeHtml(input.targetText)}</span>` : null,
+    input.startedText ? `Started: <span style="color:#0f172a;font-weight:600;">${escapeHtml(input.startedText)}</span>` : null,
+    input.breachedText ? `Breached: <span style="color:#0f172a;font-weight:600;">${escapeHtml(input.breachedText)}</span>` : null,
+  ].filter((part): part is string => part !== null);
+  const metaRow =
+    metaParts.length > 0
+      ? `<tr><td style="padding-top:10px;color:#64748b;font-size:13px;line-height:1.7;">${metaParts.join(" &middot; ")}</td></tr>`
+      : "";
   const ctaButton = input.caseUrl
     ? `<tr><td style="padding-top:24px;">
         <a href="${escapeHtml(input.caseUrl)}" style="display:inline-block;background-color:#0f172a;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:10px 20px;border-radius:6px;">View ticket</a>
@@ -82,6 +102,7 @@ export function renderNotificationEmailHtml(input: EmailTemplateInput): string {
                   ${ticketRow}
                   ${customerRow}
                   <tr><td style="padding-top:14px;color:#334155;font-size:14px;line-height:1.5;">${detailLine}</td></tr>
+                  ${metaRow}
                   ${ctaButton}
                 </table>
               </td>

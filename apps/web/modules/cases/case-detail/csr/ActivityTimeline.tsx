@@ -1,14 +1,19 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowRightLeft,
+  Ban,
   CheckCircle2,
   CirclePlus,
+  Flag,
   HelpCircle,
   Link2,
   ListTree,
   MessageSquare,
   MessageSquareReply,
+  PlayCircle,
+  SlidersHorizontal,
   Unlink,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -24,7 +29,9 @@ import {
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import {
   formatActor,
+  formatCommitmentKind,
   formatDateTime,
+  formatMinutes,
   formatNormalizedState,
   NORMALIZED_STATE_DESCRIPTIONS,
 } from "@/lib/format";
@@ -40,6 +47,13 @@ const EVENT_TYPE_ICON: Record<string, ReactNode> = {
   case_closed: <CheckCircle2 className="size-3" />,
   agent_replied: <MessageSquareReply className="size-3" />,
   customer_replied: <MessageSquare className="size-3" />,
+  priority_changed: <Flag className="size-3" />,
+  policy_changed: <SlidersHorizontal className="size-3" />,
+  commitment_started: <PlayCircle className="size-3" />,
+  commitment_at_risk: <AlertTriangle className="size-3" />,
+  commitment_breached: <AlertTriangle className="size-3" />,
+  commitment_met: <CheckCircle2 className="size-3" />,
+  commitment_cancelled: <Ban className="size-3" />,
 };
 
 const PROVIDER_LABELS = INTEGRATION_PROVIDER_LABELS as Record<string, string>;
@@ -52,6 +66,17 @@ function StateBadge({ state }: { state: string }) {
     >
       {formatNormalizedState(state)}
     </Badge>
+  );
+}
+
+/** Display-only label for a synthetic timeline row's commitment (3.2/3.3) — e.g. "Resolution". */
+function CommitmentLabel({ event }: { event: TimelineEventDetail }) {
+  if (!event.commitmentKind) return null;
+  return (
+    <span className="text-muted-foreground">
+      {" "}
+      · {formatCommitmentKind(event.commitmentKind)}
+    </span>
   );
 }
 
@@ -72,6 +97,77 @@ function TimelineEventBody({ event }: { event: TimelineEventDetail }) {
         <span>Opened as</span>
         <StateBadge state={event.toState} />
       </div>
+    );
+  }
+
+  // Display-only (E-14/3.1): never fed into SLA matching or the engine.
+  if (event.type === "priority_changed") {
+    return (
+      <span className="text-sm font-medium">
+        Priority changed{event.fromState ? ` from ${event.fromState}` : ""}
+        {event.toState ? ` to ${event.toState}` : " (unset)"}
+      </span>
+    );
+  }
+
+  if (event.type === "policy_changed") {
+    return (
+      <span className="text-sm font-medium">
+        Policy re-matched
+        <CommitmentLabel event={event} />
+        {event.previousTargetMinutes !== undefined && event.newTargetMinutes !== undefined && (
+          <span className="text-muted-foreground">
+            {" "}
+            — target {formatMinutes(event.previousTargetMinutes)} →{" "}
+            {formatMinutes(event.newTargetMinutes)}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  if (event.type === "commitment_started") {
+    return (
+      <span className="text-sm font-medium">
+        Commitment started
+        <CommitmentLabel event={event} />
+      </span>
+    );
+  }
+
+  if (event.type === "commitment_at_risk") {
+    return (
+      <span className="text-sm font-medium">
+        At risk{event.thresholdPercent !== undefined ? ` (${event.thresholdPercent}% of target used)` : ""}
+        <CommitmentLabel event={event} />
+      </span>
+    );
+  }
+
+  if (event.type === "commitment_breached") {
+    return (
+      <span className="text-sm font-medium">
+        Breached
+        <CommitmentLabel event={event} />
+      </span>
+    );
+  }
+
+  if (event.type === "commitment_met") {
+    return (
+      <span className="text-sm font-medium">
+        Met
+        <CommitmentLabel event={event} />
+      </span>
+    );
+  }
+
+  if (event.type === "commitment_cancelled") {
+    return (
+      <span className="text-sm font-medium">
+        Commitment cancelled
+        <CommitmentLabel event={event} />
+      </span>
     );
   }
 

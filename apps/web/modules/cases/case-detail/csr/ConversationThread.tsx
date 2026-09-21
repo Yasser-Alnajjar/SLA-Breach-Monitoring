@@ -10,17 +10,51 @@ import { formatActor, formatDateTime } from "@/lib/format";
 import type { CaseDetailData, ConversationMessageDetail } from "@/lib/types/cases";
 
 /**
+ * A ticket opened by a trigger/automation/rule (3.7) — no Customer/Agent
+ * side to attach its opening message to, so it renders as a centered,
+ * neutral system note instead of a left/right bubble.
+ */
+function SystemMessageNote({ message }: { message: ConversationMessageDetail }) {
+  return (
+    <li className="flex justify-center">
+      <div className="max-w-[85%] rounded-lg border border-dashed border-border bg-muted/20 p-3">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+            Opened automatically
+          </Badge>
+          <span aria-hidden>·</span>
+          <time className="tabular-nums">
+            {formatDateTime(message.occurredAt)}
+          </time>
+        </div>
+        <p className="mt-1.5 whitespace-pre-wrap wrap-break-word text-center text-sm leading-5 text-foreground">
+          {message.body}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+/**
  * One message bubble. Side (left/right) and color are driven only by
  * `message.actor` — the already-resolved Customer/Agent distinction from
  * `NormalizedEvent.actor` — never by the author's name, so a customer named
- * e.g. "Alex Support" still renders as a customer message.
+ * e.g. "Alex Support" still renders as a customer message. The sender badge
+ * (3.7) reads "Requester" instead of "Customer" only when the author is
+ * confirmed to be the case's own requester (`message.isRequester`) — an
+ * unconfirmed customer contact still reads as plain "Customer".
  */
 function ConversationMessageBubble({
   message,
 }: {
   message: ConversationMessageDetail;
 }) {
+  if (message.actor === "system") {
+    return <SystemMessageNote message={message} />;
+  }
+
   const isAgent = message.actor === "agent";
+  const senderLabel = message.isRequester ? "Requester" : formatActor(message.actor);
   return (
     <li className={`flex ${isAgent ? "justify-end" : "justify-start"}`}>
       <div
@@ -39,7 +73,7 @@ function ConversationMessageBubble({
             variant={isAgent ? "primary" : "outline"}
             className="h-5 px-1.5 text-[10px]"
           >
-            {formatActor(message.actor)}
+            {senderLabel}
           </Badge>
 
           <span aria-hidden>·</span>

@@ -1,5 +1,6 @@
 import { fetchWithRetry } from "@sla/http-retry";
 import type {
+  IntercomAdminsPage,
   IntercomCompaniesPage,
   IntercomContact,
   IntercomConversationSearchPage,
@@ -126,6 +127,11 @@ export class IntercomClient {
   /** https://developers.intercom.com/docs/references/rest-api/api.intercom.io/contacts/retrievecontact — resolves a conversation's primary contact to its company. */
   fetchContact(contactId: string): Promise<IntercomContact> {
     return this.request<IntercomContact>(`/contacts/${contactId}`);
+  }
+
+  /** https://developers.intercom.com/docs/references/rest-api/api.intercom.io/admins/listadmins — resolves `conversation.admin_assignee_id` to a display name (D10/3.6). Not paginated; workspaces have few teammates. */
+  fetchAdmins(): Promise<IntercomAdminsPage> {
+    return this.request<IntercomAdminsPage>("/admins");
   }
 }
 

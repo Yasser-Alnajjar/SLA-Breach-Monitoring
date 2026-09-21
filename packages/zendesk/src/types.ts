@@ -48,6 +48,14 @@ export interface ZendeskTicket {
   group_id?: number | null;
   /** The individual agent currently assigned, if any — generic SLA policy match input, field `"assignee_id"`. */
   assignee_id?: number | null;
+  /**
+   * Not a real Zendesk API field — resolved from the same `users` sideload as
+   * `requester_name` and embedded before persistence (see `mapTicketToRawEvent`).
+   * Display only (D10/3.6): never used for matching, correlation, or routing.
+   * Null when the ticket has no assignee or the assignee wasn't present in
+   * the sideload.
+   */
+  assignee_name?: string | null;
   /** The brand this ticket was submitted through (multi-brand accounts) — generic SLA policy match input, field `"brand_id"`. */
   brand_id?: number | null;
   /** The ticket form used to submit this ticket — generic SLA policy match input, field `"ticket_form_id"` (Zendesk also accepts the alias `"form_id"`). */

@@ -49,6 +49,9 @@ function candidate(overrides: Partial<NotificationCandidate> = {}): Notification
     status: "at_risk",
     threshold: 80,
     remainingMinutes: 45,
+    policyName: "Urgent SLA",
+    targetMinutes: 240,
+    startedAt: "2026-09-17T09:00:00.000Z",
     ...overrides,
   };
 }
@@ -194,16 +197,46 @@ describe("runNotificationPipeline", () => {
 
     expect(getEmailSettingsMock).toHaveBeenCalledWith(prisma, "org_1");
     expect(postMessageMock).toHaveBeenCalledTimes(1);
-    expect(sendEmailMock).toHaveBeenCalledWith(
+    // 3.10: one send per recipient, never everyone in one `To`.
+    expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    expect(sendEmailMock).toHaveBeenNthCalledWith(
+      1,
       expectedEmailConfig,
       expect.objectContaining({
-        to: ["a@example.com", "b@example.com"],
+        to: ["a@example.com"],
+        subject: expect.stringContaining("#4821"),
+        html: expect.stringContaining("#4821"),
+      }),
+    );
+    expect(sendEmailMock).toHaveBeenNthCalledWith(
+      2,
+      expectedEmailConfig,
+      expect.objectContaining({
+        to: ["b@example.com"],
         subject: expect.stringContaining("#4821"),
         html: expect.stringContaining("#4821"),
       }),
     );
     expect(result.notificationsSent).toBe(1);
     expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "slack,email" } });
+  });
+
+  it("keeps other recipients' delivery independent of one recipient's send failing (3.10)", async () => {
+    getEmailSettingsMock.mockResolvedValue(emailSettings);
+    sendEmailMock.mockImplementation((_config, message) =>
+      message.to[0] === "bad@example.com" ? Promise.reject(new Error("mailbox unavailable")) : Promise.resolve(),
+    );
+    const prisma = fakePrisma({
+      slack: null,
+      users: [{ email: "a@example.com" }, { email: "bad@example.com" }, { email: "c@example.com" }],
+    });
+    const result = await runNotificationPipeline(prisma, "org_1", [candidate()]);
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(3);
+    // At least one recipient succeeded, so the alert as a whole is sent —
+    // the bad address doesn't block the others, and isn't retried forever.
+    expect(result.notificationsSent).toBe(1);
+    expect(prisma.notification.update).toHaveBeenCalledWith({ where: { id: "ntf_1" }, data: { channel: "email" } });
   });
 
   it("includes the ticket's subject in the HTML email when the case has one", async () => {
@@ -316,7 +349,7 @@ describe("runNotificationPipeline", () => {
 
     expect(result.notificationsSent).toBe(0);
     expect(result.notificationsFailed).toEqual([
-      { commitmentId: "cmt_1", threshold: 80, error: "slack: channel_not_found; email: connection refused" },
+      { commitmentId: "cmt_1", threshold: 80, error: "slack: channel_not_found; email: a@example.com: connection refused" },
     ]);
     // The claim is released so a later cycle retries this alert.
     expect(prisma.notification.delete).toHaveBeenCalledWith({ where: { id: "ntf_1" } });

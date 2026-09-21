@@ -30,8 +30,6 @@ export function UserMenu({ user }: { user: IUser }) {
   const initials = initialsOf(user.name, user.email);
   const isMobile = useIsMobile();
   const displayName = user.name || user.email?.split("@")[0] || "User";
-  console.log("user", user);
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>

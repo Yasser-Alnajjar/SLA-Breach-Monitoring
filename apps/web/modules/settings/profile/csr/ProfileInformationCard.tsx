@@ -65,36 +65,37 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
 
   const [name, setName] = useState(user.name ?? "");
   const [image, setImage] = useState(user.image ?? "");
-  const [avatarError, setAvatarError] = useState<string | null>(null);
+  // const [avatarError, setAvatarError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<SaveResult | null>(null);
 
   const trimmedName = name.trim();
-  const dirty = trimmedName !== (user.name ?? "") || image !== (user.image ?? "");
+  const dirty =
+    trimmedName !== (user.name ?? "") || image !== (user.image ?? "");
   const previewInitials = initialsOf(trimmedName || null, user.email);
 
-  async function handleAvatarSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  // async function handleAvatarSelected(event: ChangeEvent<HTMLInputElement>) {
+  //   const file = event.target.files?.[0];
+  //   event.target.value = "";
+  //   if (!file) return;
 
-    setAvatarError(null);
+  //   setAvatarError(null);
 
-    if (!file.type.startsWith("image/")) {
-      setAvatarError("Choose an image file.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setAvatarError("Image must be 8MB or smaller.");
-      return;
-    }
+  //   if (!file.type.startsWith("image/")) {
+  //     setAvatarError("Choose an image file.");
+  //     return;
+  //   }
+  //   if (file.size > MAX_UPLOAD_BYTES) {
+  //     setAvatarError("Image must be 8MB or smaller.");
+  //     return;
+  //   }
 
-    try {
-      setImage(await fileToAvatarDataUrl(file));
-    } catch {
-      setAvatarError("Couldn't read that image — try a different file.");
-    }
-  }
+  //   try {
+  //     setImage(await fileToAvatarDataUrl(file));
+  //   } catch {
+  //     setAvatarError("Couldn't read that image — try a different file.");
+  //   }
+  // }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -151,7 +152,7 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
               </AvatarFallback>
             </Avatar>
 
-            <div className="space-y-1.5">
+            {/* <div className="space-y-1.5">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -186,7 +187,7 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
               {avatarError && (
                 <p className="text-xs text-destructive">{avatarError}</p>
               )}
-            </div>
+            </div> */}
           </div>
 
           <div className="space-y-1.5">

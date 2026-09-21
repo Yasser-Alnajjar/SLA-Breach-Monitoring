@@ -4,6 +4,8 @@ import type { ZendeskOAuthConfig } from "./oauth";
 import {
   mapAuditToRawEvent,
   mapBusinessHoursScheduleToRawEvent,
+  mapJiraLinkManifestToRawEvent,
+  mapJiraLinkToRawEvent,
   mapOrganizationToRawEvent,
   mapScheduleHolidaysToRawEvent,
   mapSlaPolicyManifestToRawEvent,
@@ -30,6 +32,7 @@ export interface BackfillResult {
   organizationsFetched: number;
   slaPoliciesFetched: number;
   businessHoursSchedulesFetched: number;
+  jiraLinksFetched: number;
 }
 
 /**
@@ -62,12 +65,14 @@ export async function runZendeskBackfill(
     organizationsFetched: 0,
     slaPoliciesFetched: 0,
     businessHoursSchedulesFetched: 0,
+    jiraLinksFetched: 0,
   };
 
   await backfillTickets();
   await backfillOrganizations();
   await backfillSlaPolicies();
   await backfillBusinessHoursSchedules();
+  await backfillJiraLinks();
 
   if (cursor.tickets && cursor.organizations) {
     cursor.backfillCompletedAt = new Date().toISOString();
@@ -183,6 +188,40 @@ export async function runZendeskBackfill(
     // A full listing every run (see mapSlaPolicyManifestToRawEvent) — lets
     // the importer tell "deleted in Zendesk" apart from "not fetched yet".
     await writeRawEvents([mapSlaPolicyManifestToRawEvent(seenPolicyIds)]);
+  }
+
+  /**
+   * The official Zendesk↔Jira integration's structured link registry — a
+   * full, paginated listing re-fetched every run (like SLA policies) rather
+   * than cursor-tracked, since Zendesk's `/api/v2/jira/links` carries no
+   * incremental `start_time` filter. Paginated via `meta.has_more`/
+   * `meta.after_cursor` (see `ZendeskJiraLinksPage`'s doc comment) — this
+   * endpoint has no `next_page` URL. Any fetch failure here propagates like
+   * every other list endpoint's (no try/catch swallowing it into an empty
+   * page): the correlator that reads these RawEvents
+   * (`runZendeskJiraLinkCorrelation`, ./correlate.ts) must never read "the
+   * API errored" as "there are no Jira links."
+   *
+   * Also writes a full-manifest RawEvent of every link id seen this run
+   * (mirrors `backfillSlaPolicies`'s `mapSlaPolicyManifestToRawEvent`) — the
+   * only way the correlator can tell a ticket was unlinked in Zendesk apart
+   * from "we haven't re-fetched it since it linked."
+   */
+  async function backfillJiraLinks(): Promise<void> {
+    let afterCursor: string | undefined;
+    const seenLinkIds: number[] = [];
+
+    for (;;) {
+      const page = await client.fetchJiraLinksPage(afterCursor);
+      await writeRawEvents(page.links.map(mapJiraLinkToRawEvent));
+      result.jiraLinksFetched += page.links.length;
+      seenLinkIds.push(...page.links.map((l) => l.id));
+
+      if (!page.meta?.has_more || !page.meta.after_cursor) break;
+      afterCursor = page.meta.after_cursor;
+    }
+
+    await writeRawEvents([mapJiraLinkManifestToRawEvent(seenLinkIds)]);
   }
 
   /**

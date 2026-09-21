@@ -38,6 +38,7 @@ import { runNotificationPipeline } from "@sla/notifications";
 import {
   runZendeskBackfill,
   runZendeskBusinessCalendarImport,
+  runZendeskJiraLinkCorrelation,
   runZendeskNormalization,
   runZendeskSlaPolicyImport,
   ZendeskPermissionDeniedError,
@@ -256,6 +257,12 @@ export async function runCycle(
         try {
           if (integration.provider === "zendesk") {
             await runZendeskNormalization(prisma, integration.id);
+            // Independent of Jira's own correlation below: the official
+            // Zendesk↔Jira link signal still establishes the relationship
+            // even when a Jira remote link is stale or Jira isn't connected
+            // at all. Must run after normalization, which is what creates
+            // the Cases this looks up by ticket id.
+            await runZendeskJiraLinkCorrelation(prisma, integration.id);
             await runZendeskBusinessCalendarImport(prisma, integration.id);
             slaPolicyImportResult = await runZendeskSlaPolicyImport(prisma, integration.id);
           } else if (integration.provider === "jira") {

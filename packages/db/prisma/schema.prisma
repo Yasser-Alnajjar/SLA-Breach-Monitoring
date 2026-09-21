@@ -261,6 +261,19 @@ model CaseLink {
   confidence  LinkConfidence
   evidence    Json?
   confirmedAt DateTime?
+  /// Set when every evidence source that once confirmed this relationship
+  /// has stopped confirming it (e.g. the ticket was unlinked from the issue
+  /// in Zendesk, and no `remote_link` independently still proves it) —
+  /// null means currently active. Mirrors the row-stays-but-marked-inactive
+  /// convention already used elsewhere in this schema (`Case.deletedAt`,
+  /// `SLAPolicy.archivedAt`): the row, its `method`/`confidence`/`evidence`
+  /// history, and every RawEvent/NormalizedEvent derived from it are never
+  /// deleted — only whether the relationship is *currently* active changes.
+  /// A later re-link clears this back to null on the same row rather than
+  /// creating a second one, since CaseLink identity (`caseId`, `system`,
+  /// `externalId`) is already the Jira issue itself, not a point-in-time
+  /// observation of it.
+  unlinkedAt  DateTime?
   createdAt   DateTime            @default(now())
   case        Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
 

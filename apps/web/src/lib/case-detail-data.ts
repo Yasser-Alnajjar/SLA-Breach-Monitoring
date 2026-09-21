@@ -360,14 +360,22 @@ export async function getCaseDetailData(
 
   // Every CaseLink system this page knows how to render — a Zendesk CaseLink
   // never actually occurs (Case itself *is* the Zendesk side), but the type
-  // guard stays honest about the full IntegrationProvider union.
+  // guard stays honest about the full IntegrationProvider union. Excludes a
+  // link whose `unlinkedAt` is set (e.g. the ticket was unlinked from the
+  // issue in Zendesk, and no independent evidence source still proves the
+  // relationship — see `runZendeskJiraLinkCorrelation`'s unlink sweep): the
+  // row, its evidence, and every event derived from it are kept for history,
+  // but this "active relationships" list must not present it as current.
+  // That history stays reachable through the timeline's own
+  // `issue_linked`/`issue_unlinked` events, not through this list.
   const links: CaseLinkDetail[] = caseRow.caseLinks
     .filter(
       (link): link is typeof link & { system: "jira" | "zendesk" | "linear" | "github" } =>
-        link.system === "jira" ||
-        link.system === "zendesk" ||
-        link.system === "linear" ||
-        link.system === "github",
+        link.unlinkedAt === null &&
+        (link.system === "jira" ||
+          link.system === "zendesk" ||
+          link.system === "linear" ||
+          link.system === "github"),
     )
     .map((link) => ({
       system: link.system,

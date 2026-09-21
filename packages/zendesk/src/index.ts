@@ -12,6 +12,8 @@ export {
 export {
   mapAuditToRawEvent,
   mapBusinessHoursScheduleToRawEvent,
+  mapJiraLinkManifestToRawEvent,
+  mapJiraLinkToRawEvent,
   mapOrganizationToRawEvent,
   mapScheduleHolidaysToRawEvent,
   mapSlaPolicyManifestToRawEvent,
@@ -57,7 +59,7 @@ export type { ZendeskClientOptions } from "./client";
 export { computeSourceHash } from "./hash";
 export { runZendeskBackfill } from "./backfill";
 export type { BackfillResult } from "./backfill";
-export type { RawEventInput, ScheduleHolidaysSnapshot, SlaPolicyManifest } from "./rawEvents";
+export type { JiraLinkManifest, RawEventInput, ScheduleHolidaysSnapshot, SlaPolicyManifest } from "./rawEvents";
 export type { ZendeskOAuthConfig } from "./oauth";
 export { buildAuthorizeUrl, exchangeCodeForToken, refreshAccessToken, ZendeskOAuthError } from "./oauth";
 export {
@@ -73,3 +75,5 @@ export {
   verifyZendeskWebhookSecret,
 } from "./webhook";
 export type { WebhookIngestResult } from "./webhook";
+export { parseJiraLinkRecord, runZendeskJiraLinkCorrelation } from "./correlate";
+export type { JiraLinkCorrelationResult } from "./correlate";

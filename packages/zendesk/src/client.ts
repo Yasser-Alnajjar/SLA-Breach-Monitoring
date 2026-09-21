@@ -5,6 +5,7 @@ import type {
   ZendeskCredentials,
   ZendeskIncrementalOrganizationExport,
   ZendeskIncrementalTicketExport,
+  ZendeskJiraLinksPage,
   ZendeskScheduleHolidaysPage,
   ZendeskSlaPoliciesPage,
   ZendeskTicketShow,
@@ -112,6 +113,27 @@ export class ZendeskClient {
 
   fetchSlaPoliciesPage(nextPageUrl?: string): Promise<ZendeskSlaPoliciesPage> {
     return this.request<ZendeskSlaPoliciesPage>(nextPageUrl ?? "/api/v2/slas/policies.json");
+  }
+
+  /**
+   * The official Zendesk↔Jira integration's structured link registry:
+   * `{ticket_id, issue_key}` pairs Zendesk itself maintains, independent of
+   * whatever URL a Jira remote link happens to carry. Treated as the
+   * authoritative correlation signal (see packages/zendesk/src/correlate.ts)
+   * — it still resolves the relationship when a remote link exists but
+   * points at a stale Zendesk subdomain.
+   *
+   * The first page is fetched with no query params — confirmed live against
+   * a real connected account. `afterCursor` (from a prior page's
+   * `meta.after_cursor`, per `ZendeskJiraLinksPage`'s doc comment) is only
+   * ever added for a continuation request, so an account whose whole
+   * registry fits on one page (the common case — this endpoint has no
+   * `next_page`-URL style to instead default to) is completely unaffected.
+   */
+  fetchJiraLinksPage(afterCursor?: string): Promise<ZendeskJiraLinksPage> {
+    if (!afterCursor) return this.request<ZendeskJiraLinksPage>("/api/v2/jira/links");
+    const params = new URLSearchParams({ "page[after]": afterCursor });
+    return this.request<ZendeskJiraLinksPage>(`/api/v2/jira/links?${params.toString()}`);
   }
 
   /**

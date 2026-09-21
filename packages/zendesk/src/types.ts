@@ -230,6 +230,43 @@ export interface ZendeskSlaPoliciesPage {
 }
 
 /**
+ * One row from Zendesk's official Jira-links registry (`GET
+ * /api/v2/jira/links`) — the structured Zendesk↔Jira relationship the
+ * official Zendesk Jira integration itself maintains. Unlike a Jira remote
+ * link (`JiraRemoteLink` in packages/jira/src/types.ts), Zendesk hands back
+ * the ticket id and Jira issue key directly: no URL to parse, no hostname to
+ * validate. That's what makes this the authoritative correlation signal (see
+ * packages/zendesk/src/correlate.ts) — it still finds the relationship when a
+ * Jira remote link exists but carries a stale Zendesk subdomain.
+ *
+ * `ticket_id` is a **string** in the live response (confirmed against a real
+ * connected account, roadmap regression fix) despite the name suggesting a
+ * number — `parseJiraLinkRecord` (./correlate.ts) accounts for this.
+ */
+export interface ZendeskJiraLink {
+  id: number;
+  ticket_id: string;
+  issue_key: string;
+  issue_id?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Confirmed against the live endpoint: there is no `next_page` URL here,
+ * unlike every other paginated Zendesk endpoint this adapter reads. Instead
+ * it follows Zendesk's documented cursor-pagination envelope
+ * (developer.zendesk.com/api-reference/introduction/pagination/#cursor-pagination):
+ * `meta.has_more` says whether another page exists, and (when true)
+ * `meta.after_cursor` is passed back as the `page[after]` query param to
+ * fetch it. `total` is informational only — not used for pagination.
+ */
+export interface ZendeskJiraLinksPage {
+  links: ZendeskJiraLink[];
+  total?: number;
+  meta?: { has_more: boolean; after_cursor?: string | null };
+}
+
+/**
  * One open window, expressed as minutes since Sunday 00:00 in the
  * schedule's own timezone — a flat weekly offset rather than a per-day
  * (day, openMinute, closeMinute) triple. Assumed to fall within a single

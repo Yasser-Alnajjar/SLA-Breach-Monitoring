@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { computeSourceHash } from "./hash";
 import type {
   ZendeskAudit,
   ZendeskBusinessHoursSchedule,
+  ZendeskJiraLink,
   ZendeskOrganization,
   ZendeskScheduleHoliday,
   ZendeskSlaPolicy,
@@ -77,6 +79,50 @@ export function mapSlaPolicyToRawEvent(policy: ZendeskSlaPolicy): RawEventInput 
     sourceHash,
     payload: policy,
   };
+}
+
+/**
+ * Official Zendesk↔Jira links are a mutable registry row (a link can be
+ * removed and a new one created for the same ticket/issue pair), so — like
+ * tickets — the hash is folded into the provider event id for append-only
+ * dedup. Keyed by the link's own `id`, not by ticket/issue key, mirroring
+ * `mapRemoteLinkToRawEvent`'s per-link keying in packages/jira/src/rawEvents.ts.
+ */
+export function mapJiraLinkToRawEvent(link: ZendeskJiraLink): RawEventInput {
+  const sourceHash = computeSourceHash(link);
+  return { providerEventId: `jira_link:${link.id}:${sourceHash}`, sourceHash, payload: link };
+}
+
+/** What the importer reads back to tell "no longer live in Zendesk" (unlinked) apart from "never fetched". */
+export interface JiraLinkManifest {
+  linkIds: number[];
+}
+
+/**
+ * `backfillJiraLinks` re-fetches the entire official Jira-links registry
+ * every run (like SLA policies — no incremental filter is available), so the
+ * full set of link ids seen in one run is exactly the set of relationships
+ * currently active in Zendesk. Recorded as its own snapshot, separate from
+ * the per-link `jira_link:` rows, so `runZendeskJiraLinkCorrelation`
+ * (./correlate.ts) can tell "this ticket was unlinked from this issue in
+ * Zendesk" apart from "we just haven't re-fetched it yet" — a Zendesk unlink
+ * has no deletion event of its own to react to, only the link's absence from
+ * a fresh full listing.
+ *
+ * Deliberately does NOT fold the content hash into `providerEventId` the way
+ * `mapSlaPolicyManifestToRawEvent` and every other manifest/snapshot mapper
+ * in this file do: the correlator picks the *latest* manifest by `fetchedAt`
+ * to decide what's currently linked, and a link set can legitimately
+ * oscillate back to a set it held before (unlink, then re-link the same
+ * issue) — content-hash dedup would collapse that reaffirming write onto the
+ * original row's *old* timestamp, making the correlator read a stale
+ * manifest as the latest one. `randomUUID` guarantees every run gets its own
+ * row instead; the table only grows by one small row per Zendesk backfill.
+ */
+export function mapJiraLinkManifestToRawEvent(linkIds: number[]): RawEventInput {
+  const payload: JiraLinkManifest = { linkIds: [...linkIds].sort((a, b) => a - b) };
+  const sourceHash = computeSourceHash(payload);
+  return { providerEventId: `jira_link_manifest:${randomUUID()}`, sourceHash, payload };
 }
 
 /** What the importer reads back to tell "no longer live in Zendesk" apart from "never fetched". */

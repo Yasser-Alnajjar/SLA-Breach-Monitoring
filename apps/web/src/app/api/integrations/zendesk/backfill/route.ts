@@ -44,6 +44,7 @@ export async function POST() {
     return NextResponse.json({
       backfill,
       normalization: zendesk?.normalization,
+      jiraLinkCorrelation: zendesk?.jiraLinkCorrelation,
       businessCalendarImport: zendesk?.businessCalendarImport,
       slaPolicyImport: zendesk?.slaPolicyImport,
       jira,

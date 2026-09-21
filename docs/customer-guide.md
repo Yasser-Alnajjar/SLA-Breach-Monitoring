@@ -94,7 +94,7 @@ You'll land on the onboarding screen immediately after sign-up. The first thing 
 - **What it's used for:** Zendesk is the source of truth for what you promised — your customers (organizations), your SLA policies, your business-hours schedules, and your ticket history.
 - **What you provide:** your Zendesk subdomain (the `xxx` in `xxx.zendesk.com`). You'll be redirected to Zendesk to approve the connection through a standard OAuth flow.
 - **Permissions requested:** **read-only** (`read` scope). No write scope is ever requested.
-- **What is read:** tickets (via Zendesk's incremental export API), each ticket's full audit trail (every status change, every event), organizations, SLA policy definitions, and business-hours schedules and holidays.
+- **What is read:** tickets (via Zendesk's incremental export API), each ticket's full audit trail (every status change, every event), organizations, SLA policy definitions, business-hours schedules and holidays, and the official Zendesk↔Jira links registry (used for correlation — see Section 15).
 - **What is never changed:** nothing. No ticket, comment, tag, or field in Zendesk is ever created, updated, or deleted by this product.
 - **After connecting:** a 90-day historical backfill starts automatically — see Step 4.
 
@@ -228,7 +228,7 @@ OAuth scopes: **`read:jira-work offline_access`**. `offline_access` exists only 
 Every status transition on a linked Jira issue becomes a normalized event on the case's timeline and contributes to leg attribution (Section 14) — whether the case is currently in the `engineering` leg, and for how long.
 
 ### Data used for correlation
-A Jira issue's own **remote links** are read for a URL pointing at your Zendesk subdomain. If found, the case is linked with `certain` confidence via the method labeled **"Remote link."** See [Section 15](#15-correlation-between-systems) for exactly how strict this match is.
+A Jira issue's own **remote links** are read for a URL pointing at your Zendesk subdomain. If found, the case is linked with `certain` confidence via the method labeled **"Remote link."** Zendesk's own official Jira-links registry (read as part of the Zendesk connection, Section 6) is the authoritative correlation signal and is checked independently — it still establishes the link even if this issue's remote link is missing or stale. See [Section 15](#15-correlation-between-systems) for exactly how strict this match is.
 
 ### Data not modified
 Nothing. No issue, status, comment, or field in Jira is ever created or changed.
@@ -448,9 +448,27 @@ Correlation is how a Zendesk ticket gets connected to a Jira issue, a Linear iss
 
 | Link | Method | How it's verified |
 |---|---|---|
+| Jira issue → Zendesk ticket | **Official link** | Read from Zendesk's own official Jira-links registry (`GET /api/v2/jira/links` — the data behind the official Zendesk↔Jira integration), which hands back the Zendesk ticket id and Jira issue key directly. This is the authoritative signal: no URL to parse, no hostname to validate. |
 | Jira issue → Zendesk ticket | **Remote link** | Read from Jira's own remote-links data for that issue. Accepted only if the linked URL's hostname is *exactly* your connected Zendesk subdomain — a similar-looking or different tenant's domain is never accepted. |
 | Linear issue → Zendesk ticket | **Remote link** | Same rule as Jira, applied to Linear's attachment/link data. |
 | GitHub pull request → case | **Pattern match** | The PR's title or branch name is scanned for a Jira- or Linear-style issue key (e.g. `ENG-1234`). If that key already has a confirmed Jira or Linear link to a case, the pull request is linked to the same case(s). A PR can reference more than one issue key and link to more than one case if so. |
+
+Both Jira methods run independently and can both fire for the same
+relationship — that's expected, not a bug. If a Jira issue and a Zendesk
+ticket are linked through both the official Jira-links registry and a
+matching Jira remote link, the product still records exactly one link
+between them, shown as **"Official Zendesk↔Jira link."** The official-link
+signal is treated as authoritative: it's what's shown whenever it's present,
+even if a remote link also exists.
+
+This matters most when a Jira remote link has gone stale — for example, an
+organization reconnected Zendesk under a new subdomain, and an old remote
+link still points at the previous one. **That stale hostname is never
+repaired or relaxed** — a remote link on the wrong subdomain is rejected
+exactly as before, with no exception. But because the official Jira-links
+registry carries the ticket id and issue key directly rather than a URL, it
+still establishes the relationship on its own, independent of whether the
+remote link is current, stale, or was never created at all.
 
 ### Confidence levels
 

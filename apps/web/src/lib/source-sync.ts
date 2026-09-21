@@ -11,9 +11,11 @@ import {
 } from "@sla/commitments";
 import {
   runZendeskBusinessCalendarImport,
+  runZendeskJiraLinkCorrelation,
   runZendeskNormalization,
   runZendeskSlaPolicyImport,
   type BusinessCalendarImportResult,
+  type JiraLinkCorrelationResult,
   type NormalizationResult,
   type SlaPolicyImportResult,
   type ZendeskCursor,
@@ -37,6 +39,7 @@ type SourceProvider = "zendesk" | "jira";
 export interface SourceSyncProjectionResult {
   zendesk: {
     normalization: NormalizationResult;
+    jiraLinkCorrelation: JiraLinkCorrelationResult;
     businessCalendarImport: BusinessCalendarImportResult;
     slaPolicyImport: SlaPolicyImportResult;
   } | null;
@@ -102,6 +105,12 @@ export async function projectAndEvaluateSourceSyncs(
       zendesk && zendeskReady
         ? {
             normalization: await runZendeskNormalization(prisma, zendesk.id),
+            // Independent of Jira's own correlation below: the official
+            // Zendesk↔Jira link signal still establishes the relationship
+            // even when a Jira remote link is stale or Jira isn't connected
+            // at all. Must run after normalization, which is what creates
+            // the Cases this looks up by ticket id.
+            jiraLinkCorrelation: await runZendeskJiraLinkCorrelation(prisma, zendesk.id),
             businessCalendarImport: await runZendeskBusinessCalendarImport(prisma, zendesk.id),
             slaPolicyImport: await runZendeskSlaPolicyImport(prisma, zendesk.id),
           }

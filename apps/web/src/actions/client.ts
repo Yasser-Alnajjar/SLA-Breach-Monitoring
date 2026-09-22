@@ -18,6 +18,7 @@ import type { SignUpInput } from "@/lib/sign-up";
 import type { IUser } from "@/lib/types/user";
 import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
 import type { InvitationPreview } from "@/lib/types/invitations";
+import type { UserRole } from "@/lib/types/user";
 import type {
   ConciergeExportSelectionRequest,
   ConciergeExportSummary,
@@ -362,6 +363,17 @@ export const Actions = {
     /** Public — no session required. */
     async acceptInvite(input: { token: string; name: string; password: string }) {
       return postJSON<{ ok: boolean; email: string }>("/api/invitations/accept", input);
+    },
+  },
+
+  Members: {
+    async updateRole(memberId: string, role: UserRole) {
+      return postJSON<Record<string, never>>(`/api/settings/members/${memberId}`, { role }, "PATCH");
+    },
+    async remove(memberId: string) {
+      const response = await fetch(`/api/settings/members/${memberId}`, { method: "DELETE" });
+      const body = await response.json().catch(() => ({}));
+      return { ok: response.ok, error: body.error as string | undefined };
     },
   },
 };

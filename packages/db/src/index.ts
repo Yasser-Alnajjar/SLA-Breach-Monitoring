@@ -87,6 +87,16 @@ export type {
   AcceptInvitationResult,
 } from "./invitations";
 
+export {
+  listMembers,
+  updateMemberRole,
+  removeMember,
+  MemberNotFoundError,
+  CannotRemoveSelfError,
+  LastOwnerError,
+} from "./members";
+export type { OrganizationMember } from "./members";
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });

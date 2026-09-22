@@ -11,6 +11,7 @@ import { ConciergeActions } from "./concierge";
 import { ProfileActions } from "./profile";
 import { AtRiskActions } from "./at-risk";
 import { InvitationsActions } from "./invitations";
+import { MembersActions } from "./members";
 
 /**
  * Server-only data layer, imported exclusively by `ssr/` (async server)
@@ -31,4 +32,5 @@ export const Actions = {
   Concierge: ConciergeActions,
   Profile: ProfileActions,
   Invitations: InvitationsActions,
+  Members: MembersActions,
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Mail, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Mail, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Actions } from "@/actions/client";
@@ -9,11 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PendingInvitation } from "@/lib/types/invitations";
+import type { OrganizationMemberSummary } from "@/lib/types/members";
+import type { UserRole } from "@/lib/types/user";
 import { formatDateTime } from "@/lib/format";
 
 interface MembersViewProps {
   invitations: PendingInvitation[];
+  members: OrganizationMemberSummary[];
+  currentUserId: string;
 }
 
 interface InviteResult {
@@ -30,11 +35,105 @@ function formatDate(iso: string): string {
   });
 }
 
-/**
- * Invitations only — 5.2's scope. Listing/changing roles/removing already-
- * accepted members is Phase 5 task 5.3, built on top of this same page.
- */
-export function MembersView({ invitations }: MembersViewProps) {
+function MemberRow({
+  member,
+  isSelf,
+  onSaved,
+}: {
+  member: OrganizationMemberSummary;
+  isSelf: boolean;
+  onSaved: () => void;
+}) {
+  const [role, setRole] = useState<UserRole>(member.role);
+  const [savingRole, setSavingRole] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const roleDirty = role !== member.role;
+
+  async function handleSaveRole() {
+    setSavingRole(true);
+    setError(null);
+
+    const { ok, body } = await Actions.Members.updateRole(member.id, role);
+    setSavingRole(false);
+
+    if (!ok) {
+      setError(body.error ?? "Failed to update role");
+      setRole(member.role);
+      return;
+    }
+
+    onSaved();
+  }
+
+  async function handleRemove() {
+    setRemoving(true);
+    setError(null);
+
+    const { ok, error: removeError } = await Actions.Members.remove(member.id);
+    setRemoving(false);
+
+    if (!ok) {
+      setError(removeError ?? "Failed to remove member");
+      return;
+    }
+
+    onSaved();
+  }
+
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">
+            {member.name ?? member.email}
+            {isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {member.name ? `${member.email} · ` : ""}Joined {formatDate(member.createdAt)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="owner">Owner</SelectItem>
+              <SelectItem value="member">Member</SelectItem>
+            </SelectContent>
+          </Select>
+          {roleDirty && (
+            <Button type="button" size="sm" onClick={handleSaveRole} disabled={savingRole}>
+              {savingRole && <Loader2 className="animate-spin" />}
+              {savingRole ? "Saving…" : "Save"}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={handleRemove}
+            disabled={isSelf || removing}
+            title={isSelf ? "You can't remove yourself" : undefined}
+          >
+            {removing ? <Loader2 className="animate-spin" /> : <X />}
+            Remove
+          </Button>
+        </div>
+      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+    </li>
+  );
+}
+
+export function MembersView({ invitations, members, currentUserId }: MembersViewProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [inviting, setInviting] = useState(false);
@@ -77,9 +176,35 @@ export function MembersView({ invitations }: MembersViewProps) {
       <div>
         <h1 className="text-lg font-semibold">Members</h1>
         <p className="text-sm text-muted-foreground">
-          Invite people to this organization.
+          Manage who has access to this organization.
         </p>
       </div>
+
+      <Card className="p-6">
+        <CardHeader className="flex flex-row items-center gap-3 p-0">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Users className="size-4" />
+          </span>
+          <div>
+            <CardTitle className="text-base font-medium">Members</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {members.length} {members.length === 1 ? "person has" : "people have"} access.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 pt-5">
+          <ul className="divide-y">
+            {members.map((member) => (
+              <MemberRow
+                key={member.id}
+                member={member}
+                isSelf={member.id === currentUserId}
+                onSaved={() => router.refresh()}
+              />
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       <Card className="p-6">
         <CardHeader className="flex flex-row items-center gap-3 p-0">

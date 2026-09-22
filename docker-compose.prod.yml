@@ -36,15 +36,17 @@ services:
       INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY:?INTEGRATION_TOKEN_ENCRYPTION_KEY is required}
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      # Deployment-level SMTP for invitations, password resets and email
+      # Deployment-owned SMTP for invitations, password resets and email
       # verification (roadmap D8) — optional at the container level, but
-      # those flows fail explicitly at send time if left unset.
-      TRANSACTIONAL_SMTP_HOST: ${TRANSACTIONAL_SMTP_HOST:-}
-      TRANSACTIONAL_SMTP_PORT: ${TRANSACTIONAL_SMTP_PORT:-587}
-      TRANSACTIONAL_SMTP_SECURITY: ${TRANSACTIONAL_SMTP_SECURITY:-starttls}
-      TRANSACTIONAL_SMTP_USER: ${TRANSACTIONAL_SMTP_USER:-}
-      TRANSACTIONAL_SMTP_PASSWORD: ${TRANSACTIONAL_SMTP_PASSWORD:-}
-      TRANSACTIONAL_SMTP_FROM: ${TRANSACTIONAL_SMTP_FROM:-}
+      # those flows fail explicitly at send time if left unset. Also used by
+      # the worker's ops alert below (OPS_ALERT_EMAIL) — one shared
+      # deployment-level mailer, not a separate credential set per feature.
+      DEPLOYMENT_SMTP_HOST: ${DEPLOYMENT_SMTP_HOST:-}
+      DEPLOYMENT_SMTP_PORT: ${DEPLOYMENT_SMTP_PORT:-587}
+      DEPLOYMENT_SMTP_SECURITY: ${DEPLOYMENT_SMTP_SECURITY:-starttls}
+      DEPLOYMENT_SMTP_USER: ${DEPLOYMENT_SMTP_USER:-}
+      DEPLOYMENT_SMTP_PASSWORD: ${DEPLOYMENT_SMTP_PASSWORD:-}
+      DEPLOYMENT_SMTP_FROM: ${DEPLOYMENT_SMTP_FROM:-}
 
   worker:
     build:
@@ -77,13 +79,16 @@ services:
       WORKER_LOCK_PING_MS: ${WORKER_LOCK_PING_MS:-30000}
       SENTRY_DSN: ${SENTRY_DSN:-}
       OPS_ALERT_SLACK_WEBHOOK_URL: ${OPS_ALERT_SLACK_WEBHOOK_URL:-}
+      # The email channel's recipient — sent through the shared
+      # DEPLOYMENT_SMTP_* config above (the web service's block), not its
+      # own SMTP credentials. Stays off if DEPLOYMENT_SMTP_* is unset.
       OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
-      OPS_ALERT_SMTP_HOST: ${OPS_ALERT_SMTP_HOST:-}
-      OPS_ALERT_SMTP_PORT: ${OPS_ALERT_SMTP_PORT:-587}
-      OPS_ALERT_SMTP_SECURITY: ${OPS_ALERT_SMTP_SECURITY:-starttls}
-      OPS_ALERT_SMTP_USER: ${OPS_ALERT_SMTP_USER:-}
-      OPS_ALERT_SMTP_PASSWORD: ${OPS_ALERT_SMTP_PASSWORD:-}
-      OPS_ALERT_SMTP_FROM: ${OPS_ALERT_SMTP_FROM:-}
+      DEPLOYMENT_SMTP_HOST: ${DEPLOYMENT_SMTP_HOST:-}
+      DEPLOYMENT_SMTP_PORT: ${DEPLOYMENT_SMTP_PORT:-587}
+      DEPLOYMENT_SMTP_SECURITY: ${DEPLOYMENT_SMTP_SECURITY:-starttls}
+      DEPLOYMENT_SMTP_USER: ${DEPLOYMENT_SMTP_USER:-}
+      DEPLOYMENT_SMTP_PASSWORD: ${DEPLOYMENT_SMTP_PASSWORD:-}
+      DEPLOYMENT_SMTP_FROM: ${DEPLOYMENT_SMTP_FROM:-}
 
 volumes:
   postgres-data:

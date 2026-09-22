@@ -66,7 +66,7 @@ export const CaseDetailView = ({
   selectedCommitmentId,
 }: CaseDetailViewProps) => {
   useNextReplyCycleSync(data.commitments, selectedCommitmentId);
-
+  console.log(data);
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Link

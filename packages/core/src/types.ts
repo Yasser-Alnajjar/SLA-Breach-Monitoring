@@ -136,6 +136,33 @@ export interface SLAPolicyVersion {
    * to opt into position-based matching.
    */
   policyPosition?: number | null;
+  /**
+   * Whether the *owning policy* is `imported` (from Zendesk) or `native`
+   * (created in Watchtower) — D12/Phase 4. Distinct from a version's own
+   * `source` field (imported/override/native), which tracks a single
+   * version's provenance rather than the policy's. Ranked ahead of
+   * `policyPosition` in `matchPolicyVersion`: every imported policy matches
+   * before every native policy. Optional, and treated as `"imported"` when
+   * absent, so the many existing `SLAPolicyVersion` literals across the
+   * codebase (tests especially) don't all need updating to opt into D12.
+   */
+  policySource?: "imported" | "native" | null;
+  /**
+   * Whether a calendar was explicitly chosen for this policy version (4i).
+   * `calendarVersionId` above always holds a concrete, usable version either
+   * way (an explicit pin, or a snapshot resolved at save time), but only
+   * when this is `true`/absent does a *new* commitment freeze
+   * `calendarVersionId` itself; `false` re-resolves fresh, every time, to
+   * the organization's current default calendar, or the system Always Open
+   * calendar when it has none (`resolveEffectiveCalendarVersion`,
+   * packages/commitments). Optional and defaults to `true` (explicit) when
+   * absent — including at the database level (`@default(true)`) — so every
+   * pre-4i `SLAPolicyVersion`, and any row a caller builds without knowing
+   * about this field at all, keeps its calendar pinned exactly as before;
+   * only `createNativePolicy`/`updateNativePolicy` ever set it to `false`,
+   * and only when the caller explicitly leaves the calendar unset.
+   */
+  calendarIsExplicit?: boolean;
 }
 
 export interface CaseAttributes {

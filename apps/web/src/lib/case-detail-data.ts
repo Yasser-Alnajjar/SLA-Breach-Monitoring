@@ -209,6 +209,7 @@ export async function getCaseDetailData(
         targets: row.targets as { kind: CommitmentKind; minutes: number }[],
         pauseOnStates: row.pauseOnStates as NormalizedState[],
         calendarVersionId: row.calendarVersionId,
+        calendarIsExplicit: row.calendarIsExplicit,
         warnAtPercent: row.warnAtPercent,
         effectiveFrom: row.effectiveFrom.toISOString(),
       },
@@ -302,6 +303,21 @@ export async function getCaseDetailData(
           weekly: calendar.weekly,
           holidays: calendar.holidays,
           alwaysOpen: calendar.alwaysOpen,
+          // Resolution precedence (4i): a customer's calendar override wins
+          // first (its own frozen `calendarVersionId`, `Customer.calendarId`
+          // set via setCustomerCalendar); otherwise the policy's own
+          // calendar — either its explicit pin (frozen `calendarVersionId`
+          // matches) or, for a native policy with none, whatever the
+          // organization's default (or Always Open) resolved to at
+          // commitment-creation time, which won't match the policy
+          // version's own stale snapshot.
+          source:
+            caseRow.customer?.calendarVersionId &&
+            row.calendarVersionId === caseRow.customer.calendarVersionId
+              ? "customer_override"
+              : row.calendarVersionId === policyVersion.calendarVersionId
+                ? "policy"
+                : "organization_default",
         },
         // The completing event's own occurredAt (3.3's "met" marker) — only
         // meaningful once the clock has actually stopped; a cancelled

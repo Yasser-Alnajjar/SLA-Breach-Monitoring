@@ -26,6 +26,12 @@ model Organization {
   /// no target is configured — deliberately a single org-scoped value, not a
   /// policy builder or a per-team entity.
   engineeringLegTargetMinutes Int?
+  /// Pre-filled calendar choice when creating a native policy or calendar
+  /// (Phase 4 task 4.7) — not part of runtime commitment calendar
+  /// resolution, which stays customer-override-then-matched-policy exactly
+  /// as before (see packages/commitments/src/pipeline.ts).
+  defaultCalendarId String?
+  defaultCalendar   BusinessCalendar?  @relation("OrganizationDefaultCalendar", fields: [defaultCalendarId], references: [id], onDelete: SetNull)
   businessCalendars BusinessCalendar[]
   cases             Case[]
   customers         Customer[]
@@ -166,10 +172,19 @@ model Customer {
   /// per-org exactly as before. Must reference a `BusinessCalendar` in the
   /// same organization (enforced in `packages/commitments`, not the schema).
   calendarId        String?
+  /// The specific `BusinessCalendarVersion` frozen in at the moment
+  /// `setCustomerCalendar` last assigned `calendarId` (4d) — kept in lockstep
+  /// with `calendarId` (set/cleared together), so this override pins to a
+  /// calendar version exactly like a native policy's own explicit calendar
+  /// assignment does, instead of silently picking up a newer version on
+  /// every commitment-creation run. A later calendar edit only takes effect
+  /// once the override is explicitly re-set (even to the same calendar).
+  calendarVersionId String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   cases             Case[]
   calendar          BusinessCalendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)
+  calendarVersion   BusinessCalendarVersion? @relation("CustomerCalendarVersion", fields: [calendarVersionId], references: [id], onDelete: SetNull)
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, zendeskOrgId])
@@ -307,6 +322,13 @@ model SLAPolicy {
   /// manually-created policies and older snapshots, which fall back to
   /// specificity (`matchPolicyVersion`, packages/core).
   position       Int?
+  /// Imported vs native (D12, Phase 4). Backfilled from `externalId` for
+  /// every pre-Phase-4 row: non-null externalId -> imported.
+  source         PolicySource       @default(native)
+  /// An owner's own pause/resume of a native policy (Phase 4 task 4.4).
+  /// Distinct from `archivedAt`, which means "gone from Zendesk" and never
+  /// applies to a native policy.
+  deactivatedAt  DateTime?
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   versions       SLAPolicyVersion[]
 
@@ -322,13 +344,30 @@ model SLAPolicyVersion {
   targets           Json
   pauseOnStates     String[]
   calendarVersionId String
+  /// Whether a calendar was explicitly chosen for this version (4i) — a
+  /// native policy version created/edited without picking a calendar has
+  /// this `false`. `calendarVersionId` above always holds a usable version
+  /// either way (an explicit pin when this is `true`, otherwise a snapshot
+  /// resolved at save time purely for display/backward compatibility); only
+  /// when this is `true` does a *new* commitment freeze onto
+  /// `calendarVersionId` itself — otherwise commitment creation re-resolves
+  /// fresh to the organization's current default calendar, or the system
+  /// Always Open calendar (`resolveEffectiveCalendarVersion`,
+  /// packages/commitments). Defaults to `true` — at the database level, not
+  /// just in Prisma Client — so every pre-4i version, and any row written
+  /// without knowing this field exists at all (direct inserts, test
+  /// fixtures), keeps its calendar pinned exactly as before; only
+  /// `createNativePolicy`/`updateNativePolicy` ever write `false`, and only
+  /// when the caller explicitly leaves the calendar unset.
+  calendarIsExplicit Boolean                @default(true)
   warnAtPercent     Int[]
   effectiveFrom     DateTime
   /// `imported` versions mirror the provider's policy; `override` versions are
-  /// manual target edits on top of one. The importer only compares against
-  /// the latest `imported` version, so re-importing an unchanged policy
-  /// never reverts an override.
-  source            PolicyVersionSource     @default(imported)
+  /// manual target edits on top of one; `native` versions belong to a policy
+  /// that was never imported (Phase 4 / D12). The importer only compares
+  /// against the latest `imported` version, so re-importing an unchanged
+  /// policy never reverts an override.
+  source            VersionSource           @default(imported)
   createdAt         DateTime                @default(now())
   commitments       Commitment[]
   calendarVersion   BusinessCalendarVersion @relation(fields: [calendarVersionId], references: [id])
@@ -375,11 +414,16 @@ model BusinessCalendar {
   createdAt      DateTime                  @default(now())
   /// Zendesk business hours schedule id when imported (roadmap step 13); null for the always-open default calendar.
   externalId     String?
+  /// Imported vs native (D12, Phase 4). Backfilled from `externalId` for
+  /// every pre-Phase-4 row: non-null externalId -> imported.
+  source         PolicySource              @default(native)
   versions       BusinessCalendarVersion[]
   organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   /// Customers whose commitments are pinned to this calendar instead of
   /// whatever their matched policy would otherwise resolve to (roadmap step 24).
   customers      Customer[]
+  /// Organizations that picked this calendar as their default (Phase 4 task 4.7).
+  defaultForOrganizations Organization[]   @relation("OrganizationDefaultCalendar")
 
   @@unique([organizationId, externalId])
   @@map("business_calendars")
@@ -392,11 +436,35 @@ model BusinessCalendarVersion {
   timezone       String
   weekly         Json
   holidays       String[]
+  /// Optional `{ "YYYY-MM-DD": "name" }` map for the dates in `holidays`
+  /// (Phase 4 task 4.5/4.6). Nullable/additive so the engine's pure
+  /// `holidays: string[]` type and every pre-Phase-4 version is unaffected;
+  /// purely a display concern, never read by packages/core.
+  holidayNames   Json?
+  /// The native calendar editor's original holiday inputs — `{ date, name,
+  /// recurring }[]` (4h), exactly as `NativeHolidayInput` — separate from
+  /// `holidays`/`holidayNames`, which only ever hold the flat, expanded
+  /// occurrences the engine reads. Without this, reopening the editor could
+  /// only ever reconstruct one-off dates from `holidays`, silently losing
+  /// every recurring holiday's recurrence back to a pile of one-off dates on
+  /// the next save. Null for a version with no native-editor holiday inputs
+  /// (every pre-4h version, and every Zendesk-imported version, which has no
+  /// recurrence concept at all) — the read layer falls back to treating
+  /// `holidays` as one-off dates in that case, unchanged prior behavior.
+  /// Never read by packages/core.
+  holidayDefinitions Json?
   alwaysOpen     Boolean            @default(false)
+  /// `imported` mirrors the provider's schedule; `override` is a manual edit
+  /// on top of an imported calendar; `native` belongs to a calendar that was
+  /// never imported (Phase 4 / D12, closing E-18).
+  source         VersionSource      @default(imported)
   createdAt      DateTime           @default(now())
   calendar       BusinessCalendar   @relation(fields: [calendarId], references: [id], onDelete: Cascade)
   commitments    Commitment[]
   policyVersions SLAPolicyVersion[]
+  /// Customers whose calendar override (4d) is frozen onto this exact
+  /// version — the inverse of Customer.calendarVersionId.
+  customerOverrides Customer[]      @relation("CustomerCalendarVersion")
 
   @@unique([calendarId, version])
   @@map("business_calendar_versions")
@@ -602,9 +670,25 @@ enum EmailSecurity {
   ssl_tls
 }
 
-enum PolicyVersionSource {
+/// Shared by SLAPolicyVersion and BusinessCalendarVersion: `imported` mirrors
+/// the provider's data; `override` is a manual edit on top of an imported
+/// row (the importer only compares against the latest `imported` version, so
+/// re-importing unchanged content never reverts an override — E-18);
+/// `native` is a version of a policy/calendar that was never imported at all
+/// (Phase 4 / D12).
+enum VersionSource {
   imported
   override
+  native
+}
+
+/// Whether an SLAPolicy or BusinessCalendar originates from a provider
+/// (Zendesk) or was created directly in Watchtower (Phase 4 / D12). Imported
+/// policies are matched first, ranked by `position`; native policies are
+/// only considered when no imported policy matches, ranked by specificity.
+enum PolicySource {
+  imported
+  native
 }
 
 enum UserRole {

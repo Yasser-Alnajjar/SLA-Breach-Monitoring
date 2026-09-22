@@ -10,9 +10,12 @@ import {
   type NormalizedState,
   type SLAPolicyMatch,
   type SLAPolicyVersion,
-  type WeeklyWindow,
 } from "@sla/core";
 import { toNormalizedEventDomain } from "./evaluate-pipeline";
+import { toCalendarVersionDomain } from "./calendar-domain";
+import { resolveEffectiveCalendarVersion, resolveOrganizationCalendarFallback } from "./calendar-fallback";
+
+export { toCalendarVersionDomain } from "./calendar-domain";
 
 /** The single-cycle kinds this pipeline creates. Also `runNextReplyCyclePipeline`'s anchor kinds (cycle-pipeline.ts). */
 export const COMMITMENT_KINDS: CommitmentKind[] = [
@@ -86,6 +89,8 @@ export interface PolicyVersionRecord {
   effectiveFrom: string;
   /** D6/1.10 — the owning `SLAPolicy.position`; null for a manual policy or a pre-D6 import. */
   policyPosition?: number | null;
+  /** Whether a calendar was explicitly chosen for this version (4i, defaults to true) — see `resolveEffectiveCalendarVersion`, calendar-fallback.ts. */
+  calendarIsExplicit?: boolean;
 }
 
 /**
@@ -143,25 +148,6 @@ export function resolveCommitmentCalendarVersion(
   return customerCalendarVersion ?? policyCalendarVersion;
 }
 
-/** Maps a persisted BusinessCalendarVersion row to packages/core's pure `BusinessCalendarVersion`. Shared with `runNextReplyCyclePipeline` (cycle-pipeline.ts). */
-export function toCalendarVersionDomain(row: {
-  id: string;
-  version: number;
-  timezone: string;
-  weekly: unknown;
-  holidays: string[];
-  alwaysOpen: boolean;
-}): BusinessCalendarVersion {
-  return {
-    id: row.id,
-    version: row.version,
-    timezone: row.timezone,
-    weekly: row.weekly as WeeklyWindow[],
-    holidays: row.holidays,
-    alwaysOpen: row.alwaysOpen,
-  };
-}
-
 export interface CommitmentPipelineResult {
   casesConsidered: number;
   commitmentsCreated: number;
@@ -200,8 +186,11 @@ export async function runCommitmentPipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId, archivedAt: null } },
-    include: { calendarVersion: true, policy: { select: { position: true } } },
+    where: { policy: { organizationId, archivedAt: null, deactivatedAt: null } },
+    include: {
+      calendarVersion: true,
+      policy: { select: { position: true, source: true } },
+    },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -217,6 +206,8 @@ export async function runCommitmentPipeline(
       warnAtPercent: row.warnAtPercent,
       effectiveFrom: row.effectiveFrom.toISOString(),
       policyPosition: row.policy.position,
+      policySource: row.policy.source,
+      calendarIsExplicit: row.calendarIsExplicit,
     }),
   );
   const policyVersionsById = new Map(
@@ -231,13 +222,21 @@ export async function runCommitmentPipeline(
     ]),
   );
 
+  // Lazy and memoized: only resolved (and, for Always Open, possibly
+  // created) the first time some matched policy actually has no explicit
+  // calendar — most organizations never need it.
+  let fallbackPromise: ReturnType<typeof resolveOrganizationCalendarFallback> | null = null;
+  const getOrganizationCalendarFallback = () =>
+    (fallbackPromise ??= resolveOrganizationCalendarFallback(prisma, organizationId));
+
+  // 4d: frozen at the moment a customer's calendar override was set
+  // (`Customer.calendarVersionId`), never the calendar's latest version —
+  // consistent with how a policy pins to a specific calendar version.
   const customersWithCalendarOverride = await prisma.customer.findMany({
-    where: { organizationId, calendarId: { not: null } },
+    where: { organizationId, calendarVersionId: { not: null } },
     select: {
       id: true,
-      calendar: {
-        select: { versions: { orderBy: { version: "desc" }, take: 1 } },
-      },
+      calendarVersion: true,
     },
   });
   const customerCalendarVersionByCustomerId = new Map<
@@ -245,11 +244,10 @@ export async function runCommitmentPipeline(
     BusinessCalendarVersion
   >();
   for (const customer of customersWithCalendarOverride) {
-    const version = customer.calendar?.versions[0];
-    if (!version) continue;
+    if (!customer.calendarVersion) continue;
     customerCalendarVersionByCustomerId.set(
       customer.id,
-      toCalendarVersionDomain(version),
+      toCalendarVersionDomain(customer.calendarVersion),
     );
   }
 
@@ -363,13 +361,28 @@ export async function runCommitmentPipeline(
           result.casesWithNoMatchingPolicy += 1;
           continue;
         }
-        const policyCalendarVersion = calendarsById.get(
+        const frozenCalendarVersion = calendarsById.get(
           matched.calendarVersionId,
         );
-        if (!policyCalendarVersion)
+        if (!frozenCalendarVersion)
           throw new Error(
             `No BusinessCalendarVersion loaded for ${matched.calendarVersionId}`,
           );
+        // 4i: only a *native* policy can have no explicit calendar at all
+        // (an imported one always resolves a concrete schedule or the
+        // Always Open default at import time — untouched, D12/E-18). Such a
+        // policy stays pinned to its frozen version; a native policy with no
+        // explicit calendar re-resolves fresh to the organization's current
+        // default calendar, or Always Open when it has none.
+        const policyHasExplicitCalendar =
+          matched.policySource !== "native" || (matched.calendarIsExplicit ?? true);
+        const policyCalendarVersion = policyHasExplicitCalendar
+          ? frozenCalendarVersion
+          : await resolveEffectiveCalendarVersion(
+              matched.calendarIsExplicit,
+              frozenCalendarVersion,
+              await getOrganizationCalendarFallback(),
+            );
         policyVersionFor = () => matched;
         calendarVersion = resolveCommitmentCalendarVersion(
           policyCalendarVersion,

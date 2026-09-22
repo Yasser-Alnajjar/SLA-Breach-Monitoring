@@ -32,6 +32,10 @@ const realDatabaseSuites = [
   "apps/web/test/jira-remote-link-unlink.test.ts",
   "apps/web/test/zendesk-webhook-route.test.ts",
   "apps/web/test/jira-webhook-route.test.ts",
+  "apps/web/test/sla-native-policy-routes.test.ts",
+  "apps/web/test/zendesk-calendar-import-e18.test.ts",
+  "apps/web/test/sla-native-calendar-routes.test.ts",
+  "apps/web/test/native-policy-calendar-resolution.test.ts",
 ];
 
 export default defineConfig({

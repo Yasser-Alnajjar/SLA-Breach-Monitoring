@@ -4,6 +4,7 @@ import {
   mapJiraLinkManifestToRawEvent,
   mapJiraLinkToRawEvent,
   mapOrganizationToRawEvent,
+  mapSlaPolicyManifestToRawEvent,
   mapSlaPolicyToRawEvent,
   mapTicketToRawEvent,
   mapUserToRawEvent,
@@ -91,6 +92,33 @@ describe("mapSlaPolicyToRawEvent", () => {
     const policy: ZendeskSlaPolicy = { id: 3, title: "P1" };
     const result = mapSlaPolicyToRawEvent(policy);
     expect(result.providerEventId).toBe(`sla_policy:3:${result.sourceHash}`);
+  });
+});
+
+describe("mapSlaPolicyManifestToRawEvent", () => {
+  it("sorts the policy ids so field order never changes the content hash", () => {
+    const a = mapSlaPolicyManifestToRawEvent([3, 1, 2]);
+    const b = mapSlaPolicyManifestToRawEvent([1, 2, 3]);
+    expect(a.sourceHash).toBe(b.sourceHash);
+    expect(a.payload).toEqual({ policyIds: [1, 2, 3] });
+  });
+
+  // Unlike a per-policy snapshot (mapSlaPolicyToRawEvent above), this one
+  // must NOT dedupe identical content onto the same provider event id: the
+  // live policy id-set can legitimately oscillate back to one it held
+  // before (e.g. policy A is deleted, then unrelated policy B is deleted
+  // too, landing the set back on a composition seen earlier), and
+  // `runZendeskSlaPolicyImport` picks the *latest* manifest by `fetchedAt`
+  // to decide what's currently live in Zendesk — collapsing a reaffirming
+  // write onto an old row's id (and so its old `fetchedAt`, since
+  // `skipDuplicates` no-ops on a duplicate providerEventId) would make it
+  // read a stale manifest as the latest one, silently un-detecting a real
+  // deletion. Mirrors `mapJiraLinkManifestToRawEvent`'s identical fix.
+  it("produces a distinct provider event id even for identical content on repeated calls", () => {
+    const first = mapSlaPolicyManifestToRawEvent([1, 2]);
+    const second = mapSlaPolicyManifestToRawEvent([1, 2]);
+    expect(second.providerEventId).not.toBe(first.providerEventId);
+    expect(second.sourceHash).toBe(first.sourceHash); // content hash itself is still stable
   });
 });
 

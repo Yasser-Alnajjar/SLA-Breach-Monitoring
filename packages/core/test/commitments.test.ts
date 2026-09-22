@@ -771,6 +771,96 @@ describe("matchPolicyVersion", () => {
       expect(match?.id).toBe("policy-p1-tier1");
     });
   });
+
+  describe("D12: imported policies always match before native ones", () => {
+    it("prefers an imported (or unmarked, treated as imported) candidate over a more specific native one", () => {
+      const caseAttributes: CaseAttributes = {
+        caseId: "case-1",
+        attributes: {},
+        priority: "P1",
+        tier: "tier1",
+      };
+
+      const importedGeneric: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "imported-generic",
+        policySource: "imported",
+      };
+
+      const nativeSpecific: SLAPolicyVersion = {
+        ...p1Tier1Policy,
+        id: "native-specific",
+        policySource: "native",
+      };
+
+      expect(
+        matchPolicyVersion(caseAttributes, [nativeSpecific, importedGeneric])
+          ?.id,
+      ).toBe("imported-generic");
+      expect(
+        matchPolicyVersion(caseAttributes, [importedGeneric, nativeSpecific])
+          ?.id,
+      ).toBe("imported-generic");
+    });
+
+    it("a native candidate with a higher position never outranks an imported one without a position", () => {
+      // Position only matters within the imported bucket (D6); it must never
+      // let a native policy jump ahead of an imported one.
+      const caseAttributes: CaseAttributes = {
+        caseId: "case-1",
+        attributes: {},
+        priority: "P1",
+        tier: "tier1",
+      };
+
+      const importedNoPosition: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "imported-no-position",
+        policySource: "imported",
+        policyPosition: null,
+      };
+
+      const nativeWithPosition: SLAPolicyVersion = {
+        ...p1Tier1Policy,
+        id: "native-with-position",
+        policySource: "native",
+        policyPosition: 1,
+      };
+
+      expect(
+        matchPolicyVersion(caseAttributes, [
+          nativeWithPosition,
+          importedNoPosition,
+        ])?.id,
+      ).toBe("imported-no-position");
+    });
+
+    it("falls back to specificity/version/id among native candidates when no imported policy matches", () => {
+      const caseAttributes: CaseAttributes = {
+        caseId: "case-1",
+        attributes: {},
+        priority: "P1",
+        tier: "tier1",
+      };
+
+      const nativeGeneric: SLAPolicyVersion = {
+        ...genericPolicy,
+        id: "native-generic",
+        policySource: "native",
+      };
+
+      const nativeSpecific: SLAPolicyVersion = {
+        ...p1Tier1Policy,
+        id: "native-specific",
+        policySource: "native",
+      };
+
+      expect(
+        matchPolicyVersion(caseAttributes, [nativeGeneric, nativeSpecific])
+          ?.id,
+      ).toBe("native-specific");
+    });
+  });
 });
 
 describe("createCommitment", () => {

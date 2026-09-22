@@ -1,7 +1,12 @@
 import type { Prisma, PrismaClient } from "@sla/db";
-import type { WeeklyWindow } from "@sla/core";
+import {
+  calendarVersionContentEquals,
+  type CalendarVersionContent,
+  type WeeklyWindow,
+} from "@sla/core";
 import type { ScheduleHolidaysSnapshot } from "./rawEvents";
 import type { ZendeskBusinessHoursSchedule, ZendeskScheduleHoliday } from "./types";
+import { normalizeZendeskTimeZone } from "./zendesk-timezone";
 
 const MINUTES_PER_DAY = 24 * 60;
 
@@ -44,33 +49,47 @@ export function expandHolidayDates(holidays: ZendeskScheduleHoliday[]): string[]
   return [...dates].sort();
 }
 
-interface CalendarVersionContent {
-  timezone: string;
-  weekly: WeeklyWindow[];
-  holidays: string[];
+/**
+ * Same expansion as `expandHolidayDates`, but keeps each date's Zendesk
+ * holiday name (task 4.5/4.6) — `ZendeskScheduleHoliday.name` already exists
+ * on every holiday but was previously discarded. A date covered by more than
+ * one holiday range keeps the last one's name, same tie-break `Set` dedup
+ * already gives `expandHolidayDates` for the dates themselves.
+ */
+export function expandHolidayNames(holidays: ZendeskScheduleHoliday[]): Record<string, string> {
+  const names: Record<string, string> = {};
+  for (const holiday of holidays) {
+    const end = new Date(`${holiday.end_date}T00:00:00Z`).getTime();
+    let cursorMs = new Date(`${holiday.start_date}T00:00:00Z`).getTime();
+    while (cursorMs <= end) {
+      names[isoDate(new Date(cursorMs))] = holiday.name;
+      cursorMs += 24 * 60 * 60_000;
+    }
+  }
+  return names;
 }
 
-function normalizeWeekly(weekly: WeeklyWindow[]) {
-  return [...weekly].sort((a, b) => a.day - b.day || a.openMinute - b.openMinute);
-}
+// `calendarVersionContentEquals` now lives in @sla/core (shared with the
+// native calendar editor, packages/commitments/src/native-calendar.ts) —
+// re-exported here so this module's existing callers/tests are unaffected.
+export { calendarVersionContentEquals };
 
-/** Whether a newly-derived calendar version would be identical to the last-imported one, so a re-run doesn't create a no-op version every time. */
-export function calendarVersionContentEquals(
-  existing: CalendarVersionContent,
-  desired: CalendarVersionContent,
-): boolean {
-  return (
-    existing.timezone === desired.timezone &&
-    JSON.stringify(normalizeWeekly(existing.weekly)) === JSON.stringify(normalizeWeekly(desired.weekly)) &&
-    JSON.stringify([...existing.holidays].sort()) === JSON.stringify([...desired.holidays].sort())
-  );
-}
-
+/**
+ * Appends an `imported` version when Zendesk's schedule content differs from
+ * the last one we imported. Compares against the latest *imported* version,
+ * not the latest version (E-18): a local edit (`source: "override"`, task
+ * 4.6) sits on top of an imported version, and comparing Zendesk's
+ * unchanged schedule against the override would silently revert it on the
+ * next sync — the same fix `upsertPolicyVersion` (./policies.ts) already
+ * applies for SLA policies. A real change on the Zendesk side still creates
+ * a new imported version, which supersedes any local override.
+ */
 async function ensureScheduleCalendarVersion(
   prisma: PrismaClient,
   organizationId: string,
   schedule: ZendeskBusinessHoursSchedule,
   holidayDates: string[],
+  holidayNames: Record<string, string>,
 ): Promise<{ id: string; created: boolean }> {
   const desired: CalendarVersionContent = {
     timezone: schedule.time_zone,
@@ -81,23 +100,37 @@ async function ensureScheduleCalendarVersion(
   const calendar = await prisma.businessCalendar.upsert({
     where: { organizationId_externalId: { organizationId, externalId: String(schedule.id) } },
     update: { name: `Zendesk: ${schedule.name}` },
-    create: { organizationId, externalId: String(schedule.id), name: `Zendesk: ${schedule.name}` },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+    create: {
+      organizationId,
+      externalId: String(schedule.id),
+      name: `Zendesk: ${schedule.name}`,
+      source: "imported",
+    },
   });
 
-  const latestVersion = calendar.versions[0];
+  const [latestVersion, latestImportedVersion] = await Promise.all([
+    prisma.businessCalendarVersion.findFirst({
+      where: { calendarId: calendar.id },
+      orderBy: { version: "desc" },
+    }),
+    prisma.businessCalendarVersion.findFirst({
+      where: { calendarId: calendar.id, source: "imported" },
+      orderBy: { version: "desc" },
+    }),
+  ]);
+
   if (
-    latestVersion &&
+    latestImportedVersion &&
     calendarVersionContentEquals(
       {
-        timezone: latestVersion.timezone,
-        weekly: latestVersion.weekly as unknown as WeeklyWindow[],
-        holidays: latestVersion.holidays,
+        timezone: latestImportedVersion.timezone,
+        weekly: latestImportedVersion.weekly as unknown as WeeklyWindow[],
+        holidays: latestImportedVersion.holidays,
       },
       desired,
     )
   ) {
-    return { id: latestVersion.id, created: false };
+    return { id: latestImportedVersion.id, created: false };
   }
 
   const created = await prisma.businessCalendarVersion.create({
@@ -107,7 +140,9 @@ async function ensureScheduleCalendarVersion(
       timezone: desired.timezone,
       weekly: desired.weekly as unknown as Prisma.InputJsonValue,
       holidays: desired.holidays,
+      holidayNames: holidayNames as unknown as Prisma.InputJsonValue,
       alwaysOpen: false,
+      source: "imported",
     },
   });
   return { id: created.id, created: true };
@@ -131,6 +166,8 @@ function latestHolidaysByScheduleId(
 export interface BusinessCalendarImportResult {
   schedulesEvaluated: number;
   calendarVersionsCreated: number;
+  /** Schedules skipped because Zendesk's `time_zone` couldn't be normalized to a canonical IANA id (4g) — never guessed at; the schedule's existing calendar (if any) is left untouched. */
+  schedulesWithUnresolvedTimeZone: number;
 }
 
 /**
@@ -149,7 +186,11 @@ export async function runZendeskBusinessCalendarImport(
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
   const organizationId = integration.organizationId;
 
-  const result: BusinessCalendarImportResult = { schedulesEvaluated: 0, calendarVersionsCreated: 0 };
+  const result: BusinessCalendarImportResult = {
+    schedulesEvaluated: 0,
+    calendarVersionsCreated: 0,
+    schedulesWithUnresolvedTimeZone: 0,
+  };
 
   const [scheduleRows, holidayRows] = await Promise.all([
     prisma.rawEvent.findMany({
@@ -175,8 +216,27 @@ export async function runZendeskBusinessCalendarImport(
 
   for (const schedule of latestSchedules.values()) {
     result.schedulesEvaluated += 1;
-    const holidayDates = expandHolidayDates(holidaysByScheduleId.get(schedule.id) ?? []);
-    const { created } = await ensureScheduleCalendarVersion(prisma, organizationId, schedule, holidayDates);
+
+    // 4g: never import a schedule under a timezone we can't map to a
+    // canonical IANA id — that would silently break every later deadline
+    // computed against it. Skip it (leaving any existing calendar version
+    // untouched) and count it instead of guessing.
+    const timeZone = normalizeZendeskTimeZone(schedule.time_zone);
+    if (!timeZone) {
+      result.schedulesWithUnresolvedTimeZone += 1;
+      continue;
+    }
+
+    const holidays = holidaysByScheduleId.get(schedule.id) ?? [];
+    const holidayDates = expandHolidayDates(holidays);
+    const holidayNames = expandHolidayNames(holidays);
+    const { created } = await ensureScheduleCalendarVersion(
+      prisma,
+      organizationId,
+      { ...schedule, time_zone: timeZone },
+      holidayDates,
+      holidayNames,
+    );
     if (created) result.calendarVersionsCreated += 1;
   }
 

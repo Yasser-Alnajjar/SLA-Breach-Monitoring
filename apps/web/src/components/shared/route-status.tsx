@@ -26,22 +26,37 @@ export function RouteStatus({
         <Icon className="size-5" />
       </span>
       <div className="space-y-1.5">
-        <h1 className="font-display text-2xl font-medium tracking-tight">{title}</h1>
-        <div className="max-w-md text-sm text-muted-foreground">{description}</div>
+        <h1 className="font-display text-2xl font-medium tracking-tight">
+          {title}
+        </h1>
+        <div className="max-w-md text-sm text-muted-foreground">
+          {description}
+        </div>
       </div>
-      {actions && <div className="mt-2 flex flex-wrap items-center justify-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   );
 
   if (!standalone) {
-    return <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">{body}</div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
+        {body}
+      </div>
+    );
   }
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-16">
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grain" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-grain"
+      />
       <div className="relative flex flex-col items-center gap-10">
-        <BrandMark />
+        <BrandMark logoClassName="size-12" />
         {body}
       </div>
     </main>

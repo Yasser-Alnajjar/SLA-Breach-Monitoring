@@ -248,17 +248,23 @@ function matches(
 /**
  * Matches a Case's attributes against active policy versions.
  *
- * Imported Zendesk policies are ranked first by their Zendesk `position`
- * (D6/1.10: lower position wins, matching Zendesk's own evaluation order) —
- * a version with a `policyPosition` always outranks one without, regardless
- * of specificity, since a position is Zendesk's explicit, authoritative
- * ordering. Versions that share a position (fanned out per priority group
- * from one Zendesk policy, `groupPolicyMetricsByPriority` in
- * packages/zendesk) and versions with no position at all (manually-created
- * policies, or an import from before `position` existed) fall back to
- * specificity: a policy version with more defined match criteria outranks
- * one with fewer, provided all of its defined criteria are satisfied. Ties
- * break on the higher version number, then on `id` for full determinism.
+ * Imported policies always match before native ones (D12/Phase 4) —
+ * `policySource` absent or `"imported"` outranks `"native"` — since an
+ * imported policy is read-only, Zendesk-driven, and considered
+ * authoritative; a native policy only ever fills a gap Zendesk leaves.
+ *
+ * Within the imported bucket, policies are ranked by their Zendesk
+ * `position` (D6/1.10: lower position wins, matching Zendesk's own
+ * evaluation order) — a version with a `policyPosition` always outranks one
+ * without, regardless of specificity, since a position is Zendesk's
+ * explicit, authoritative ordering. Versions that share a position (fanned
+ * out per priority group from one Zendesk policy,
+ * `groupPolicyMetricsByPriority` in packages/zendesk) and versions with no
+ * position at all (an import from before `position` existed) fall back to
+ * specificity, same as the native bucket: a policy version with more
+ * defined match criteria outranks one with fewer, provided all of its
+ * defined criteria are satisfied. Ties break on the higher version number,
+ * then on `id` for full determinism.
  */
 export function matchPolicyVersion(
   caseAttributes: CaseAttributes,
@@ -270,6 +276,10 @@ export function matchPolicyVersion(
   if (candidates.length === 0) return null;
 
   candidates.sort((a, b) => {
+    const aNative = a.policySource === "native";
+    const bNative = b.policySource === "native";
+    if (aNative !== bNative) return aNative ? 1 : -1;
+
     const aPos = a.policyPosition ?? null;
     const bPos = b.policyPosition ?? null;
     if (aPos !== null || bPos !== null) {

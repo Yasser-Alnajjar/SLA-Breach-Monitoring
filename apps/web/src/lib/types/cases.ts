@@ -61,6 +61,19 @@ export interface CommitmentDetail {
     weekly: WeeklyWindow[];
     holidays: string[];
     alwaysOpen: boolean;
+    /**
+     * Which tier of the resolution order (`Customer.calendarId` override >
+     * the policy's own explicit calendar > the organization's default
+     * calendar > Always Open, 4i) produced this commitment's frozen
+     * `calendarVersionId` — derived by comparing it against the customer's
+     * own frozen override and the policy version's own `calendarVersionId`,
+     * mirroring `resolveCommitmentCalendarVersion`/
+     * `resolveEffectiveCalendarVersion` (packages/commitments).
+     * `organization_default` also covers the Always Open fallback tier — the
+     * calendar's own `alwaysOpen` flag already makes that case visually
+     * distinct.
+     */
+    source: "customer_override" | "policy" | "organization_default";
   };
   /**
    * When the clock actually stopped because the commitment completed

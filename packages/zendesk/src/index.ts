@@ -48,6 +48,7 @@ export type {
 export {
   calendarVersionContentEquals,
   expandHolidayDates,
+  expandHolidayNames,
   intervalsToWeeklyWindows,
   latestCalendarVersionsByZendeskScheduleId,
   runZendeskBusinessCalendarImport,

@@ -160,6 +160,13 @@ export const CommitmentCard = ({
                         ` · Holidays: ${commitment.calendar.holidays.join(", ")}`}
                     </>
                   )}
+                  <span className="block text-muted-foreground">
+                    {commitment.calendar.source === "customer_override"
+                      ? "From the customer's calendar override"
+                      : commitment.calendar.source === "organization_default"
+                        ? "From the organization's default calendar (the matched policy has no calendar of its own)"
+                        : "From the matched policy"}
+                  </span>
                 </dd>
 
                 {commitment.targetChangeHistory.length > 0 && (

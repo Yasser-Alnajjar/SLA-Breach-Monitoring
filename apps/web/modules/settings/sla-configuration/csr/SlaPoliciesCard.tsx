@@ -1,7 +1,15 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Actions } from "@/actions/client";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +17,12 @@ import {
   formatMinutes,
   formatPolicyMatch,
 } from "@/lib/format";
-import type { SlaPolicySummary } from "@/lib/types/sla-configuration";
+import type {
+  BusinessCalendarOption,
+  CustomerCalendarSummary,
+  SlaPolicySummary,
+} from "@/lib/types/sla-configuration";
+import { NativePolicyDialog } from "./NativePolicyDialog";
 import { PolicyOverrideDialog } from "./PolicyOverrideDialog";
 
 function formatTargets(targets: SlaPolicySummary["targets"]): string {
@@ -23,12 +36,32 @@ function formatTargets(targets: SlaPolicySummary["targets"]): string {
 
 function PolicyRow({
   policy,
+  businessCalendars,
+  customers,
+  defaultCalendarId,
   onSaved,
 }: {
   policy: SlaPolicySummary;
+  businessCalendars: BusinessCalendarOption[];
+  customers: CustomerCalendarSummary[];
+  defaultCalendarId: string | null;
   onSaved: () => void;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
+
+  async function handleToggleActive() {
+    setTogglingActive(true);
+
+    const { ok } = await Actions.SlaConfiguration.setPolicyActive(
+      policy.id,
+      !policy.active,
+    );
+
+    setTogglingActive(false);
+
+    if (ok) onSaved();
+  }
 
   return (
     <>
@@ -44,9 +77,15 @@ function PolicyRow({
                 v{policy.version}
               </span>
 
-              <Badge variant="outline">
-                {policy.overridden ? "Overridden" : "Imported"}
-              </Badge>
+              {policy.source === "imported" ? (
+                <Badge variant="outline">
+                  {policy.overridden ? "Overridden" : "Imported"}
+                </Badge>
+              ) : (
+                <Badge variant="secondary">Native</Badge>
+              )}
+
+              {!policy.active && <Badge variant="warning">Inactive</Badge>}
             </div>
 
             <p className="mt-1 text-xs text-muted-foreground">
@@ -54,14 +93,33 @@ function PolicyRow({
             </p>
           </div>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setDialogOpen(true)}
-          >
-            {policy.overridden ? "Edit" : "Override"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {policy.source === "native" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleToggleActive}
+                disabled={togglingActive}
+              >
+                {togglingActive && <Loader2 className="animate-spin" />}
+                {policy.active ? "Deactivate" : "Reactivate"}
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setDialogOpen(true)}
+            >
+              {policy.source === "native"
+                ? "Edit"
+                : policy.overridden
+                  ? "Edit"
+                  : "Override"}
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-md bg-muted/40 px-3 py-2.5">
@@ -73,49 +131,148 @@ function PolicyRow({
 
           {policy.overridden && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Imported: {formatTargets(policy.importedTargets)}
+              {policy.source === "imported" ? "Imported" : "Original"}:{" "}
+              {formatTargets(policy.importedTargets)}
             </p>
           )}
         </div>
       </div>
 
-      <PolicyOverrideDialog
-        policy={policy}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSaved={() => {
-          setDialogOpen(false);
-          onSaved();
-        }}
-      />
+      {policy.source === "imported" ? (
+        <PolicyOverrideDialog
+          policy={policy}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSaved={() => {
+            setDialogOpen(false);
+            onSaved();
+          }}
+        />
+      ) : (
+        <NativePolicyDialog
+          mode="edit"
+          policy={policy}
+          businessCalendars={businessCalendars}
+          customers={customers}
+          defaultCalendarId={defaultCalendarId}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSaved={() => {
+            setDialogOpen(false);
+            onSaved();
+          }}
+        />
+      )}
     </>
   );
 }
 
 export function SlaPoliciesCard({
   policies,
+  businessCalendars,
+  customers,
+  defaultCalendarId,
 }: {
   policies: SlaPolicySummary[];
+  businessCalendars: BusinessCalendarOption[];
+  customers: CustomerCalendarSummary[];
+  defaultCalendarId: string | null;
 }) {
   const router = useRouter();
+  const [createOpen, setCreateOpen] = useState(false);
 
-  if (policies.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No SLA policies imported yet.
-      </p>
-    );
-  }
+  const activePolicies = policies.filter((policy) => policy.active);
+  const archivedPolicies = policies.filter((policy) => !policy.active);
 
   return (
     <div className="space-y-4">
-      {policies.map((policy) => (
-        <PolicyRow
-          key={policy.id}
-          policy={policy}
-          onSaved={() => router.refresh()}
-        />
-      ))}
+      <div className="flex items-center justify-between">
+        <p className="max-w-3xl text-xs text-muted-foreground">
+          Imported policies come from Zendesk and are matched first. Native
+          policies are matched only when no imported policy matches (D12).
+        </p>
+
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          disabled={businessCalendars.length === 0}
+          title={
+            businessCalendars.length === 0
+              ? "No business calendar available yet"
+              : undefined
+          }
+        >
+          Create policy
+        </Button>
+      </div>
+
+      {policies.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No SLA policies yet — import from Zendesk or create a native policy.
+        </p>
+      ) : (
+        <div className="space-y-6">
+          {/* Active policies */}
+          {activePolicies.length > 0 && (
+            <div className="space-y-4">
+              {activePolicies.map((policy) => (
+                <PolicyRow
+                  key={policy.id}
+                  policy={policy}
+                  businessCalendars={businessCalendars}
+                  customers={customers}
+                  defaultCalendarId={defaultCalendarId}
+                  onSaved={() => router.refresh()}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Archived policies */}
+          {archivedPolicies.length > 0 && (
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="archived">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Archived</span>
+
+                    <Badge variant="outline">{archivedPolicies.length}</Badge>
+                  </div>
+                </AccordionTrigger>
+
+                <AccordionContent>
+                  <div className="space-y-4 pt-2">
+                    {archivedPolicies.map((policy) => (
+                      <PolicyRow
+                        key={policy.id}
+                        policy={policy}
+                        businessCalendars={businessCalendars}
+                        customers={customers}
+                        defaultCalendarId={defaultCalendarId}
+                        onSaved={() => router.refresh()}
+                      />
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+        </div>
+      )}
+
+      <NativePolicyDialog
+        mode="create"
+        businessCalendars={businessCalendars}
+        customers={customers}
+        defaultCalendarId={defaultCalendarId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSaved={() => {
+          setCreateOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

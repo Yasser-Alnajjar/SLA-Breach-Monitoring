@@ -11,7 +11,9 @@ import {
   type WeeklyWindow,
 } from "@sla/core";
 import { RE_RESOLUTION_ELIGIBLE_WHERE } from "./active-commitment";
-import { latestVersionPerPolicy, resolveCommitmentCalendarVersion, toCalendarVersionDomain, toCaseAttributes } from "./pipeline";
+import { latestVersionPerPolicy, resolveCommitmentCalendarVersion, toCaseAttributes } from "./pipeline";
+import { toCalendarVersionDomain } from "./calendar-domain";
+import { resolveEffectiveCalendarVersion, resolveOrganizationCalendarFallback } from "./calendar-fallback";
 
 /**
  * The only trigger `runCommitmentReResolutionPipeline` acts on (D1, D1b): a
@@ -117,8 +119,11 @@ export async function runCommitmentReResolutionPipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId, archivedAt: null } },
-    include: { calendarVersion: true, policy: { select: { position: true } } },
+    where: { policy: { organizationId, archivedAt: null, deactivatedAt: null } },
+    include: {
+      calendarVersion: true,
+      policy: { select: { position: true, source: true } },
+    },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -133,8 +138,16 @@ export async function runCommitmentReResolutionPipeline(
     warnAtPercent: row.warnAtPercent,
     effectiveFrom: row.effectiveFrom.toISOString(),
     policyPosition: row.policy.position,
+    policySource: row.policy.source,
+    calendarIsExplicit: row.calendarIsExplicit,
   }));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);
+
+  // Lazy and memoized, same as runCommitmentPipeline: only resolved the
+  // first time a re-matched policy actually has no explicit calendar.
+  let fallbackPromise: ReturnType<typeof resolveOrganizationCalendarFallback> | null = null;
+  const getOrganizationCalendarFallback = () =>
+    (fallbackPromise ??= resolveOrganizationCalendarFallback(prisma, organizationId));
 
   // Which underlying policy each commitment's frozen policyVersionId belongs
   // to (D1) — not just the active/latest versions above, since a commitment
@@ -145,15 +158,15 @@ export async function runCommitmentReResolutionPipeline(
     policyVersionRows.map((row) => [row.calendarVersion.id, toCalendarVersionDomain(row.calendarVersion)]),
   );
 
+  // 4d: frozen at the moment the override was set (`Customer.calendarVersionId`), never the calendar's latest version.
   const customersWithCalendarOverride = await prisma.customer.findMany({
-    where: { organizationId, calendarId: { not: null } },
-    select: { id: true, calendar: { select: { versions: { orderBy: { version: "desc" }, take: 1 } } } },
+    where: { organizationId, calendarVersionId: { not: null } },
+    select: { id: true, calendarVersion: true },
   });
   const customerCalendarVersionByCustomerId = new Map<string, BusinessCalendarVersion>();
   for (const customer of customersWithCalendarOverride) {
-    const version = customer.calendar?.versions[0];
-    if (!version) continue;
-    customerCalendarVersionByCustomerId.set(customer.id, toCalendarVersionDomain(version));
+    if (!customer.calendarVersion) continue;
+    customerCalendarVersionByCustomerId.set(customer.id, toCalendarVersionDomain(customer.calendarVersion));
   }
 
   const cases = await prisma.case.findMany({
@@ -198,9 +211,9 @@ export async function runCommitmentReResolutionPipeline(
   }
 
   // Same for a commitment frozen on a policy version whose policy has since
-  // been archived entirely — `policyVersionRows` above excludes archived
-  // policies, but the commitment's own policyId is still needed for the D1
-  // comparison.
+  // been archived or deactivated entirely — `policyVersionRows` above
+  // excludes archived/deactivated policies, but the commitment's own
+  // policyId is still needed for the D1 comparison.
   const missingPolicyVersionIds = [
     ...new Set(
       cases.flatMap((c) => c.commitments.map((cm) => cm.policyVersionId).filter((id) => !policyIdByVersionId.has(id))),
@@ -227,10 +240,25 @@ export async function runCommitmentReResolutionPipeline(
         continue;
       }
 
-      const matchedPolicyCalendarVersion = calendarsById.get(matched.calendarVersionId);
-      if (!matchedPolicyCalendarVersion) {
+      const frozenCalendarVersion = calendarsById.get(matched.calendarVersionId);
+      if (!frozenCalendarVersion) {
         throw new Error(`No BusinessCalendarVersion loaded for ${matched.calendarVersionId}`);
       }
+      // 4i: same explicit-vs-fallback resolution as a brand new commitment —
+      // an active commitment moving onto a genuinely different policy
+      // (the only case reached here, D1) picks up that policy's calendar
+      // exactly as a new commitment matching it right now would. Only a
+      // native policy can lack an explicit calendar at all (imported
+      // policies always resolve a concrete schedule/default at import time).
+      const policyHasExplicitCalendar =
+        matched.policySource !== "native" || (matched.calendarIsExplicit ?? true);
+      const matchedPolicyCalendarVersion = policyHasExplicitCalendar
+        ? frozenCalendarVersion
+        : await resolveEffectiveCalendarVersion(
+            matched.calendarIsExplicit,
+            frozenCalendarVersion,
+            await getOrganizationCalendarFallback(),
+          );
       const calendarVersion = resolveCommitmentCalendarVersion(
         matchedPolicyCalendarVersion,
         caseRow.customerId ? customerCalendarVersionByCustomerId.get(caseRow.customerId) : undefined,

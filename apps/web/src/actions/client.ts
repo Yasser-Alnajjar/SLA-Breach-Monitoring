@@ -62,9 +62,10 @@ export interface ChangePasswordInput {
 async function postJSON<T>(
   url: string,
   payload?: unknown,
+  method: "POST" | "PATCH" = "POST",
 ): Promise<ActionResult<T>> {
   const response = await fetch(url, {
-    method: "POST",
+    method,
     headers:
       payload !== undefined
         ? { "Content-Type": "application/json" }
@@ -210,6 +211,74 @@ export const Actions = {
         customerId,
         calendarId,
       });
+    },
+    async createPolicy(input: {
+      name: string;
+      match: { priority?: string[]; customerIds?: string[] };
+      targets: { kind: CommitmentKind; minutes: number }[];
+      /** Omit to use the organization's default calendar (4i) instead of pinning an explicit one. */
+      calendarId?: string;
+      warnAtPercent: number[];
+    }) {
+      return postJSON<{
+        policyId: string;
+        version: { id: string; version: number };
+      }>("/api/settings/sla-policies", input);
+    },
+    async updatePolicy(
+      policyId: string,
+      input: {
+        name?: string;
+        match?: { priority?: string[]; customerIds?: string[] };
+        targets?: { kind: CommitmentKind; minutes: number }[];
+        /** Omit: leave the calendar untouched. A string: pin this calendar. `null`: explicitly switch to "use the organization's default calendar" (4i). */
+        calendarId?: string | null;
+        warnAtPercent?: number[];
+      },
+    ) {
+      return postJSON<{
+        created: boolean;
+        policyId: string;
+        version: { id: string; version: number };
+      }>(`/api/settings/sla-policies/${policyId}`, input, "PATCH");
+    },
+    async setPolicyActive(policyId: string, active: boolean) {
+      const response = await fetch(
+        `/api/settings/sla-policies/${policyId}/${active ? "activate" : "deactivate"}`,
+        { method: "POST" },
+      );
+      return { ok: response.ok };
+    },
+    async setDefaultCalendar(calendarId: string | null) {
+      return postJSON<{ ok: boolean }>("/api/settings/calendars/default", {
+        calendarId,
+      });
+    },
+    async createCalendar(input: {
+      name: string;
+      timezone: string;
+      weekly: { day: number; openMinute: number; closeMinute: number }[];
+      holidays: { date: string; name: string; recurring: boolean }[];
+    }) {
+      return postJSON<{
+        calendarId: string;
+        version: { id: string; version: number };
+      }>("/api/settings/calendars", input);
+    },
+    async updateCalendar(
+      calendarId: string,
+      input: {
+        name?: string;
+        timezone?: string;
+        weekly?: { day: number; openMinute: number; closeMinute: number }[];
+        holidays?: { date: string; name: string; recurring: boolean }[];
+      },
+    ) {
+      return postJSON<{
+        created: boolean;
+        calendarId: string;
+        version: { id: string; version: number };
+      }>(`/api/settings/calendars/${calendarId}`, input, "PATCH");
     },
   },
 

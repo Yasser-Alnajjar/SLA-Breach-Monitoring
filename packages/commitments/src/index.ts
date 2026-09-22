@@ -31,7 +31,41 @@ export { runNextReplyCyclePipeline } from "./cycle-pipeline";
 export type { NextReplyCyclePipelineResult } from "./cycle-pipeline";
 export { overridePolicyTargets, PolicyNotFoundError } from "./override";
 export type { PolicyOverrideResult } from "./override";
-export { CalendarNotFoundError, CustomerNotFoundError, setCustomerCalendar } from "./customer-calendar";
+export {
+  CalendarNotFoundError,
+  CustomerNotFoundError,
+  setCustomerCalendar,
+  setOrganizationDefaultCalendar,
+} from "./customer-calendar";
+export { toCalendarVersionDomain } from "./calendar-domain";
+export { DEFAULT_CALENDAR_NAME, ensureDefaultCalendarVersion } from "./default-calendar";
+export type { DefaultCalendarVersionRow } from "./default-calendar";
+export {
+  resolveEffectiveCalendarVersion,
+  resolveOrganizationCalendarFallback,
+} from "./calendar-fallback";
+export type { OrganizationCalendarFallback } from "./calendar-fallback";
 export { ACTIVE_COMMITMENT_WHERE, RE_RESOLUTION_ELIGIBLE_WHERE } from "./active-commitment";
 export { POLICY_SWITCH_REASON, runCommitmentReResolutionPipeline } from "./re-resolution-pipeline";
 export type { CommitmentReResolutionResult } from "./re-resolution-pipeline";
+export {
+  createNativePolicy,
+  CustomerIdsNotFoundError,
+  NotANativePolicyError,
+  setPolicyActive,
+  updateNativePolicy,
+} from "./native-policy";
+export type {
+  NativePolicyFields,
+  NativePolicyMatchInput,
+  NativePolicyVersionResult,
+  UpdateNativePolicyInput,
+} from "./native-policy";
+export { createNativeCalendar, updateCalendar, WeeklyWindowValidationError } from "./native-calendar";
+export type {
+  CalendarFields,
+  CalendarVersionResult,
+  UpdateCalendarInput,
+} from "./native-calendar";
+export { expandNativeHolidays, HOLIDAY_EXPANSION_YEARS_AHEAD } from "./holidays";
+export type { NativeHolidayInput } from "./holidays";

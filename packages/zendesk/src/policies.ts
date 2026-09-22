@@ -7,6 +7,7 @@ import {
   type NormalizedState,
   type SLAPolicyMatch,
 } from "@sla/core";
+import { DEFAULT_CALENDAR_NAME, ensureDefaultCalendarVersion } from "@sla/commitments";
 import { latestCalendarVersionsByZendeskScheduleId } from "./calendars";
 import { latestSnapshotById } from "./normalize";
 import type { SlaPolicyManifest } from "./rawEvents";
@@ -85,7 +86,12 @@ function isResolvedConditionField(field: string): boolean {
 /** Customer-caused waiting, regardless of which system reports it (Phase 13.4) — fixed for every imported policy, not configurable in v1. Only commitment kinds whose clock rules honor the policy's pause states pause on it (`pauseStatesFor` in @sla/core): resolution does, first response never pauses. */
 export const PAUSE_ON_STATES: NormalizedState[] = ["pending_customer"];
 export const WARN_AT_PERCENT = [50, 80, 95];
-export const DEFAULT_CALENDAR_NAME = "Default (always open)";
+
+// `ensureDefaultCalendarVersion`/`DEFAULT_CALENDAR_NAME` now live in
+// @sla/commitments (4i: native policy resolution needs them too, for an org
+// that never connected a ticket source) — re-exported here unchanged for
+// this module's existing callers/tests.
+export { DEFAULT_CALENDAR_NAME, ensureDefaultCalendarVersion };
 
 export interface ExtractedMatch {
   match: SLAPolicyMatch;
@@ -258,43 +264,6 @@ interface PolicyVersionContent {
 export { policyVersionContentEquals };
 
 /**
- * Ensures the organization has a business calendar to anchor commitments to.
- * Zendesk's actual business-hours schedules aren't ingested by this pass
- * (Phase 13.5 notes they SHOULD be imported from Zendesk — deferred past
- * this step); every imported SLA policy is anchored to one always-open
- * calendar per organization instead, which computes deadlines honestly as
- * "24/7" rather than guessing at hours we don't have.
- */
-export async function ensureDefaultCalendarVersion(
-  prisma: PrismaClient,
-  organizationId: string,
-): Promise<{ id: string }> {
-  const existing = await prisma.businessCalendar.findFirst({
-    where: { organizationId, name: DEFAULT_CALENDAR_NAME },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
-  });
-  if (existing?.versions[0]) return existing.versions[0];
-
-  const created = await prisma.businessCalendar.create({
-    data: {
-      organizationId,
-      name: DEFAULT_CALENDAR_NAME,
-      versions: {
-        create: {
-          version: 1,
-          timezone: "UTC",
-          weekly: [],
-          holidays: [],
-          alwaysOpen: true,
-        },
-      },
-    },
-    include: { versions: true },
-  });
-  return created.versions[0]!;
-}
-
-/**
  * Which `BusinessCalendarVersion` a policy's commitments should anchor to.
  * A policy with `schedule_id` set points at a specific Zendesk business
  * hours schedule; if that schedule has been imported (roadmap step 13) its
@@ -341,10 +310,16 @@ export async function upsertPolicyVersion(
   desired: PolicyVersionContent,
   position: number | null = null,
 ): Promise<boolean> {
+  // If this externalId was previously archived (its Zendesk policy was
+  // deleted, or believed to be — E-9) and has since reappeared in a live
+  // Zendesk listing, un-archive it here: reaching this point at all means
+  // the caller (`runZendeskSlaPolicyImport`) already confirmed the id is in
+  // the current live manifest, so a still-archived row here would otherwise
+  // stay permanently excluded from matching even though it's live again.
   const policy = await prisma.sLAPolicy.upsert({
     where: { organizationId_externalId: { organizationId, externalId } },
-    update: { name, position },
-    create: { organizationId, externalId, name, position },
+    update: { name, position, archivedAt: null },
+    create: { organizationId, externalId, name, position, source: "imported" },
   });
 
   const [latestVersion, latestImportedVersion] = await Promise.all([
@@ -462,8 +437,14 @@ export async function runZendeskSlaPolicyImport(
     : null;
 
   if (liveZendeskIds) {
+    // `source: "imported"` (Phase 4 / D12) is the explicit, first-class
+    // signal for "this reconciliation must never touch it otherwise" — kept
+    // alongside `externalId: { not: null }` (the two are always in sync: a
+    // native policy always has a null externalId) as a defensive, explicit
+    // guarantee that this reconciliation can never archive a native policy,
+    // which is managed entirely by Watchtower and never present in Zendesk.
     const importedPolicies = await prisma.sLAPolicy.findMany({
-      where: { organizationId, externalId: { not: null }, archivedAt: null },
+      where: { organizationId, source: "imported", externalId: { not: null }, archivedAt: null },
       select: { id: true, externalId: true },
     });
     const toArchive = importedPolicies.filter(

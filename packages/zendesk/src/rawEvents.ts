@@ -144,11 +144,25 @@ export interface SlaPolicyManifest {
  * archive a `SLAPolicy` whose id no longer appears in the latest manifest —
  * a deleted/deactivated Zendesk policy never has a "deletion event" of its
  * own to react to, only the absence of its id from a fresh full listing.
+ *
+ * Deliberately does NOT fold the content hash into `providerEventId` — same
+ * fix, same reasoning, as `mapJiraLinkManifestToRawEvent` above (that one
+ * was fixed; this one, its exact sibling, was not, which is a real bug: a
+ * policy set can oscillate back to a composition already seen before — e.g.
+ * policy X is deleted, then some unrelated policy Y is later deleted too,
+ * landing the live id-set back on a set seen at some earlier point —
+ * content-hash dedup (`skipDuplicates`) would then silently skip the write
+ * and leave `fetchedAt` stuck on the *old* row, so `runZendeskSlaPolicyImport`'s
+ * "latest manifest" lookup (`orderBy: fetchedAt desc`) can keep returning a
+ * stale manifest that still lists a since-deleted policy as live —
+ * indefinitely, until some never-before-seen id-set happens to occur.
+ * `randomUUID` guarantees every full listing gets its own row with a fresh
+ * `fetchedAt`, so "latest manifest" always means "most recently fetched".
  */
 export function mapSlaPolicyManifestToRawEvent(policyIds: number[]): RawEventInput {
   const payload: SlaPolicyManifest = { policyIds: [...policyIds].sort((a, b) => a - b) };
   const sourceHash = computeSourceHash(payload);
-  return { providerEventId: `sla_policy_manifest:${sourceHash}`, sourceHash, payload };
+  return { providerEventId: `sla_policy_manifest:${randomUUID()}`, sourceHash, payload };
 }
 
 export function mapBusinessHoursScheduleToRawEvent(schedule: ZendeskBusinessHoursSchedule): RawEventInput {

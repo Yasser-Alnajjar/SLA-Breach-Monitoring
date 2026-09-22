@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarClock, SlidersHorizontal, Timer } from "lucide-react";
+import { CalendarClock, CalendarDays, SlidersHorizontal, Timer } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SlaConfigurationData } from "@/lib/types/sla-configuration";
 import { EngineeringTargetForm } from "./EngineeringTargetForm";
 import { SlaPoliciesCard } from "./SlaPoliciesCard";
 import { CustomerCalendarsCard } from "./CustomerCalendarsCard";
+import { BusinessCalendarsCard } from "./BusinessCalendarsCard";
 
 const iconWrapper =
   "flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground";
@@ -27,6 +28,7 @@ interface SlaConfigurationViewProps {
 export const SlaConfigurationView = ({ data }: SlaConfigurationViewProps) => {
   const {
     engineeringLegTargetMinutes,
+    defaultCalendarId,
     slaPolicies,
     businessCalendars,
     customerCalendars,
@@ -107,6 +109,38 @@ export const SlaConfigurationView = ({ data }: SlaConfigurationViewProps) => {
           </Card>
         </Reveal>
       </div>
+      {/* Business calendars */}
+      <Reveal delay={0.05}>
+        <Card className="h-full overflow-hidden">
+          <CardHeader className="border-b bg-muted/10 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className={iconWrapper}>
+                <CalendarDays className="size-4" />
+              </span>
+
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Business calendars
+                </CardTitle>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Working hours, timezone, and holidays
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-5 px-5 py-5">
+            <p className={descriptionClass}>
+              Imported (Zendesk) and native calendars. The org default is pre-selected when creating
+              a native policy or calendar; it never overrides an existing customer calendar or a
+              policy&apos;s own calendar at evaluation time.
+            </p>
+
+            <BusinessCalendarsCard calendars={businessCalendars} defaultCalendarId={defaultCalendarId} />
+          </CardContent>
+        </Card>
+      </Reveal>
       {/* SLA policies */}
       <Reveal delay={0.05}>
         <Card className="h-full overflow-hidden">
@@ -118,11 +152,11 @@ export const SlaConfigurationView = ({ data }: SlaConfigurationViewProps) => {
 
               <div>
                 <CardTitle className="text-sm font-semibold">
-                  SLA policy overrides
+                  SLA policies
                 </CardTitle>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Override targets for matched policies
+                  Imported and native policies, and their targets
                 </p>
               </div>
             </div>
@@ -130,12 +164,18 @@ export const SlaConfigurationView = ({ data }: SlaConfigurationViewProps) => {
 
           <CardContent className="space-y-5 px-5 py-5">
             <p className={descriptionClass}>
-              Override targets for matched SLA policies. This creates a new
-              policy version — existing commitments keep the version they were
-              created under, changes apply to new commitments only.
+              Imported (Zendesk) policies are read-only — only their targets can be overridden —
+              and are matched first. Native policies are created here and are matched only when no
+              imported policy matches a case (D12). Every edit creates a new policy version;
+              existing commitments keep the version they were created under.
             </p>
 
-            <SlaPoliciesCard policies={slaPolicies} />
+            <SlaPoliciesCard
+              policies={slaPolicies}
+              businessCalendars={businessCalendars}
+              customers={customerCalendars}
+              defaultCalendarId={defaultCalendarId}
+            />
           </CardContent>
         </Card>
       </Reveal>

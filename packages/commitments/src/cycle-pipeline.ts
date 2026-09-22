@@ -11,7 +11,8 @@ import {
 } from "@sla/core";
 import { persistNextReplyCommitments } from "./cycle-commitments";
 import { toNormalizedEventDomain } from "./evaluate-pipeline";
-import { COMMITMENT_KINDS, latestVersionPerPolicy, pickAnchorCommitment, toCalendarVersionDomain } from "./pipeline";
+import { COMMITMENT_KINDS, latestVersionPerPolicy, pickAnchorCommitment } from "./pipeline";
+import { toCalendarVersionDomain } from "./calendar-domain";
 
 export interface NextReplyCyclePipelineResult {
   casesConsidered: number;
@@ -62,8 +63,11 @@ export async function runNextReplyCyclePipeline(
   };
 
   const policyVersionRows = await prisma.sLAPolicyVersion.findMany({
-    where: { policy: { organizationId, archivedAt: null } },
-    include: { calendarVersion: true, policy: { select: { position: true } } },
+    where: { policy: { organizationId, archivedAt: null, deactivatedAt: null } },
+    include: {
+      calendarVersion: true,
+      policy: { select: { position: true, source: true } },
+    },
   });
   if (policyVersionRows.length === 0) return result;
 
@@ -78,6 +82,8 @@ export async function runNextReplyCyclePipeline(
     warnAtPercent: row.warnAtPercent,
     effectiveFrom: row.effectiveFrom.toISOString(),
     policyPosition: row.policy.position,
+    policySource: row.policy.source,
+    calendarIsExplicit: row.calendarIsExplicit,
   }));
   const policyVersionsById = new Map(allPolicyVersions.map((pv) => [pv.id, pv]));
   const activePolicyVersions = latestVersionPerPolicy(allPolicyVersions);

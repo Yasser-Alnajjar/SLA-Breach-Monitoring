@@ -16,7 +16,7 @@ export async function getSlaConfigurationData(
     await Promise.all([
       prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { engineeringLegTargetMinutes: true },
+        select: { engineeringLegTargetMinutes: true, defaultCalendarId: true },
       }),
       getSlaPolicies(prisma, organizationId),
       getBusinessCalendars(prisma, organizationId),
@@ -26,6 +26,7 @@ export async function getSlaConfigurationData(
   return {
     engineeringLegTargetMinutes:
       organization?.engineeringLegTargetMinutes ?? null,
+    defaultCalendarId: organization?.defaultCalendarId ?? null,
     slaPolicies,
     businessCalendars,
     customerCalendars,

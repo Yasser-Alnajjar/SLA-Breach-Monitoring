@@ -115,6 +115,100 @@ function newYork(
 const weekdaysNewYork = newYork([1, 2, 3, 4, 5], 9 * 60, 17 * 60);
 const everyDayNewYork = newYork([0, 1, 2, 3, 4, 5, 6], 9 * 60, 17 * 60);
 
+// Pins the current weekday / alwaysOpen semantics the calendar editor relies
+// on: `weekly` is an allow-list of open windows, so a weekday with no entry
+// is closed all day, and `alwaysOpen` bypasses `weekly` entirely.
+describe("weekly semantics", () => {
+  const mondayOnly: BusinessCalendarVersion = {
+    ...businessHours,
+    weekly: [{ day: 1, openMinute: 9 * 60, closeMinute: 17 * 60 }],
+    holidays: [],
+  };
+
+  it("treats a weekday missing from weekly as closed all day", () => {
+    // Mon 2026-09-07 16:00 + 120: 60 on Monday, Tue-Sun have no entry, 60 more the next Monday.
+    expect(computeDeadline("2026-09-07T16:00:00.000Z", 120, mondayOnly).toISOString()).toBe(
+      "2026-09-14T10:00:00.000Z",
+    );
+    expect(
+      workingMinutesBetween(new Date("2026-09-08T00:00:00.000Z"), new Date("2026-09-14T00:00:00.000Z"), mondayOnly),
+    ).toBe(0);
+  });
+
+  it("with an empty weekly and alwaysOpen false, accrues no working time and cannot produce a deadline", () => {
+    const noOpenDays: BusinessCalendarVersion = { ...businessHours, weekly: [], holidays: [] };
+    expect(
+      workingMinutesBetween(new Date("2026-09-07T00:00:00.000Z"), new Date("2026-09-21T00:00:00.000Z"), noOpenDays),
+    ).toBe(0);
+    expect(() => computeDeadline("2026-09-07T09:00:00.000Z", 60, noOpenDays)).toThrow(/search horizon/);
+  });
+
+  it("ignores weekly entirely when alwaysOpen is true", () => {
+    const alwaysOpenWithHours: BusinessCalendarVersion = { ...businessHours, alwaysOpen: true };
+    // Saturday 10:00 is outside every weekly window, yet the clock runs.
+    expect(computeDeadline("2026-09-12T10:00:00.000Z", 60, alwaysOpenWithHours).toISOString()).toBe(
+      "2026-09-12T11:00:00.000Z",
+    );
+  });
+});
+
+// 4e: closeMinute: 1440 is the canonical way to represent a full 24-hour
+// working day (00:00 -> midnight, exclusive) — these pin that it preserves
+// exact wall-clock semantics (no lost/gained minute) through both UTC and a
+// DST transition, where a "24-hour" local day is not always 24 real hours.
+describe("full-day windows (4e)", () => {
+  it("a full day (closeMinute: 1440) in UTC accrues exactly 24 hours", () => {
+    const fullDayMonday = newYork([1], 0, 1440);
+    const minutes = workingMinutesBetween(
+      new Date("2026-09-14T00:00:00.000Z"),
+      new Date("2026-09-15T00:00:00.000Z"),
+      { ...fullDayMonday, timezone: "UTC" },
+    );
+    expect(minutes).toBe(24 * 60);
+  });
+
+  it("loses no minute versus a 00:00-23:59 window plus one — closeMinute 1440 covers the last minute of the day", () => {
+    const almostFullDay = newYork([1], 0, 1439); // the old, lossy way to mean "all day"
+    const fullDay = newYork([1], 0, 1440);
+    const start = new Date("2026-09-14T04:00:00.000Z"); // Mon 00:00 EDT
+    const end = new Date("2026-09-15T04:00:00.000Z"); // Tue 00:00 EDT
+    expect(workingMinutesBetween(start, end, fullDay)).toBe(
+      workingMinutesBetween(start, end, almostFullDay) + 1,
+    );
+  });
+
+  it("a full-day window on the spring-forward day accrues only 23 actual hours, not 24", () => {
+    const fullDaySunday = newYork([0], 0, 1440);
+    const minutes = workingMinutesBetween(
+      new Date("2026-03-08T05:00:00.000Z"), // Sun 2026-03-08 00:00 EST
+      new Date("2026-03-09T04:00:00.000Z"), // Mon 2026-03-09 00:00 EDT
+      fullDaySunday,
+    );
+    expect(minutes).toBe(23 * 60);
+  });
+
+  it("a full-day window on the fall-back day accrues 25 actual hours, not 24", () => {
+    const fullDaySunday = newYork([0], 0, 1440);
+    const minutes = workingMinutesBetween(
+      new Date("2026-11-01T04:00:00.000Z"), // Sun 2026-11-01 00:00 EDT
+      new Date("2026-11-02T05:00:00.000Z"), // Mon 2026-11-02 00:00 EST
+      fullDaySunday,
+    );
+    expect(minutes).toBe(25 * 60);
+  });
+
+  it("computeDeadline for a full-day window lands exactly at the next wall-clock day boundary across spring-forward", () => {
+    const fullDaySunday = newYork([0], 0, 1440);
+    const deadline = computeDeadline("2026-03-08T05:00:00.000Z", 23 * 60, fullDaySunday);
+    expect(deadline.toISOString()).toBe("2026-03-09T04:00:00.000Z");
+  });
+
+  it("never treats a full-day window as zero-length", () => {
+    const fullDayMonday = newYork([1], 0, 1440);
+    expect(() => computeDeadline("2026-09-14T13:00:00.000Z", 1, fullDayMonday)).not.toThrow();
+  });
+});
+
 describe("computeDeadline in a non-UTC timezone", () => {
   it("resolves local business hours to the zone's UTC offset", () => {
     // Mon 2026-09-14 09:00 EDT is 13:00Z; +60 minutes.

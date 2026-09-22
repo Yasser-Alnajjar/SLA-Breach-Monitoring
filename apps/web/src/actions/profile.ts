@@ -17,6 +17,7 @@ export const ProfileActions = {
         id: true,
         organizationId: true,
         email: true,
+        emailVerifiedAt: true,
         name: true,
         image: true,
         role: true,

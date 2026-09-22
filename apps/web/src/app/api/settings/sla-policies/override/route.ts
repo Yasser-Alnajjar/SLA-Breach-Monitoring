@@ -4,12 +4,15 @@ import { getPrismaClient } from "@sla/db";
 import type { CommitmentKind } from "@sla/core";
 import { overridePolicyTargets, PolicyNotFoundError } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 const VALID_KINDS: CommitmentKind[] = ["first_response", "resolution", "next_reply"];
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as
     | { policyId?: string; targets?: { kind?: string; minutes?: number }[] }

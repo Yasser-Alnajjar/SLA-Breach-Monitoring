@@ -10,12 +10,15 @@ import {
   type UpdateNativePolicyInput,
 } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { parseMatch, parseTargets, parseWarnAtPercent, ValidationError } from "@/lib/sla-policy-validation";
 
 /** Edits a native policy (task 4.4, D1) — every edit appends a new version; nothing here ever touches an active commitment. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as

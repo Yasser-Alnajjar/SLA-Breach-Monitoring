@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/github";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
 import { signOAuthState } from "@/lib/oauth-state";
 
@@ -11,6 +12,8 @@ const OWNER_REPO_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\/[A-Za-z
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const repo = new URL(request.url).searchParams.get("repo")?.trim() ?? "";
   if (!OWNER_REPO_PATTERN.test(repo)) {

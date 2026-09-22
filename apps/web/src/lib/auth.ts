@@ -4,12 +4,23 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { getPrismaClient } from "@sla/db";
 import { encodeAuthThrottleError } from "@/lib/auth-rate-limit";
 import { clientIpFromHeaders } from "@/lib/rate-limit";
+import { assertSessionStillValid } from "@/lib/session-validity";
 import {
   checkAuthThrottle,
   clearAuthThrottle,
   normalizeLoginIdentity,
   recordFailedAuthAttempt,
 } from "@/lib/auth-throttle";
+
+/**
+ * 7 days — was NextAuth's implicit default (30 days) until roadmap 5.7.
+ * Shortening it is a second, independent layer on top of
+ * `sessionVersion`-based invalidation below: even a token this app never
+ * has a reason to invalidate (no password change, account still active)
+ * now has a hard ceiling on how long a stolen/leaked session cookie stays
+ * usable, instead of a full month.
+ */
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * A precomputed bcrypt hash of a value nothing will ever type as a real
@@ -39,11 +50,20 @@ function getAuthorizeClientIp(headers: Record<string, unknown> | undefined): str
 /**
  * JWT sessions (not database sessions) — the Credentials provider requires
  * it. `role` (owner/member — see the `User.role` schema doc comment) is
- * carried on the token itself rather than looked up per-request; it only
- * ever changes at sign-up, so there is nothing to invalidate mid-session.
+ * carried on the token itself rather than looked up per-request, since it
+ * only ever changes at sign-up. `sessionVersion` (roadmap 5.7) is the
+ * opposite case — it exists specifically *because* a password change or
+ * account removal can happen mid-session and must take effect immediately:
+ * the `jwt` callback below re-checks it against the database on every
+ * request (not just at sign-in), and next-auth turns a throw from that
+ * callback into a cleared session — see `session.js`'s `session()` route
+ * handler, which wraps the `callbacks.jwt(...)` call in a `try/catch` and
+ * falls back to an empty, cookie-cleared response on any error. This is
+ * the actual mechanism (verified against the installed `next-auth@4`
+ * source, not just its docs) that makes `assertSessionStillValid` work.
  */
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/sign-in" },
   providers: [
     CredentialsProvider({
@@ -107,10 +127,12 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
+          emailVerifiedAt: user.emailVerifiedAt,
           name: user.name ?? null,
           image: user.image ?? null,
           organizationId: user.organizationId,
           role: user.role,
+          sessionVersion: user.sessionVersion,
           createdAt: user.createdAt,
         };
       },
@@ -122,6 +144,15 @@ export const authOptions: NextAuthOptions = {
         token.userId = user.id;
         token.organizationId = user.organizationId;
         token.role = user.role;
+        token.sessionVersion = user.sessionVersion;
+      } else {
+        // Every call after the initial sign-in (roadmap 5.7) — re-checked
+        // against the database on each one, not cached for the token's
+        // lifetime, so a password change or removal takes effect on this
+        // session's very next request rather than waiting for
+        // `SESSION_MAX_AGE_SECONDS` to elapse. Throwing here is the
+        // deliberate signal — see this file's `authOptions` doc comment.
+        await assertSessionStillValid(getPrismaClient(), token);
       }
       // NextAuth's core seeds `token.picture` from `user.image` itself
       // before this callback runs (see `defaultToken` in

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { useState, type FormEvent } from "react";
 import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -50,7 +51,14 @@ export function SecurityCard() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setResult({ ok: true, message: "Password updated." });
+    setResult({ ok: true, message: "Password updated. Signing you out…" });
+
+    // A password change invalidates every live session for this account,
+    // including this one (roadmap 5.7's `User.sessionVersion` — see
+    // `auth.ts`) — the next request this tab makes would fail anyway, so
+    // sign out proactively and send the user to sign in with the new
+    // password, rather than letting them hit a confusing 401 first.
+    await signOut({ callbackUrl: "/sign-in" });
   }
 
   return (

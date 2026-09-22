@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { exchangeCodeForToken, GithubClient, GithubPermissionDeniedError } from "@sla/github";
 import { encryptCredentials, getPrismaClient, type Prisma } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { getGithubOAuthConfig, GITHUB_STATE_COOKIE } from "@/lib/github-env";
 import { validateOAuthState } from "@/lib/oauth-state";
 import { getAppUrl } from "@/lib/app-url";
@@ -10,6 +11,8 @@ import { getAppUrl } from "@/lib/app-url";
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.redirect(new URL("/sign-in", getAppUrl()));
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");

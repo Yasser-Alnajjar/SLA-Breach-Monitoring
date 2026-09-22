@@ -1,8 +1,8 @@
-# Provider-Agnostic Architecture Audit — SLA Watchtower
+# Provider-Agnostic Architecture Audit — Elapsed
 
 ## Objective
 
-Analyze the **current SLA Watchtower codebase as it exists today** and determine whether we can evolve it from a Zendesk-centric architecture into a **provider-agnostic domain architecture** without rewriting the core product.
+Analyze the **current Elapsed codebase as it exists today** and determine whether we can evolve it from a Zendesk-centric architecture into a **provider-agnostic domain architecture** without rewriting the core product.
 
 Do **not** implement anything.
 
@@ -153,13 +153,13 @@ Identify places where a generic domain concept is actually represented by a Zend
 Examples of what I want you to detect:
 
 ```ts
-type Customer = ZendeskOrganization
+type Customer = ZendeskOrganization;
 ```
 
 or:
 
 ```ts
-customerId = zendeskOrganizationId
+customerId = zendeskOrganizationId;
 ```
 
 or:
@@ -421,13 +421,7 @@ For example:
 
 ```ts
 {
-  caseId,
-  type,
-  occurredAt,
-  actor,
-  fromState,
-  toState,
-  sourceRawEventId
+  (caseId, type, occurredAt, actor, fromState, toState, sourceRawEventId);
 }
 ```
 
@@ -470,23 +464,19 @@ Check for:
 The desired architecture is:
 
 ```ts
-evaluate(
-  events,
-  policyVersion,
-  calendarVersion
-)
+evaluate(events, policyVersion, calendarVersion);
 ```
 
 not:
 
 ```ts
-evaluateZendeskTicket(ticket)
+evaluateZendeskTicket(ticket);
 ```
 
 or:
 
 ```ts
-evaluate(ticket, zendeskPolicy, zendeskSchedule)
+evaluate(ticket, zendeskPolicy, zendeskSchedule);
 ```
 
 ---
@@ -619,15 +609,15 @@ Inspect the Prisma schema and classify every provider-specific field/relation.
 
 Create a table:
 
-| Entity | Field | Provider-specific? | Why | Required change |
-|---|---|---:|---|---|
-| Customer | ... | yes/no | ... | ... |
-| Case | ... | yes/no | ... | ... |
-| CaseLink | ... | yes/no | ... | ... |
-| Policy | ... | yes/no | ... | ... |
-| Calendar | ... | yes/no | ... | ... |
-| Event | ... | yes/no | ... | ... |
-| Commitment | ... | yes/no | ... | ... |
+| Entity     | Field | Provider-specific? | Why | Required change |
+| ---------- | ----- | -----------------: | --- | --------------- |
+| Customer   | ...   |             yes/no | ... | ...             |
+| Case       | ...   |             yes/no | ... | ...             |
+| CaseLink   | ...   |             yes/no | ... | ...             |
+| Policy     | ...   |             yes/no | ... | ...             |
+| Calendar   | ...   |             yes/no | ... | ...             |
+| Event      | ...   |             yes/no | ... | ...             |
+| Commitment | ...   |             yes/no | ... | ...             |
 
 Pay particular attention to foreign keys and IDs.
 

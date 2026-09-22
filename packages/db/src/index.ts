@@ -65,6 +65,59 @@ export { withOrganizationSlaLock } from "./organization-lock";
 export { recordSlaImportSummary } from "./sla-import-summary";
 export type { SlaImportSummaryInput } from "./sla-import-summary";
 
+export { generateSecureToken, hashToken } from "./secure-token";
+export {
+  INVITATION_TTL_MS,
+  normalizeEmail,
+  createOrResendInvitation,
+  listPendingInvitations,
+  revokeInvitation,
+  previewInvitation,
+  acceptInvitation,
+  EmailAlreadyRegisteredError,
+  InvitationNotFoundError,
+  InvitationExpiredError,
+  InvitationNotPendingError,
+  InvitationConflictError,
+} from "./invitations";
+export type {
+  CreateOrResendInvitationResult,
+  InvitationPreview,
+  AcceptInvitationInput,
+  AcceptInvitationResult,
+} from "./invitations";
+
+export {
+  listMembers,
+  updateMemberRole,
+  removeMember,
+  MemberNotFoundError,
+  CannotRemoveSelfError,
+  LastOwnerError,
+} from "./members";
+export type { OrganizationMember } from "./members";
+
+export {
+  PASSWORD_RESET_TTL_MS,
+  requestPasswordReset,
+  resetPassword,
+  PasswordResetTokenNotFoundError,
+  PasswordResetTokenExpiredError,
+  PasswordResetTokenUsedError,
+} from "./password-reset";
+export type { RequestPasswordResetResult, ResetPasswordResult } from "./password-reset";
+
+export {
+  EMAIL_VERIFICATION_TTL_MS,
+  createEmailVerificationToken,
+  createEmailChangeToken,
+  verifyEmail,
+  EmailVerificationTokenNotFoundError,
+  EmailVerificationTokenExpiredError,
+  EmailVerificationTokenUsedError,
+} from "./email-verification";
+export type { IssueTokenResult, VerifyEmailResult } from "./email-verification";
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });

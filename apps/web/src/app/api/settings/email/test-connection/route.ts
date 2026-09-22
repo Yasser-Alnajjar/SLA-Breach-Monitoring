@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getEmailSettings, getPrismaClient } from "@sla/db";
 import { verifyEmailConfig } from "@sla/email";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { emailSettingsInputSchema, smtpErrorMessage } from "@/lib/email-settings";
 
 /**
@@ -21,6 +22,8 @@ import { emailSettingsInputSchema, smtpErrorMessage } from "@/lib/email-settings
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const parsed = emailSettingsInputSchema.safeParse(body);

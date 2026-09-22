@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 /**
  * Unlike Zendesk/Jira/Linear/Intercom/GitHub (which soft-disconnect —
@@ -15,6 +16,8 @@ import { authOptions } from "@/lib/auth";
 export async function POST() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const prisma = getPrismaClient();
   const slack = await prisma.slackIntegration.findUnique({

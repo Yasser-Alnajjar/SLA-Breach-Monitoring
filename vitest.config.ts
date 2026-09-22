@@ -36,6 +36,9 @@ const realDatabaseSuites = [
   "apps/web/test/zendesk-calendar-import-e18.test.ts",
   "apps/web/test/sla-native-calendar-routes.test.ts",
   "apps/web/test/native-policy-calendar-resolution.test.ts",
+  "apps/web/test/invitation-accept-race.test.ts",
+  "apps/web/test/password-reset-race.test.ts",
+  "apps/web/test/email-verification-race.test.ts",
 ];
 
 export default defineConfig({

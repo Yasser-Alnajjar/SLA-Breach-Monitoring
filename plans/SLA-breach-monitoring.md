@@ -130,14 +130,14 @@ Every system sees only part of the process.
 
 Imagine a SaaS called:
 
-### SLA Watchtower
+### Elapsed
 
 It is not a helpdesk.
 
 The concept:
 
 ```text
-                 SLA Watchtower
+                 Elapsed
                        │
           ┌────────────┼────────────┐
           ↓            ↓            ↓
@@ -724,15 +724,15 @@ type BreachReport = {
 
 ## 16. Key Differentiators
 
-| Feature                | Traditional SLA Tools | SLA Watchtower |
-| ---------------------- | --------------------- | -------------- |
-| Single source of truth | ❌                    | ✅             |
-| Cross-system tracking  | ❌                    | ✅             |
-| OLA monitoring         | ❌                    | ✅             |
-| Delay attribution      | ❌                    | ✅             |
-| Breach evidence        | ❌                    | ✅             |
-| Vendor-neutral         | ❌                    | ✅             |
-| Financial impact       | ❌                    | ✅             |
+| Feature                | Traditional SLA Tools | Elapsed |
+| ---------------------- | --------------------- | ------- |
+| Single source of truth | ❌                    | ✅      |
+| Cross-system tracking  | ❌                    | ✅      |
+| OLA monitoring         | ❌                    | ✅      |
+| Delay attribution      | ❌                    | ✅      |
+| Breach evidence        | ❌                    | ✅      |
+| Vendor-neutral         | ❌                    | ✅      |
+| Financial impact       | ❌                    | ✅      |
 
 ---
 

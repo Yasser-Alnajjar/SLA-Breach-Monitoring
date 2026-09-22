@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { CalendarNotFoundError, setOrganizationDefaultCalendar } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as { calendarId?: string | null } | null;
   const calendarId = body?.calendarId ?? null;

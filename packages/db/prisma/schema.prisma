@@ -19,6 +19,11 @@ datasource db {
 model Organization {
   id                String             @id @default(cuid())
   name              String
+  /// Display-only grouping for the dashboard (Phase 6 roadmap 6.5) — never
+  /// read by SLA calculations, which stay pinned to each calendar's own
+  /// timezone (see `packages/commitments/src/pipeline.ts`). Defaults to UTC
+  /// so every pre-existing organization gets a valid value on migration.
+  timezone          String             @default("UTC")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   /// Optional OLA target (Phase 15 roadmap step 16): minutes a case may spend
@@ -42,6 +47,7 @@ model Organization {
   slackIntegration  SlackIntegration?
   emailSettings     OrganizationEmailSettings?
   users             User[]
+  invitations       OrganizationInvitation[]
 
   @@map("organizations")
 }
@@ -50,20 +56,140 @@ model User {
   id             String       @id @default(cuid())
   organizationId String
   email          String       @unique
+  /// Null until the current `email` has been proven reachable (roadmap
+  /// 5.6) — set by `verifyEmail` when a signup-verification token is
+  /// consumed, or carried forward automatically when an email *change*
+  /// token is consumed (the new address is only ever written to this
+  /// column once it's already been verified, so it can never regress to
+  /// unverified). An invitation-accepted user (5.2) is marked verified
+  /// immediately at account creation — clicking that emailed link is
+  /// already proof of control over the address, so there's no separate
+  /// verification step for them to do.
+  emailVerifiedAt DateTime?
   passwordHash   String
+  /// Bumped whenever a live JWT session for this user must stop working
+  /// before its own expiry (roadmap 5.7): a password change or reset.
+  /// `auth.ts`'s `jwt` callback re-checks this against the value baked
+  /// into the token on every `getServerSession` call (not just at
+  /// sign-in) and throws if they no longer match — see that file's doc
+  /// comment for exactly how NextAuth turns that throw into a cleared
+  /// session. Removal needs no bump of its own: the `User` row is gone
+  /// entirely, and the same re-check throws on "no such user" too.
+  sessionVersion Int          @default(0)
   name           String?
   image          String?
   /// `owner` is whoever created the organization (roadmap: Worker/Monitoring
-  /// settings) — the only role distinction v1 needs, since sign-up is still
-  /// the only path that creates a `User` row (one owner per organization,
-  /// no invite flow yet). Gates admin-only actions; `member` is otherwise
-  /// identical in what it can view.
+  /// settings) — the only role distinction v1 needs. Sign-up creates the
+  /// owner; every invitation accepted (Phase 5 task 5.2) creates a `member`
+  /// — no way to invite someone as `owner` yet. Gates admin-only actions;
+  /// `member` is otherwise identical in what it can view.
   role           UserRole     @default(member)
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Invitations this user has sent (as an inviter) and the one invitation
+  /// that, if any, this user's own account was created from.
+  invitationsSent    OrganizationInvitation[] @relation("InvitationsSent")
+  invitationAccepted OrganizationInvitation?  @relation("InvitationAccepted")
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@index([organizationId])
   @@map("users")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+}
+
+/// A single-use, expiring token for the "forgot password" flow (roadmap
+/// 5.5) — same shape as `OrganizationInvitation` (only `tokenHash` is ever
+/// stored; the raw token exists solely in the emailed link, see
+/// `@sla/db`'s `secure-token.ts`), but scoped to an existing `User` instead
+/// of an email that may not have an account yet. `usedAt` (rather than a
+/// status enum) is enough state for this model — there's no "revoked"
+/// concept, and requesting a new reset simply deletes any prior unused
+/// tokens for the same user (see `requestPasswordReset`) instead of
+/// tracking a superseded status.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// A single-use, expiring token for both halves of roadmap 5.6: verifying
+/// the account's current email (`newEmail` null), and confirming a
+/// requested change to a new one (`newEmail` set — `User.email` is only
+/// ever written to once this token is consumed, never at request time, so
+/// a typo'd or someone-else's address can't take over the account just by
+/// being entered into the "change email" form). Same shape as
+/// `PasswordResetToken` — `usedAt`, not a status enum, is enough state,
+/// and only `tokenHash` is ever stored.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  newEmail  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+/// A single-use, expiring invitation to join an organization as a `member`
+/// (roadmap 5.2). Deliberately its own entity rather than encoding
+/// "invited but not yet a user" state onto `User` — a pending invitation
+/// has no `User` row at all until accepted, so there's nothing on `User`
+/// to encode it into. Only a hash of the raw token is ever stored; the raw
+/// token exists solely in the acceptance URL/email (see
+/// `@sla/db`'s `secure-token.ts`). At most one `pending` invitation may
+/// exist per `(organizationId, email)` — enforced by a partial unique
+/// index added by raw SQL in this model's migration (Prisma's schema DSL
+/// has no `WHERE` clause for `@@unique`) — so resending an invitation
+/// updates the existing pending row (rotating its token) rather than
+/// creating a second, simultaneously-valid one.
+model OrganizationInvitation {
+  id               String            @id @default(cuid())
+  organizationId   String
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Normalized (trim + lowercase), matching `User.email`'s own convention
+  /// — never trusted as unique on its own; uniqueness among *pending*
+  /// invitations is scoped per organization (see this model's own doc
+  /// comment), and an accepted/revoked invitation is never unique at all.
+  email            String
+  /// SHA-256 hex digest of the single-use raw token.
+  tokenHash        String            @unique
+  status           InvitationStatus  @default(pending)
+  /// Nullable + `SetNull` on delete (not `Restrict`): once 5.3 can remove a
+  /// member, that member having sent invitations in the past must never
+  /// block their own removal — the invitation row survives as history, just
+  /// with its inviter reference cleared.
+  invitedByUserId  String?
+  invitedBy        User?             @relation("InvitationsSent", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  /// Set exactly when `status` becomes `accepted` — the `User` row this
+  /// invitation's acceptance created. `SetNull` for the same reason as
+  /// `invitedByUserId`: removing that member later must not be blocked.
+  acceptedByUserId String?           @unique
+  acceptedBy       User?             @relation("InvitationAccepted", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  revokedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([organizationId, status])
+  @@map("organization_invitations")
 }
 
 model Integration {

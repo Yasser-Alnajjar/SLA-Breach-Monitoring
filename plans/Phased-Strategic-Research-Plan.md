@@ -1,10 +1,10 @@
-# SLA Watchtower — Phased Strategic Research & Product Validation Plan
+# Elapsed — Phased Strategic Research & Product Validation Plan
 
 ## Objective
 
 Act as a senior SaaS product strategist, B2B product manager, and technical architect.
 
-The goal is **not to validate SLA Watchtower**.
+The goal is **not to validate Elapsed**.
 
 The goal is to determine whether this is a problem worth solving, identify the strongest market wedge, challenge the product assumptions, and define the smallest product that should be validated before significant development investment.
 
@@ -26,7 +26,7 @@ Determine whether the core problem is genuinely painful and whether the proposed
 
 ### Core Concept
 
-SLA Watchtower is a vendor-neutral monitoring layer above systems such as:
+Elapsed is a vendor-neutral monitoring layer above systems such as:
 
 - Zendesk
 - Jira / Jira Service Management
@@ -168,7 +168,7 @@ Explain:
 - What they don't solve
 - Their target customer
 - Their pricing model where available
-- Why customers would use SLA Watchtower instead
+- Why customers would use Elapsed instead
 - Whether they could easily copy the feature
 - Whether the category represents direct or indirect competition
 
@@ -373,7 +373,7 @@ Produce one concrete ICP.
 
 ## Objective
 
-Based on the previous phases, determine what SLA Watchtower should actually be.
+Based on the previous phases, determine what Elapsed should actually be.
 
 Challenge the original positioning.
 
@@ -1185,7 +1185,7 @@ The exact conditions under which the project should be abandoned.
 
 # Final Rule
 
-Do not optimize for making SLA Watchtower sound exciting.
+Do not optimize for making Elapsed sound exciting.
 
 Optimize for answering:
 
@@ -1203,6 +1203,6 @@ If a smaller or different product has a stronger opportunity:
 
 Recommend that product instead.
 
-The objective is not to build SLA Watchtower.
+The objective is not to build Elapsed.
 
-The objective is to find the **best business opportunity hidden inside the SLA Watchtower hypothesis.**
+The objective is to find the **best business opportunity hidden inside the Elapsed hypothesis.**

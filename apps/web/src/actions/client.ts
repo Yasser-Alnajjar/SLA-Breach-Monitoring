@@ -17,6 +17,9 @@ import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-setti
 import type { SignUpInput } from "@/lib/sign-up";
 import type { IUser } from "@/lib/types/user";
 import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
+import type { InvitationPreview } from "@/lib/types/invitations";
+import type { UserRole } from "@/lib/types/user";
+import type { OrganizationSettingsData } from "@/lib/types/organization";
 import type {
   ConciergeExportSelectionRequest,
   ConciergeExportSummary,
@@ -341,6 +344,67 @@ export const Actions = {
     },
     async changePassword(input: ChangePasswordInput) {
       return postJSON<Record<string, never>>("/api/me/password", input);
+    },
+    async requestEmailChange(input: { newEmail: string; currentPassword: string }) {
+      return postJSON<{ ok: boolean }>("/api/me/email", input);
+    },
+    async resendVerification() {
+      return postJSON<{ ok: boolean }>("/api/me/resend-verification");
+    },
+  },
+
+  Invitations: {
+    async invite(email: string) {
+      return postJSON<{ ok: boolean; resent: boolean }>("/api/settings/invitations", { email });
+    },
+    async revoke(invitationId: string) {
+      const response = await fetch(`/api/settings/invitations/${invitationId}`, { method: "DELETE" });
+      return { ok: response.ok };
+    },
+    /** Public — no session required (the token is the credential). */
+    async previewInvite(token: string) {
+      const response = await fetch(`/api/invitations/accept?token=${encodeURIComponent(token)}`);
+      const body = await response.json().catch(() => ({}));
+      return { ok: response.ok, status: response.status, body } as ActionResult<InvitationPreview>;
+    },
+    /** Public — no session required. */
+    async acceptInvite(input: { token: string; name: string; password: string }) {
+      return postJSON<{ ok: boolean; email: string }>("/api/invitations/accept", input);
+    },
+  },
+
+  PasswordReset: {
+    /** Public — no session required. Always resolves `ok: true`; see `/api/password-reset`'s doc comment for why. */
+    async request(email: string) {
+      return postJSON<{ ok: boolean }>("/api/password-reset", { email });
+    },
+    /** Public — no session required (the token is the credential). */
+    async confirm(input: { token: string; password: string }) {
+      return postJSON<{ ok: boolean }>("/api/password-reset/confirm", input);
+    },
+  },
+
+  EmailVerification: {
+    /** Public — no session required (the token is the credential). */
+    async confirm(token: string) {
+      return postJSON<{ ok: boolean; email: string }>("/api/email-verification/confirm", { token });
+    },
+  },
+
+  Members: {
+    async updateRole(memberId: string, role: UserRole) {
+      return postJSON<Record<string, never>>(`/api/settings/members/${memberId}`, { role }, "PATCH");
+    },
+    async remove(memberId: string) {
+      const response = await fetch(`/api/settings/members/${memberId}`, { method: "DELETE" });
+      const body = await response.json().catch(() => ({}));
+      return { ok: response.ok, error: body.error as string | undefined };
+    },
+  },
+
+  Organization: {
+    async update(input: { name: string; timezone: string }) {
+      return postJSON<OrganizationSettingsData>("/api/settings/organization", input, "PATCH");
     },
   },
 };

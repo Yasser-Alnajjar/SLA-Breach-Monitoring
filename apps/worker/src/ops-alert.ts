@@ -1,42 +1,52 @@
-import { sendEmail, type EmailConfig } from "@sla/email";
+import { sendEmail, loadDeploymentSmtpConfig, DeploymentSmtpNotConfiguredError, type EmailConfig } from "@sla/email";
 
 /**
  * Deployment-owner-level alerting ("email/Slack to you, not the customer" —
- * roadmap step 29), which is why this is new, separate env-var-sourced
- * config rather than the per-organization `SlackIntegration`/
- * `OrganizationEmailSettings` models: those are customer-facing channels
- * for SLA breach notifications, and reusing them would mean paging every
- * customer's Slack channel when *our* worker stalls. `@sla/slack`'s
- * `postMessage` also can't be reused as-is here even if it could — it needs
- * a resolved OAuth bot token + channel id from a completed per-org Slack
- * app install, not a single ops channel — so Slack delivery below is a
- * plain incoming-webhook POST instead.
+ * roadmap step 29), which is why this reads deployment-level config rather
+ * than the per-organization `SlackIntegration`/`OrganizationEmailSettings`
+ * models: those are customer-facing channels for SLA breach notifications,
+ * and reusing them would mean paging every customer's Slack channel when
+ * *our* worker stalls. `@sla/slack`'s `postMessage` also can't be reused
+ * as-is here even if it could — it needs a resolved OAuth bot token +
+ * channel id from a completed per-org Slack app install, not a single ops
+ * channel — so Slack delivery below is a plain incoming-webhook POST
+ * instead.
+ *
+ * The email channel's SMTP transport is `@sla/email`'s shared
+ * `loadDeploymentSmtpConfig` (`DEPLOYMENT_SMTP_*`) — the same deployment-
+ * owned mailer `apps/web` uses for invitations/password resets/email
+ * verification, not a separate credential set. There's no technical reason
+ * for a second deployment-owned SMTP transport once both consumers already
+ * go through the same `sendEmail`/`EmailConfig`; the boundary that actually
+ * matters — customer-owned `OrganizationEmailSettings` vs. deployment-owned
+ * — is untouched by sharing this one.
  */
 export interface OpsAlertConfig {
   slackWebhookUrl: string | null;
   email: { to: string; smtp: EmailConfig } | null;
 }
 
-/** Returns null when neither channel is configured — callers treat that as "nothing to alert through" and skip the check entirely. */
+/**
+ * Returns null when neither channel is configured — callers treat that as
+ * "nothing to alert through" and skip the check entirely. The email channel
+ * specifically requires `OPS_ALERT_EMAIL`; if that's set but the shared
+ * `DEPLOYMENT_SMTP_*` isn't configured, email alerting is simply off (the
+ * same "missing credentials mean skip" convention used everywhere else in
+ * this config) rather than an error — only a genuinely unexpected failure
+ * from the loader propagates.
+ */
 export function loadOpsAlertConfig(): OpsAlertConfig | null {
   const slackWebhookUrl = process.env.OPS_ALERT_SLACK_WEBHOOK_URL ?? null;
 
   const to = process.env.OPS_ALERT_EMAIL ?? null;
-  const smtpHost = process.env.OPS_ALERT_SMTP_HOST ?? null;
-  const email: OpsAlertConfig["email"] =
-    to && smtpHost
-      ? {
-          to,
-          smtp: {
-            host: smtpHost,
-            port: Number(process.env.OPS_ALERT_SMTP_PORT ?? 587),
-            security: (process.env.OPS_ALERT_SMTP_SECURITY as EmailConfig["security"] | undefined) ?? "starttls",
-            user: process.env.OPS_ALERT_SMTP_USER ?? "",
-            password: process.env.OPS_ALERT_SMTP_PASSWORD ?? "",
-            from: process.env.OPS_ALERT_SMTP_FROM ?? to,
-          },
-        }
-      : null;
+  let email: OpsAlertConfig["email"] = null;
+  if (to) {
+    try {
+      email = { to, smtp: loadDeploymentSmtpConfig() };
+    } catch (error) {
+      if (!(error instanceof DeploymentSmtpNotConfiguredError)) throw error;
+    }
+  }
 
   if (!slackWebhookUrl && !email) return null;
   return { slackWebhookUrl, email };

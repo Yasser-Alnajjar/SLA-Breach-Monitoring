@@ -1,0 +1,43 @@
+import { sendEmail, loadDeploymentSmtpConfig, type EmailConfig, type EmailMessage } from "@sla/email";
+
+/**
+ * Sends account-lifecycle email — invitations, password resets, email
+ * verification (roadmap D8) — through the deployment's shared SMTP
+ * (`DEPLOYMENT_SMTP_*`, loaded by `@sla/email`'s `loadDeploymentSmtpConfig`,
+ * the same config apps/worker's ops alert uses). Deliberately separate from
+ * `OrganizationEmailSettings` (per-org, opt-in, customer-owned, used only
+ * for SLA breach/at-risk notifications): these flows can fire before an
+ * organization has ever configured its own SMTP — the very first invite, or
+ * a password reset for an owner who never opened Settings → Notifications —
+ * so they cannot depend on optional per-tenant configuration. A missing
+ * config or a delivery failure is logged as a structured operational error
+ * and rethrown — never swallowed — so the caller (an invite/reset/
+ * verification API route) can surface a real failure instead of reporting
+ * success for an email that was never sent.
+ */
+export async function sendTransactionalEmail(message: EmailMessage): Promise<void> {
+  let config: EmailConfig;
+  try {
+    config = loadDeploymentSmtpConfig();
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "transactional_email_not_configured",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    throw error;
+  }
+
+  try {
+    await sendEmail(config, message);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "transactional_email_send_failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    throw error;
+  }
+}

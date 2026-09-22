@@ -202,6 +202,7 @@ function sessionFor(org: SeededOrg, label: string): Session {
       id: org.userId,
       organizationId: org.organizationId,
       email: `${label.toLowerCase()}@example.test`,
+      emailVerifiedAt: new Date(),
       name: null,
       image: null,
       role: "owner",

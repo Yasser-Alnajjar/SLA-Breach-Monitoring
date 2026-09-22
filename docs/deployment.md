@@ -58,7 +58,8 @@ hand.
 | `SENTRY_DSN` | web, worker | Optional. Enables error tracking in both apps when set; omit it and the SDK stays disabled with no other effect. See [Health checks and observability](#health-checks-and-observability). |
 | `WORKER_HEALTH_PORT` | worker | Optional, defaults to `8081`. The port `GET /health` listens on inside the worker container. |
 | `WORKER_LOCK_RETRY_MS`, `WORKER_LOCK_PING_MS` | worker | Optional, default `15000` and `30000`. How often a standby worker retries the single-instance lock, and how often the active one checks its lock connection is still alive. See [Single worker instance](#single-worker-instance). |
-| `OPS_ALERT_SLACK_WEBHOOK_URL`, `OPS_ALERT_EMAIL`, `OPS_ALERT_SMTP_*` | worker | Optional. Where a stalled-worker-cycle alert goes — see [Health checks and observability](#health-checks-and-observability). This is a deployment-owner channel, unrelated to any organization's own SLA breach notifications. |
+| `OPS_ALERT_SLACK_WEBHOOK_URL`, `OPS_ALERT_EMAIL` | worker | Optional. Where a stalled-worker-cycle alert goes — see [Health checks and observability](#health-checks-and-observability). This is a deployment-owner channel, unrelated to any organization's own SLA breach notifications. `OPS_ALERT_EMAIL` is only the recipient; its SMTP transport is the shared `DEPLOYMENT_SMTP_*` below, so email alerting stays off if that's unset. |
+| `DEPLOYMENT_SMTP_*` | web, worker | Deployment-owned SMTP, shared by every deployment-level email concern: account-lifecycle email sent from web (invitations, password resets, email verification — required, fails explicitly if unset when triggered) and worker's ops alert above (optional — that channel just stays off if unset). Deliberately separate from an organization's own saved SMTP (Settings → Notifications, used only for SLA breach/at-risk alerts, customer-owned) — that's the boundary that matters; there's no separate SMTP transport per deployment-level feature, since both already go through the same mailer. |
 
 None of these secrets are baked into the images — the Dockerfiles only ever
 see fixed placeholder values at build time (see the comments in
@@ -319,7 +320,7 @@ before the rotation still hold ciphertext for the old encryption keys, so
 restoring one also needs that old `.env.prod`.
 
 The script can't rotate third-party credentials. Revoke and replace these with
-their provider, then edit `.env.prod`: `OPS_ALERT_SMTP_PASSWORD` (for Gmail,
+their provider, then edit `.env.prod`: `DEPLOYMENT_SMTP_PASSWORD` (for Gmail,
 delete the app password in your Google account and create a new one),
 `OPS_ALERT_SLACK_WEBHOOK_URL`, and `SENTRY_DSN`.
 
@@ -376,9 +377,9 @@ A standby only waits.
   reconciliation sweep hasn't completed successfully in over 3x its
   configured interval, sends an alert — to you, the deployment owner, not
   your customers — through whichever of `OPS_ALERT_SLACK_WEBHOOK_URL`
-  (a plain Slack incoming-webhook URL) or `OPS_ALERT_EMAIL` +
-  `OPS_ALERT_SMTP_*` is configured; both, either, or neither is fine. A
-  recovery is announced the same way once the cycle catches up. This only
+  (a plain Slack incoming-webhook URL) or `OPS_ALERT_EMAIL` (sent through
+  the shared `DEPLOYMENT_SMTP_*`) is configured; both, either, or neither is
+  fine. A recovery is announced the same way once the cycle catches up. This only
   catches a worker that's alive but not completing cycles — a fully
   crashed process stops this check along with everything else, which is
   what the `HEALTHCHECK`/restart policy above is for instead.

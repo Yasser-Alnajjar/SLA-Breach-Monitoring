@@ -10,6 +10,9 @@ import { WorkerSettingsActions } from "./worker-settings";
 import { ConciergeActions } from "./concierge";
 import { ProfileActions } from "./profile";
 import { AtRiskActions } from "./at-risk";
+import { InvitationsActions } from "./invitations";
+import { MembersActions } from "./members";
+import { OrganizationActions } from "./organization";
 
 /**
  * Server-only data layer, imported exclusively by `ssr/` (async server)
@@ -29,4 +32,7 @@ export const Actions = {
   WorkerSettings: WorkerSettingsActions,
   Concierge: ConciergeActions,
   Profile: ProfileActions,
+  Invitations: InvitationsActions,
+  Members: MembersActions,
+  Organization: OrganizationActions,
 };

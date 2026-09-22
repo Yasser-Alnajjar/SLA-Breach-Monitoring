@@ -36,6 +36,15 @@ services:
       INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY:?INTEGRATION_TOKEN_ENCRYPTION_KEY is required}
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Deployment-level SMTP for invitations, password resets and email
+      # verification (roadmap D8) — optional at the container level, but
+      # those flows fail explicitly at send time if left unset.
+      TRANSACTIONAL_SMTP_HOST: ${TRANSACTIONAL_SMTP_HOST:-}
+      TRANSACTIONAL_SMTP_PORT: ${TRANSACTIONAL_SMTP_PORT:-587}
+      TRANSACTIONAL_SMTP_SECURITY: ${TRANSACTIONAL_SMTP_SECURITY:-starttls}
+      TRANSACTIONAL_SMTP_USER: ${TRANSACTIONAL_SMTP_USER:-}
+      TRANSACTIONAL_SMTP_PASSWORD: ${TRANSACTIONAL_SMTP_PASSWORD:-}
+      TRANSACTIONAL_SMTP_FROM: ${TRANSACTIONAL_SMTP_FROM:-}
 
   worker:
     build:

@@ -59,6 +59,7 @@ hand.
 | `WORKER_HEALTH_PORT` | worker | Optional, defaults to `8081`. The port `GET /health` listens on inside the worker container. |
 | `WORKER_LOCK_RETRY_MS`, `WORKER_LOCK_PING_MS` | worker | Optional, default `15000` and `30000`. How often a standby worker retries the single-instance lock, and how often the active one checks its lock connection is still alive. See [Single worker instance](#single-worker-instance). |
 | `OPS_ALERT_SLACK_WEBHOOK_URL`, `OPS_ALERT_EMAIL`, `OPS_ALERT_SMTP_*` | worker | Optional. Where a stalled-worker-cycle alert goes — see [Health checks and observability](#health-checks-and-observability). This is a deployment-owner channel, unrelated to any organization's own SLA breach notifications. |
+| `TRANSACTIONAL_SMTP_*` | web | Optional at the container level, but required for invitations, password resets and email verification to work — those flows fail explicitly (a clear error, not a silent no-op) if left unset when triggered. Deliberately separate from an organization's own saved SMTP (Settings → Notifications, used only for SLA breach/at-risk alerts) and from `OPS_ALERT_SMTP_*` (worker-only, one fixed operator recipient): account-lifecycle email can fire before an organization has configured anything of its own. |
 
 None of these secrets are baked into the images — the Dockerfiles only ever
 see fixed placeholder values at build time (see the comments in

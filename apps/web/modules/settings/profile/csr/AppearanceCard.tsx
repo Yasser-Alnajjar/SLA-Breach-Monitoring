@@ -33,7 +33,7 @@ export function AppearanceCard() {
           <div>
             <CardTitle className="text-sm font-semibold">Appearance</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Choose how SLA Watchtower looks on this device.
+              Choose how Elapsed looks on this device.
             </p>
           </div>
         </div>

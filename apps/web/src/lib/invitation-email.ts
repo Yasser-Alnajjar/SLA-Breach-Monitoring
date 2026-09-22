@@ -10,13 +10,17 @@ export function invitationAcceptUrl(token: string): string {
   return url.toString();
 }
 
-export function buildInvitationEmail(input: { to: string; organizationName: string; token: string }): EmailMessage {
+export function buildInvitationEmail(input: {
+  to: string;
+  organizationName: string;
+  token: string;
+}): EmailMessage {
   const acceptUrl = invitationAcceptUrl(input.token);
   return {
     to: [input.to],
-    subject: `You've been invited to join ${input.organizationName} on SLA Watchtower`,
+    subject: `You've been invited to join ${input.organizationName} on Elapsed`,
     text: [
-      `You've been invited to join ${input.organizationName} on SLA Watchtower.`,
+      `You've been invited to join ${input.organizationName} on Elapsed.`,
       "",
       `Accept the invitation: ${acceptUrl}`,
       "",

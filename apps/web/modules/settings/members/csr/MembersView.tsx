@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PendingInvitation } from "@/lib/types/invitations";
+import { formatDateTime } from "@/lib/format";
 
 interface MembersViewProps {
   invitations: PendingInvitation[];
@@ -22,7 +23,11 @@ interface InviteResult {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 /**
@@ -45,12 +50,18 @@ export function MembersView({ invitations }: MembersViewProps) {
     setInviting(false);
 
     if (!ok) {
-      setResult({ ok: false, error: body.error ?? "Failed to send invitation" });
+      setResult({
+        ok: false,
+        error: body.error ?? "Failed to send invitation",
+      });
       return;
     }
 
     setEmail("");
-    setResult({ ok: true, message: body.resent ? "Invitation resent." : "Invitation sent." });
+    setResult({
+      ok: true,
+      message: body.resent ? "Invitation resent." : "Invitation sent.",
+    });
     router.refresh();
   }
 
@@ -65,7 +76,9 @@ export function MembersView({ invitations }: MembersViewProps) {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Members</h1>
-        <p className="text-sm text-muted-foreground">Invite people to this organization.</p>
+        <p className="text-sm text-muted-foreground">
+          Invite people to this organization.
+        </p>
       </div>
 
       <Card className="p-6">
@@ -74,14 +87,20 @@ export function MembersView({ invitations }: MembersViewProps) {
             <Mail className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-base font-medium">Invite a member</CardTitle>
+            <CardTitle className="text-base font-medium">
+              Invite a member
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
-              They&apos;ll get an email with a single-use link to join, expiring in 7 days.
+              They&apos;ll get an email with a single-use link to join, expiring
+              in 7 days.
             </p>
           </div>
         </CardHeader>
         <CardContent className="p-0 pt-5">
-          <form onSubmit={handleInvite} className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <form
+            onSubmit={handleInvite}
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+          >
             <div className="flex-1 space-y-1.5">
               <Label htmlFor="invite-email">Email</Label>
               <Input
@@ -99,9 +118,14 @@ export function MembersView({ invitations }: MembersViewProps) {
             </Button>
           </form>
           {result && (
-            <Alert variant={result.ok ? "success" : "destructive"} className="mt-3">
+            <Alert
+              variant={result.ok ? "success" : "destructive"}
+              className="mt-3"
+            >
               {result.ok ? <CheckCircle2 /> : <AlertCircle />}
-              <AlertDescription>{result.ok ? result.message : result.error}</AlertDescription>
+              <AlertDescription>
+                {result.ok ? result.message : result.error}
+              </AlertDescription>
             </Alert>
           )}
         </CardContent>
@@ -109,19 +133,27 @@ export function MembersView({ invitations }: MembersViewProps) {
 
       <Card className="p-6">
         <CardHeader className="p-0">
-          <CardTitle className="text-base font-medium">Pending invitations</CardTitle>
+          <CardTitle className="text-base font-medium">
+            Pending invitations
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0 pt-5">
           {invitations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending invitations.</p>
+            <p className="text-sm text-muted-foreground">
+              No pending invitations.
+            </p>
           ) : (
             <ul className="divide-y">
               {invitations.map((invitation) => (
-                <li key={invitation.id} className="flex items-center justify-between gap-4 py-3">
+                <li
+                  key={invitation.id}
+                  className="flex items-center justify-between gap-4 py-3"
+                >
                   <div>
                     <p className="text-sm font-medium">{invitation.email}</p>
                     <p className="text-xs text-muted-foreground">
-                      Sent {formatDate(invitation.createdAt)} · expires {formatDate(invitation.expiresAt)}
+                      Sent {formatDateTime(invitation.createdAt)} · expires{" "}
+                      {formatDateTime(invitation.expiresAt)}
                     </p>
                   </div>
                   <Button
@@ -131,7 +163,11 @@ export function MembersView({ invitations }: MembersViewProps) {
                     onClick={() => handleRevoke(invitation.id)}
                     disabled={revokingId === invitation.id}
                   >
-                    {revokingId === invitation.id ? <Loader2 className="animate-spin" /> : <X />}
+                    {revokingId === invitation.id ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <X />
+                    )}
                     Revoke
                   </Button>
                 </li>

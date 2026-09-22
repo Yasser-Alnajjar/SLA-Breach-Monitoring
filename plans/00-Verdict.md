@@ -8,7 +8,7 @@
 
 > _Is there a painful, frequent, valuable problem here that a small team can solve better than existing alternatives?_
 
-**Yes — but it is roughly one-fifth the size of SLA Watchtower as specified, and it is not in the vertical the original research chose.**
+**Yes — but it is roughly one-fifth the size of Elapsed as specified, and it is not in the vertical the original research chose.**
 
 There is a real, frequent, unsolved problem: **when a support ticket is escalated into an engineering tracker, the customer's SLA clock keeps running while the organisation's visibility stops, and the two systems produce different numbers for the same case.** That is worth building. Almost everything else in the concept — the six-integration vendor-neutral layer, the OLA policy engine, delay attribution as headline, service-credit calculation, the MSP-first vertical — is either already solved, actively harmful to the sale, or scope a solo founder cannot carry.
 

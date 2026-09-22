@@ -20,7 +20,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { RadioGroup } from "@/components/ui/radio-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 interface DataTableColumnFilterProps<TData, TValue> {
   column: Column<TData, TValue>;
@@ -122,13 +122,13 @@ export function DataTableColumnFilter<TData, TValue>({
                     className="flex space-x-4"
                   >
                     <div className="flex items-center space-x-2">
-                      <RadioGroup value="AND" id={`and-${index}`} />
+                      <RadioGroupItem value="AND" id={`and-${index}`} />
                       <Label htmlFor={`and-${index}`} className="text-sm">
                         And
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroup value="OR" id={`or-${index}`} />
+                      <RadioGroupItem value="OR" id={`or-${index}`} />
                       <Label htmlFor={`or-${index}`} className="text-sm">
                         OR
                       </Label>

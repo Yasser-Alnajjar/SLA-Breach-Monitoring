@@ -119,13 +119,14 @@ export function IntegrationConfigGate({
   return (
     <>
       {children}
-      <button
+      <Button
         type="button"
+        variant="link"
         onClick={() => setEditing(true)}
-        className="cursor-pointer   mt-3 self-start text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        className="mt-3 h-auto self-start p-0 text-xs font-normal text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
       >
         Edit configuration
-      </button>
+      </Button>
     </>
   );
 }

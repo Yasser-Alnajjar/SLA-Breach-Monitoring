@@ -3,6 +3,7 @@
 import { DataTableColumnHeader } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/format";
 import type { CaseListRow } from "@/lib/types/cases";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -39,13 +40,19 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
       <DataTableColumnHeader column={column} title="Case" />
     ),
     cell: ({ row }) => (
-      <Link
-        href={`/cases/${row.original.caseId}`}
-        className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
-        title={row.original.subject ?? `#${row.original.externalId}`}
-      >
-        {row.original.subject ?? `#${row.original.externalId}`}
-      </Link>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={`/cases/${row.original.caseId}`}
+            className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
+          >
+            {row.original.subject ?? `#${row.original.externalId}`}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent>
+          {row.original.subject ?? `#${row.original.externalId}`}
+        </TooltipContent>
+      </Tooltip>
     ),
     enableSorting: true,
     enableColumnFilter: true,

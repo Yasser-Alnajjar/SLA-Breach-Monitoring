@@ -2,6 +2,7 @@
 
 import { DataTableColumnHeader } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { caseCommitmentHref } from "@/lib/case-links";
 import { formatCommitmentKind, formatLeg, formatMinutes } from "@/lib/format";
 import { AtRiskRow } from "@/lib/types/dashboard";
@@ -37,16 +38,22 @@ export const useAtRiskColumns = (): ColumnDef<AtRiskRow>[] => [
       <DataTableColumnHeader column={column} title="Case" />
     ),
     cell: ({ row }) => (
-      <Link
-        href={caseCommitmentHref(
-          row.original.caseId,
-          row.original.commitmentId,
-        )}
-        className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
-        title={row.original.subject ?? `#${row.original.externalId}`}
-      >
-        {row.original.subject ?? `#${row.original.externalId}`}
-      </Link>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={caseCommitmentHref(
+              row.original.caseId,
+              row.original.commitmentId,
+            )}
+            className="text-primary hover:underline text-nowrap truncate min-w-0 max-w-75 block"
+          >
+            {row.original.subject ?? `#${row.original.externalId}`}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent>
+          {row.original.subject ?? `#${row.original.externalId}`}
+        </TooltipContent>
+      </Tooltip>
     ),
     enableSorting: true,
     enableColumnFilter: true,

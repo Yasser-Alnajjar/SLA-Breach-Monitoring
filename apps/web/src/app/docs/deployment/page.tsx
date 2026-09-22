@@ -5,6 +5,14 @@ import { DocsLayout } from "@/components/docs/docs-layout";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getAppUrl } from "@/lib/app-url";
 
 const toc = [
@@ -243,34 +251,34 @@ scripts/rotate-secrets.sh .env.prod`}</code>
             of starting with blank values.
           </p>
 
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-190 text-left text-sm">
-              <thead className="border-b bg-muted/40">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Variable</th>
-                  <th className="px-4 py-3 font-medium">Used by</th>
-                  <th className="px-4 py-3 font-medium">Notes</th>
-                </tr>
-              </thead>
+          <div className="overflow-hidden rounded-lg border">
+            <Table className="min-w-190">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="ps-4">Variable</TableHead>
+                  <TableHead>Used by</TableHead>
+                  <TableHead className="pe-4">Notes</TableHead>
+                </TableRow>
+              </TableHeader>
 
-              <tbody className="divide-y">
+              <TableBody>
                 {environment.map((item) => (
-                  <tr key={item.variable}>
-                    <td className="px-4 py-4 align-top">
+                  <TableRow key={item.variable}>
+                    <TableCell className="ps-4 align-top">
                       <code className="text-xs">{item.variable}</code>
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4 align-top text-muted-foreground">
+                    <TableCell className="align-top text-muted-foreground">
                       {item.usedBy}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-4 align-top leading-6 text-muted-foreground">
+                    <TableCell className="pe-4 align-top leading-6 text-muted-foreground">
                       {item.notes}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <Alert>

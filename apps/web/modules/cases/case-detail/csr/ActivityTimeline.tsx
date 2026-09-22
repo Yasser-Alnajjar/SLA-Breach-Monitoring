@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Popover,
@@ -190,13 +191,15 @@ function TimelineGlossary() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="What do these states mean?"
-          className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+          className="size-auto cursor-help bg-transparent p-0 text-muted-foreground hover:bg-transparent hover:text-foreground active:bg-transparent"
         >
           <HelpCircle className="size-4" />
-        </button>
+        </Button>
       </PopoverTrigger>
 
       <PopoverContent

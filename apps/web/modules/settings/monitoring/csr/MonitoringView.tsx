@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Actions } from "@/actions/client";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Reveal } from "@/components/shared/reveal";
 import { formatExactTimestamp } from "@/lib/format";
@@ -186,14 +187,15 @@ export function MonitoringView({ data }: MonitoringViewProps) {
         </Card>
       </Reveal>
 
-      <button
+      <Button
         type="button"
+        variant="link"
         onClick={() => router.refresh()}
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        className="h-auto gap-1.5 p-0 text-xs font-normal text-muted-foreground underline-offset-0 hover:text-foreground hover:no-underline [&_svg]:size-3"
       >
         <RefreshCw className="size-3" />
         Refresh status
-      </button>
+      </Button>
     </div>
   );
 }

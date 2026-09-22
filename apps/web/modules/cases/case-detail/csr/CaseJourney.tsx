@@ -5,6 +5,7 @@ import { Layers } from "lucide-react";
 
 import { Reveal } from "@/components/shared/reveal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime, formatLeg, formatMinutes } from "@/lib/format";
 import { LEG_BG_CLASS } from "@/lib/status-styles";
 import type { CaseDetailData } from "@/lib/types/cases";
@@ -240,28 +241,33 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
                       : (end ?? start);
 
                     return (
-                      <div
-                        key={`${span.leg}-${span.startedAt}-${index}`}
-                        className={cn(
-                          "absolute inset-y-0 transition-[filter] hover:brightness-110",
-                          LEG_BG_CLASS[span.leg] ?? "bg-muted-foreground",
-                        )}
-                        style={segmentStyle(
-                          start,
-                          visualEnd,
-                          openedAt,
-                          timelineSpan,
-                        )}
-                        title={`${formatLeg(span.leg)} · ${formatDateTime(
-                          span.startedAt,
-                        )} – ${
-                          isCurrentStage
-                            ? "Now"
-                            : end !== null
-                              ? formatDateTime(span.endedAt)
-                              : "Now"
-                        }`}
-                      />
+                      <Tooltip key={`${span.leg}-${span.startedAt}-${index}`}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              "absolute inset-y-0 transition-[filter] hover:brightness-110",
+                              LEG_BG_CLASS[span.leg] ?? "bg-muted-foreground",
+                            )}
+                            style={segmentStyle(
+                              start,
+                              visualEnd,
+                              openedAt,
+                              timelineSpan,
+                            )}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {`${formatLeg(span.leg)} · ${formatDateTime(
+                            span.startedAt,
+                          )} – ${
+                            isCurrentStage
+                              ? "Now"
+                              : end !== null
+                                ? formatDateTime(span.endedAt)
+                                : "Now"
+                          }`}
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>

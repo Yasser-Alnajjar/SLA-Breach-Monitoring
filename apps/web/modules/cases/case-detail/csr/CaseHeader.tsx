@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime, formatLeg, formatNormalizedState, formatTicketSource } from "@/lib/format";
 import { NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
 import { Priority, PRIORITY_VARIANT } from "@/lib/status-styles";
@@ -40,12 +41,16 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
       <div className="flex flex-col gap-5 border-b border-border pb-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1
-              className="min-w-0 max-w-3xl font-display text-2xl font-medium tracking-tight"
-              title={caseData.subject ?? `#${caseData.externalId}`}
-            >
-              {caseData.subject ?? `${identity} · #${caseData.externalId}`}
-            </h1>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h1 className="min-w-0 max-w-3xl font-display text-2xl font-medium tracking-tight">
+                  {caseData.subject ?? `${identity} · #${caseData.externalId}`}
+                </h1>
+              </TooltipTrigger>
+              <TooltipContent>
+                {caseData.subject ?? `#${caseData.externalId}`}
+              </TooltipContent>
+            </Tooltip>
 
             <Badge variant="outline" className="shrink-0">
               {formatLeg(currentLeg)}

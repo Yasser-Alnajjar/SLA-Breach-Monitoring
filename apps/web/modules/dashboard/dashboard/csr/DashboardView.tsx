@@ -21,6 +21,7 @@ import { StatTile } from "@/components/shared/stat-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { caseCommitmentHref } from "@/lib/case-links";
 import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { DashboardData } from "@/lib/types/dashboard";
@@ -181,13 +182,19 @@ export const DashboardView = ({ data }: DashboardViewProps) => {
                                   {row.customerName ?? "—"}
                                 </span>{" "}
                                 ·{" "}
-                                <a
-                                  href={caseCommitmentHref(row.caseId, row.commitmentId)}
-                                  title={row.subject ?? `#${row.externalId}`}
-                                  className="text-primary hover:underline truncate max-w-lg block"
-                                >
-                                  {row.subject ?? `#${row.externalId}`}
-                                </a>{" "}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <a
+                                      href={caseCommitmentHref(row.caseId, row.commitmentId)}
+                                      className="text-primary hover:underline truncate max-w-lg block"
+                                    >
+                                      {row.subject ?? `#${row.externalId}`}
+                                    </a>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {row.subject ?? `#${row.externalId}`}
+                                  </TooltipContent>
+                                </Tooltip>{" "}
                                 · {formatCommitmentKind(row.kind)}
                               </li>
                             ))}

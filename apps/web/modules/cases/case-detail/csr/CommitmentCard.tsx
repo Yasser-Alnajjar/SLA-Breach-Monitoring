@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   formatCommitmentDeadline,
   formatCommitmentKind,
-  formatDateTime,
+  formatDateTimeWithOffset,
   formatMinutes,
   formatPolicyMatch,
   formatSeconds,
@@ -124,12 +124,12 @@ export const CommitmentCard = ({
                 <dd>{formatMinutes(commitment.targetMinutes)}</dd>
 
                 <dt className="text-muted-foreground">Started</dt>
-                <dd>{formatDateTime(commitment.startedAt)}</dd>
+                <dd>{formatDateTimeWithOffset(commitment.startedAt)}</dd>
 
                 <dt className="text-muted-foreground">Policy</dt>
                 <dd>
                   {commitment.policyVersion.name} — v{commitment.policyVersion.version} (effective{" "}
-                  {formatDateTime(commitment.policyVersion.effectiveFrom)})
+                  {formatDateTimeWithOffset(commitment.policyVersion.effectiveFrom)})
                 </dd>
 
                 <dt className="text-muted-foreground">Match</dt>
@@ -177,7 +177,7 @@ export const CommitmentCard = ({
                         {commitment.targetChangeHistory.map((change) => (
                           <li key={change.changedAt}>
                             {formatMinutes(change.previousTargetMinutes)} →{" "}
-                            {formatMinutes(change.newTargetMinutes)} ({formatDateTime(change.changedAt)} —{" "}
+                            {formatMinutes(change.newTargetMinutes)} ({formatDateTimeWithOffset(change.changedAt)} —{" "}
                             {change.reason})
                           </li>
                         ))}

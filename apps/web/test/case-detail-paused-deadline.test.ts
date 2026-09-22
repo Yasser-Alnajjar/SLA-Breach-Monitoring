@@ -10,7 +10,7 @@ import type { PrismaClient } from "@sla/db";
 import { describe, expect, it } from "vitest";
 import { CommitmentCard } from "../modules/cases/case-detail/csr/CommitmentCard";
 import { getCaseDetailData } from "@/lib/case-detail-data";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTimeWithOffset } from "@/lib/format";
 
 const OPENED = new Date("2026-09-17T09:19:30.000Z");
 const NOMINAL_DUE = new Date("2026-09-17T09:21:30.000Z");
@@ -124,9 +124,9 @@ describe("case detail commitment deadline (ticket #45)", () => {
     expect(text).toContain("On track");
     expect(text).toContain("Paused");
     expect(text).toContain("1m 26s remaining");
-    expect(text).toContain(`Paused since ${formatDateTime(PAUSED.toISOString())}`);
+    expect(text).toContain(`Paused since ${formatDateTimeWithOffset(PAUSED.toISOString())}`);
     expect(text).not.toContain("Due ");
-    expect(text).not.toContain(formatDateTime(NOMINAL_DUE.toISOString()));
+    expect(text).not.toContain(formatDateTimeWithOffset(NOMINAL_DUE.toISOString()));
   });
 
   it("a running commitment shows Running and its pause-aware due time", async () => {
@@ -138,7 +138,7 @@ describe("case detail commitment deadline (ticket #45)", () => {
     expect(commitment).toMatchObject({ clockState: "running", effectiveDueAt: NOMINAL_DUE.toISOString() });
     expect(text).toContain("Running");
     expect(text).toContain("1m 30s remaining");
-    expect(text).toContain(`Due ${formatDateTime(NOMINAL_DUE.toISOString())}`);
+    expect(text).toContain(`Due ${formatDateTimeWithOffset(NOMINAL_DUE.toISOString())}`);
   });
 
   it("shows each commitment's own pause states, not the policy's", async () => {

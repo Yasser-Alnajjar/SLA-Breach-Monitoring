@@ -283,6 +283,27 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/** The runtime's current UTC offset in `UTC±HH:MM` form, e.g. `UTC+03:00`. */
+function formatUtcOffset(date: Date): string {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(abs / 60)).padStart(2, "0");
+  const minutes = String(abs % 60).padStart(2, "0");
+  return `UTC${sign}${hours}:${minutes}`;
+}
+
+/**
+ * `formatDateTime` with the display timezone's UTC offset appended, e.g.
+ * "23 Sep 2026, 1:37 am (UTC+03:00)". `formatDateTime` renders in whatever
+ * timezone the runtime is in (`toLocaleString` with no `timeZone`), which can
+ * silently differ from a commitment's business calendar (often UTC) — this
+ * makes that display timezone explicit wherever the two are shown together.
+ */
+export function formatDateTimeWithOffset(iso: string): string {
+  return `${formatDateTime(iso)} (${formatUtcOffset(new Date(iso))})`;
+}
+
 /**
  * The target and deadline line under a commitment's remaining time. Built
  * only from the evaluator's pause-aware fields: a paused clock has no due
@@ -297,13 +318,13 @@ export function formatCommitmentDeadline(commitment: {
 }): string {
   const target = `Target ${formatMinutes(commitment.targetMinutes)}`;
   if (commitment.status === "breached" && commitment.effectiveDueAt) {
-    return `${target} · Breached ${formatDateTime(commitment.effectiveDueAt)}`;
+    return `${target} · Breached ${formatDateTimeWithOffset(commitment.effectiveDueAt)}`;
   }
   if (commitment.clockState === "paused" && commitment.pausedSince) {
-    return `${target} · Paused since ${formatDateTime(commitment.pausedSince)}, no due time until the clock resumes`;
+    return `${target} · Paused since ${formatDateTimeWithOffset(commitment.pausedSince)}, no due time until the clock resumes`;
   }
   if (commitment.clockState === "running" && commitment.effectiveDueAt) {
-    return `${target} · Due ${formatDateTime(commitment.effectiveDueAt)}`;
+    return `${target} · Due ${formatDateTimeWithOffset(commitment.effectiveDueAt)}`;
   }
   return target;
 }

@@ -7,25 +7,32 @@ import { isSameOriginRequest, isStateChangingMethod } from "@/lib/csrf";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
- * Pages anyone can reach with no session: the docs site and the two auth
- * screens. Everything else under the app (dashboard, cases, settings,
- * onboarding, and their API routes) requires a signed-in user.
+ * Pages anyone can reach with no session: the docs site, the two auth
+ * screens, and the invitation-accept page (its token, not a session, is
+ * the credential — roadmap 5.2). Everything else under the app (dashboard,
+ * cases, settings, onboarding, and their API routes) requires a signed-in
+ * user.
  */
-const PUBLIC_PAGE_PATHS = ["/", "/docs", "/about", "/pricing"];
+const PUBLIC_PAGE_PATHS = ["/", "/docs", "/about", "/pricing", "/invite"];
 const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
 
 /**
  * API routes that authenticate themselves rather than via the session
  * cookie: NextAuth's own endpoints (the login mechanism itself), account
  * creation, inbound provider webhooks (Zendesk/Jira call these directly and
- * carry their own bearer token/secret, never a browser session), and the
- * health check (an uptime monitor or container orchestrator has no session
- * cookie either, and needs no org context — it only checks DB connectivity).
+ * carry their own bearer token/secret, never a browser session), the
+ * invitation-accept endpoint (the invitation token itself is the
+ * credential — roadmap 5.2; note this is distinct from
+ * `/api/settings/invitations`, which manages invitations and stays
+ * session-gated like every other settings route), and the health check (an
+ * uptime monitor or container orchestrator has no session cookie either,
+ * and needs no org context — it only checks DB connectivity).
  */
 const PUBLIC_API_PATHS = [
   "/api/auth",
   "/api/sign-up",
   "/api/webhooks",
+  "/api/invitations",
   "/api/health",
 ];
 
@@ -73,6 +80,12 @@ const RATE_LIMITS: RateLimitRule[] = [
     match: (p) => p === "/api/sign-up",
     bucket: "sign-up",
     limit: 5,
+    windowMs: 15 * 60_000,
+  },
+  {
+    match: (p) => matchesPath(p, ["/api/invitations/accept"]),
+    bucket: "invitation-accept",
+    limit: 20,
     windowMs: 15 * 60_000,
   },
   {

@@ -17,6 +17,7 @@ import type { EmailSecurity, EmailSettingsStatus } from "@/lib/types/email-setti
 import type { SignUpInput } from "@/lib/sign-up";
 import type { IUser } from "@/lib/types/user";
 import type { WorkerMonitoringData } from "@/lib/types/worker-settings";
+import type { InvitationPreview } from "@/lib/types/invitations";
 import type {
   ConciergeExportSelectionRequest,
   ConciergeExportSummary,
@@ -341,6 +342,26 @@ export const Actions = {
     },
     async changePassword(input: ChangePasswordInput) {
       return postJSON<Record<string, never>>("/api/me/password", input);
+    },
+  },
+
+  Invitations: {
+    async invite(email: string) {
+      return postJSON<{ ok: boolean; resent: boolean }>("/api/settings/invitations", { email });
+    },
+    async revoke(invitationId: string) {
+      const response = await fetch(`/api/settings/invitations/${invitationId}`, { method: "DELETE" });
+      return { ok: response.ok };
+    },
+    /** Public — no session required (the token is the credential). */
+    async previewInvite(token: string) {
+      const response = await fetch(`/api/invitations/accept?token=${encodeURIComponent(token)}`);
+      const body = await response.json().catch(() => ({}));
+      return { ok: response.ok, status: response.status, body } as ActionResult<InvitationPreview>;
+    },
+    /** Public — no session required. */
+    async acceptInvite(input: { token: string; name: string; password: string }) {
+      return postJSON<{ ok: boolean; email: string }>("/api/invitations/accept", input);
     },
   },
 };

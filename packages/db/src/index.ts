@@ -65,6 +65,28 @@ export { withOrganizationSlaLock } from "./organization-lock";
 export { recordSlaImportSummary } from "./sla-import-summary";
 export type { SlaImportSummaryInput } from "./sla-import-summary";
 
+export { generateSecureToken, hashToken } from "./secure-token";
+export {
+  INVITATION_TTL_MS,
+  normalizeEmail,
+  createOrResendInvitation,
+  listPendingInvitations,
+  revokeInvitation,
+  previewInvitation,
+  acceptInvitation,
+  EmailAlreadyRegisteredError,
+  InvitationNotFoundError,
+  InvitationExpiredError,
+  InvitationNotPendingError,
+  InvitationConflictError,
+} from "./invitations";
+export type {
+  CreateOrResendInvitationResult,
+  InvitationPreview,
+  AcceptInvitationInput,
+  AcceptInvitationResult,
+} from "./invitations";
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });

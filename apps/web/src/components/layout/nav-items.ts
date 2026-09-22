@@ -10,6 +10,7 @@ import {
   Timer,
   TriangleAlert,
   UserRound,
+  Users,
 } from "lucide-react";
 
 export interface NavItem {
@@ -44,6 +45,12 @@ export const SETTINGS_NAV_ITEMS: NavItem[] = [
     label: "Monitoring",
     icon: Activity,
     description: "Monitor worker health and adjust polling intervals.",
+  },
+  {
+    href: "/settings/members",
+    label: "Members",
+    icon: Users,
+    description: "Invite people to this organization.",
   },
   {
     href: "/settings/profile",

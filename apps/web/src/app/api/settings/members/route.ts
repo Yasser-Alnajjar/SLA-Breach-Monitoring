@@ -4,9 +4,10 @@ import { getPrismaClient, listMembers } from "@sla/db";
 import { authOptions } from "@/lib/auth";
 
 /**
- * Any signed-in organization member can list members, same as every other
- * settings mutation today (see `authz.ts`'s doc comment) — role restriction
- * is 5.4's authorization audit, not this task's.
+ * Any signed-in organization member can list members — reads stay open to
+ * everyone (task 5.4's authorization audit only gates mutations; members
+ * need to see this to work cases). Changing a role or removing a member is
+ * owner-only, see `[id]/route.ts`.
  */
 export async function GET() {
   const session = await getServerSession(authOptions);

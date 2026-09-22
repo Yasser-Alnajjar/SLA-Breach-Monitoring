@@ -7,6 +7,7 @@ import {
   getPrismaClient,
 } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 /**
  * Shared GET/POST handlers for `/api/integrations/{provider}/config`,
@@ -35,6 +36,8 @@ export function createIntegrationConfigHandlers(
     const session = await getServerSession(authOptions);
     if (!session)
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    const denied = requireOwner(session);
+    if (denied) return denied;
 
     const body = (await request.json().catch(() => null)) as {
       clientId?: unknown;

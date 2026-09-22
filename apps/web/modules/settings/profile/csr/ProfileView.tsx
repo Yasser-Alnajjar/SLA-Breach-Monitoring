@@ -3,6 +3,7 @@
 import { Reveal } from "@/components/shared/reveal";
 import type { IUser } from "@/lib/types/user";
 import { AppearanceCard } from "./AppearanceCard";
+import { EmailCard } from "./EmailCard";
 import { ProfileInformationCard } from "./ProfileInformationCard";
 import { SecurityCard } from "./SecurityCard";
 
@@ -25,10 +26,14 @@ export const ProfileView = ({ user }: ProfileViewProps) => {
       </Reveal>
 
       <Reveal delay={0.05}>
-        <AppearanceCard />
+        <EmailCard user={user} />
       </Reveal>
 
       <Reveal delay={0.1}>
+        <AppearanceCard />
+      </Reveal>
+
+      <Reveal delay={0.15}>
         <SecurityCard />
       </Reveal>
     </div>

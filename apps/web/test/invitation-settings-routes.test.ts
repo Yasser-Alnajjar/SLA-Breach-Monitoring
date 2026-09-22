@@ -32,10 +32,10 @@ vi.mock("@sla/db", async (importOriginal) => {
 });
 vi.mock("@/lib/transactional-email", () => ({ sendTransactionalEmail: email.sendTransactionalEmail }));
 
-function sessionFor(organizationId: string, userId = "user-1"): Session {
+function sessionFor(organizationId: string, userId = "user-1", role: "owner" | "member" = "owner"): Session {
   return {
     expires: new Date(Date.now() + 3_600_000).toISOString(),
-    user: { id: userId, organizationId, email: "owner@tenant.test", name: null, image: null, role: "owner", createdAt: new Date() },
+    user: { id: userId, organizationId, email: "owner@tenant.test", emailVerifiedAt: new Date(), name: null, image: null, role, createdAt: new Date() },
   };
 }
 
@@ -98,6 +98,14 @@ describe("POST /api/settings/invitations", () => {
     const { POST } = await import("../src/app/api/settings/invitations/route");
     const response = await POST(postRequest({ email: "a@x.com" }));
     expect(response.status).toBe(401);
+    expect(db.createOrResendInvitation).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member's invite request with 403 and never creates an invitation", async () => {
+    auth.session = sessionFor("org-a", "user-1", "member");
+    const { POST } = await import("../src/app/api/settings/invitations/route");
+    const response = await POST(postRequest({ email: "a@x.com" }));
+    expect(response.status).toBe(403);
     expect(db.createOrResendInvitation).not.toHaveBeenCalled();
   });
 
@@ -191,6 +199,14 @@ describe("DELETE /api/settings/invitations/[id]", () => {
     const { DELETE } = await import("../src/app/api/settings/invitations/[id]/route");
     const response = await DELETE(deleteRequest(), { params: Promise.resolve({ id: "inv-1" }) });
     expect(response.status).toBe(401);
+    expect(db.revokeInvitation).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member's revoke request with 403", async () => {
+    auth.session = sessionFor("org-a", "user-1", "member");
+    const { DELETE } = await import("../src/app/api/settings/invitations/[id]/route");
+    const response = await DELETE(deleteRequest(), { params: Promise.resolve({ id: "inv-1" }) });
+    expect(response.status).toBe(403);
     expect(db.revokeInvitation).not.toHaveBeenCalled();
   });
 

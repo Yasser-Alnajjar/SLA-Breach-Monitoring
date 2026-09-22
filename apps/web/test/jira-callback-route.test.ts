@@ -67,7 +67,7 @@ vi.mock("@sla/db", () => ({
 function sessionFor(organizationId: string): Session {
   return {
     expires: new Date(Date.now() + 3_600_000).toISOString(),
-    user: { id: "user-1", organizationId, email: "owner@tenant.test", name: null, image: null, role: "owner", createdAt: new Date() },
+    user: { id: "user-1", organizationId, email: "owner@tenant.test", emailVerifiedAt: new Date(), name: null, image: null, role: "owner", createdAt: new Date() },
   };
 }
 

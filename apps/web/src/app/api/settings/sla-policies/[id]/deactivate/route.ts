@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { NotANativePolicyError, PolicyNotFoundError, setPolicyActive } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const prisma = getPrismaClient();

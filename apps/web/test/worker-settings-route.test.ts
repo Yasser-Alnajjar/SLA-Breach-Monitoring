@@ -32,6 +32,7 @@ function sessionFor(email: string, role: "owner" | "member"): Session {
       id: "user-1",
       organizationId: "org-1",
       email,
+      emailVerifiedAt: new Date(),
       name: null,
       image: null,
       role,

@@ -66,6 +66,7 @@ describe.skipIf(!TEST_DATABASE_URL)("Native/imported calendar routes (real Postg
         id: user.id,
         organizationId,
         email: user.email,
+        emailVerifiedAt: new Date(),
         name: null,
         image: null,
         role: "owner",

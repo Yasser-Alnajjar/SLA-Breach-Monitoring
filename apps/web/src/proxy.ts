@@ -8,12 +8,24 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Pages anyone can reach with no session: the docs site, the two auth
- * screens, and the invitation-accept page (its token, not a session, is
- * the credential — roadmap 5.2). Everything else under the app (dashboard,
- * cases, settings, onboarding, and their API routes) requires a signed-in
- * user.
+ * screens, the invitation-accept page (its token, not a session, is
+ * the credential — roadmap 5.2), the forgot/reset-password pages (same
+ * token-is-the-credential shape — roadmap 5.5), and the verify-email page
+ * (roadmap 5.6, same shape again — opened from an email client that may
+ * not share a browser with any signed-in session). Everything else under
+ * the app (dashboard, cases, settings, onboarding, and their API routes)
+ * requires a signed-in user.
  */
-const PUBLIC_PAGE_PATHS = ["/", "/docs", "/about", "/pricing", "/invite"];
+const PUBLIC_PAGE_PATHS = [
+  "/",
+  "/docs",
+  "/about",
+  "/pricing",
+  "/invite",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+];
 const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
 
 /**
@@ -24,15 +36,23 @@ const AUTH_PAGE_PATHS = ["/sign-in", "/sign-up"];
  * invitation-accept endpoint (the invitation token itself is the
  * credential — roadmap 5.2; note this is distinct from
  * `/api/settings/invitations`, which manages invitations and stays
- * session-gated like every other settings route), and the health check (an
- * uptime monitor or container orchestrator has no session cookie either,
- * and needs no org context — it only checks DB connectivity).
+ * session-gated like every other settings route), the password-reset
+ * endpoints (same token-is-the-credential shape — roadmap 5.5; distinct
+ * from `/api/me/password`, the authenticated change-password route, which
+ * stays session-gated), the email-verification confirm endpoint (same
+ * shape again — roadmap 5.6; distinct from `/api/me/email` and
+ * `/api/me/resend-verification`, which request/resend a token and stay
+ * session-gated), and the health check (an uptime monitor or container
+ * orchestrator has no session cookie either, and needs no org context — it
+ * only checks DB connectivity).
  */
 const PUBLIC_API_PATHS = [
   "/api/auth",
   "/api/sign-up",
   "/api/webhooks",
   "/api/invitations",
+  "/api/password-reset",
+  "/api/email-verification",
   "/api/health",
 ];
 
@@ -85,6 +105,31 @@ const RATE_LIMITS: RateLimitRule[] = [
   {
     match: (p) => matchesPath(p, ["/api/invitations/accept"]),
     bucket: "invitation-accept",
+    limit: 20,
+    windowMs: 15 * 60_000,
+  },
+  {
+    // Requesting a reset always returns the same `{ ok: true }` (no
+    // enumeration signal), so this cap exists only to stop the route from
+    // being used to spam an arbitrary inbox with reset emails.
+    match: (p) => p === "/api/password-reset",
+    bucket: "password-reset-request",
+    limit: 5,
+    windowMs: 15 * 60_000,
+  },
+  {
+    // The token itself already carries 256 bits of entropy (see
+    // `@sla/db`'s `secure-token.ts`) — this is defense-in-depth against
+    // guessing, not the primary protection.
+    match: (p) => p === "/api/password-reset/confirm",
+    bucket: "password-reset-confirm",
+    limit: 20,
+    windowMs: 15 * 60_000,
+  },
+  {
+    // Same defense-in-depth posture as password-reset-confirm.
+    match: (p) => p === "/api/email-verification/confirm",
+    bucket: "email-verification-confirm",
     limit: 20,
     windowMs: 15 * 60_000,
   },

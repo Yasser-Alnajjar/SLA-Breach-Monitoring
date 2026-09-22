@@ -63,7 +63,12 @@ export async function POST(request: Request) {
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash },
+    // `sessionVersion` increment signs out every live session for this
+    // account, including the caller's own current one (roadmap 5.7) — see
+    // `auth.ts`'s `jwt` callback. The Security card (Profile page) signs
+    // the caller out proactively right after this succeeds rather than
+    // leaving them to hit a confusing 401 on their next request.
+    data: { passwordHash, sessionVersion: { increment: 1 } },
   });
 
   return NextResponse.json({ ok: true });

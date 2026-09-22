@@ -260,6 +260,9 @@ export async function acceptInvitation(
           passwordHash: input.passwordHash,
           name: input.name,
           role: "member",
+          // Clicking this emailed link is already proof of control over
+          // this address (roadmap 5.6) — no separate verification step.
+          emailVerifiedAt: new Date(),
         },
       });
     } catch (error) {

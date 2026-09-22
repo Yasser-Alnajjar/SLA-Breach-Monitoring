@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/intercom";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { getIntercomOAuthConfig, INTERCOM_STATE_COOKIE } from "@/lib/intercom-env";
 import { signOAuthState } from "@/lib/oauth-state";
 
@@ -10,6 +11,8 @@ export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session)
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   let config;
   try {

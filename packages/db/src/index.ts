@@ -97,6 +97,27 @@ export {
 } from "./members";
 export type { OrganizationMember } from "./members";
 
+export {
+  PASSWORD_RESET_TTL_MS,
+  requestPasswordReset,
+  resetPassword,
+  PasswordResetTokenNotFoundError,
+  PasswordResetTokenExpiredError,
+  PasswordResetTokenUsedError,
+} from "./password-reset";
+export type { RequestPasswordResetResult, ResetPasswordResult } from "./password-reset";
+
+export {
+  EMAIL_VERIFICATION_TTL_MS,
+  createEmailVerificationToken,
+  createEmailChangeToken,
+  verifyEmail,
+  EmailVerificationTokenNotFoundError,
+  EmailVerificationTokenExpiredError,
+  EmailVerificationTokenUsedError,
+} from "./email-verification";
+export type { IssueTokenResult, VerifyEmailResult } from "./email-verification";
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });

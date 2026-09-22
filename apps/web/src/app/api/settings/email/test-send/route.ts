@@ -4,6 +4,7 @@ import { getEmailSettings, getPrismaClient } from "@sla/db";
 import { sendEmail } from "@sla/email";
 import { DEFAULT_EMAIL_BRAND_NAME, renderNotificationEmailHtml } from "@sla/notifications";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { emailSettingsInputSchema, smtpErrorMessage } from "@/lib/email-settings";
 
 /**
@@ -17,6 +18,8 @@ import { emailSettingsInputSchema, smtpErrorMessage } from "@/lib/email-settings
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
   if (!session.user.email) {
     return NextResponse.json({ ok: false, error: "Your account has no email address to send a test to." }, { status: 400 });
   }

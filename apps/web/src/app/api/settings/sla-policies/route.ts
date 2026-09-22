@@ -3,12 +3,15 @@ import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { CalendarNotFoundError, createNativePolicy, CustomerIdsNotFoundError } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { parseMatch, parseTargets, parseWarnAtPercent, ValidationError } from "@/lib/sla-policy-validation";
 
 /** Creates a native SLA policy (task 4.3, D12). Imported policies are never created here — they only ever come from a Zendesk sync. */
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as
     | {

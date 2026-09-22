@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { CalendarNotFoundError, updateCalendar, WeeklyWindowValidationError, type UpdateCalendarInput } from "@sla/commitments";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { parseHolidays, parseTimezone, parseWeekly } from "@/lib/calendar-validation";
 import { ValidationError } from "@/lib/sla-policy-validation";
 
@@ -10,6 +11,8 @@ import { ValidationError } from "@/lib/sla-policy-validation";
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as

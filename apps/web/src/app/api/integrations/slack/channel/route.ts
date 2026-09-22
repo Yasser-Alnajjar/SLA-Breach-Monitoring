@@ -2,10 +2,13 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { getPrismaClient } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as { channelId?: string; channelName?: string } | null;
   const channelId = body?.channelId?.trim();

@@ -29,10 +29,10 @@ vi.mock("@sla/db", async (importOriginal) => {
   };
 });
 
-function sessionFor(organizationId: string, userId = "user-1"): Session {
+function sessionFor(organizationId: string, userId = "user-1", role: "owner" | "member" = "owner"): Session {
   return {
     expires: new Date(Date.now() + 3_600_000).toISOString(),
-    user: { id: userId, organizationId, email: "owner@tenant.test", name: null, image: null, role: "owner", createdAt: new Date() },
+    user: { id: userId, organizationId, email: "owner@tenant.test", emailVerifiedAt: new Date(), name: null, image: null, role, createdAt: new Date() },
   };
 }
 
@@ -82,6 +82,14 @@ describe("PATCH /api/settings/members/[id]", () => {
     const { PATCH } = await import("../src/app/api/settings/members/[id]/route");
     const response = await PATCH(patchRequest({ role: "owner" }), { params: Promise.resolve({ id: "u2" }) });
     expect(response.status).toBe(401);
+    expect(db.updateMemberRole).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member's request to change a role with 403", async () => {
+    auth.session = sessionFor("org-a", "user-1", "member");
+    const { PATCH } = await import("../src/app/api/settings/members/[id]/route");
+    const response = await PATCH(patchRequest({ role: "owner" }), { params: Promise.resolve({ id: "u2" }) });
+    expect(response.status).toBe(403);
     expect(db.updateMemberRole).not.toHaveBeenCalled();
   });
 
@@ -140,6 +148,14 @@ describe("DELETE /api/settings/members/[id]", () => {
     const { DELETE } = await import("../src/app/api/settings/members/[id]/route");
     const response = await DELETE(deleteRequest(), { params: Promise.resolve({ id: "u2" }) });
     expect(response.status).toBe(401);
+    expect(db.removeMember).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member's request to remove another member with 403", async () => {
+    auth.session = sessionFor("org-a", "user-1", "member");
+    const { DELETE } = await import("../src/app/api/settings/members/[id]/route");
+    const response = await DELETE(deleteRequest(), { params: Promise.resolve({ id: "u2" }) });
+    expect(response.status).toBe(403);
     expect(db.removeMember).not.toHaveBeenCalled();
   });
 

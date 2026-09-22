@@ -10,22 +10,23 @@ import {
   LastOwnerError,
 } from "@sla/db";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 const roleSchema = z.object({ role: z.enum(["owner", "member"]) });
 
 /**
- * Any signed-in organization member can change another member's role or
- * remove them, same as every other settings mutation today (see
- * `authz.ts`'s doc comment) — role restriction is 5.4's authorization
- * audit, not this task's. `updateMemberRole`/`removeMember` still refuse an
- * organization's last owner from being demoted or removed (see
- * `LastOwnerError`), and `removeMember` refuses self-removal outright (see
- * `CannotRemoveSelfError`) — both are correctness invariants, not
- * authorization.
+ * Only an organization owner can change another member's role or remove
+ * them (task 5.4's authorization audit). `updateMemberRole`/`removeMember`
+ * still refuse an organization's last owner from being demoted or removed
+ * (see `LastOwnerError`), and `removeMember` refuses self-removal outright
+ * (see `CannotRemoveSelfError`) — both are correctness invariants on top of,
+ * not instead of, the owner-only gate.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const parsed = roleSchema.safeParse(body);
@@ -49,6 +50,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const { id } = await params;
   const prisma = getPrismaClient();

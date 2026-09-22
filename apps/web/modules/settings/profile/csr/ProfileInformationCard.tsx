@@ -203,11 +203,6 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="profile-email">Email</Label>
-            <Input id="profile-email" value={user.email} disabled readOnly />
-          </div>
-
           {result && (
             <Alert variant={result.ok ? "success" : "destructive"}>
               {result.ok ? <CheckCircle2 /> : <AlertCircle />}

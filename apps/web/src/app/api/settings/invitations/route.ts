@@ -11,6 +11,7 @@ import {
 import { sendTransactionalEmail } from "@/lib/transactional-email";
 import { buildInvitationEmail } from "@/lib/invitation-email";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -20,11 +21,7 @@ const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
 });
 
-/**
- * Any signed-in organization member can invite/manage invitations, same as
- * every other settings mutation today (see `authz.ts`'s doc comment) — role
- * restriction is 5.4's authorization audit, not this task's.
- */
+/** Any signed-in member can view pending invitations; only an owner can send one (task 5.4). */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -44,6 +41,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const parsed = inviteSchema.safeParse(body);

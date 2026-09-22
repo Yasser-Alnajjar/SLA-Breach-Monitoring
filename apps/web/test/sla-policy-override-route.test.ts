@@ -66,7 +66,7 @@ describe.skipIf(!TEST_DATABASE_URL)("SLA policy override route (real Postgres)",
     });
     auth.session = {
       expires: new Date(Date.now() + 3_600_000).toISOString(),
-      user: { id: user.id, organizationId, email: user.email, name: null, image: null, role: "owner", createdAt: user.createdAt },
+      user: { id: user.id, organizationId, email: user.email, emailVerifiedAt: new Date(), name: null, image: null, role: "owner", createdAt: user.createdAt },
     };
 
     const calendar = await prisma.businessCalendar.create({

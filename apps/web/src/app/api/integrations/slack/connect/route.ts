@@ -3,12 +3,15 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@sla/slack";
 import { authOptions } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { getSlackOAuthConfig, SLACK_STATE_COOKIE } from "@/lib/slack-env";
 import { signOAuthState } from "@/lib/oauth-state";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const denied = requireOwner(session);
+  if (denied) return denied;
 
   let config;
   try {

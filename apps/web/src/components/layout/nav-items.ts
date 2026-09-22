@@ -3,6 +3,7 @@ import {
   Activity,
   Bell,
   Book,
+  Building2,
   LayoutDashboard,
   ListChecks,
   Settings,
@@ -51,6 +52,12 @@ export const SETTINGS_NAV_ITEMS: NavItem[] = [
     label: "Members",
     icon: Users,
     description: "Invite people to this organization.",
+  },
+  {
+    href: "/settings/organization",
+    label: "Organization",
+    icon: Building2,
+    description: "Manage this organization's name and display timezone.",
   },
   {
     href: "/settings/profile",

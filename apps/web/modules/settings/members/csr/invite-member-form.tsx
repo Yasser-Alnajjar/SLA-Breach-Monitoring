@@ -58,18 +58,18 @@ export function InviteMemberForm({ onInvited }: InviteMemberFormProps) {
     | undefined;
 
   return (
-    <Card className="p-6">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm p-6">
       <CardHeader className="flex flex-row items-center gap-3 p-0">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
           <Mail className="size-4" />
         </span>
 
         <div>
-          <CardTitle className="text-base font-medium">
+          <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
             Invite a member
           </CardTitle>
 
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-on-surface-variant">
             They&apos;ll get an email with a single-use link to join, expiring
             in 7 days.
           </p>

@@ -35,13 +35,17 @@ export function BreachesOverTimeChart({
   data: BreachesOverTimeLegPoint[];
   periodDays: number;
 }) {
-  const hasBreaches = data.some((p) => p.supportCount > 0 || p.engineeringCount > 0);
+  const hasBreaches = data.some(
+    (p) => p.supportCount > 0 || p.engineeringCount > 0,
+  );
 
   return (
     <div className="bg-surface-container-low shadow-soft flex h-full flex-col justify-between rounded-xl p-4">
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-on-surface text-base font-medium">Breaches Over Time</h3>
+          <h3 className="text-on-surface text-base font-medium">
+            Breaches Over Time
+          </h3>
           <p className="text-outline text-sm">
             Fixed {periodDays}-day cadence by ticket failure locus
           </p>
@@ -68,7 +72,10 @@ export function BreachesOverTimeChart({
       ) : (
         <div className="h-48 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 0, left: -28, bottom: 0 }}>
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 0, left: -28, bottom: 0 }}
+            >
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="var(--border)"
@@ -91,6 +98,7 @@ export function BreachesOverTimeChart({
               />
               <Tooltip
                 labelFormatter={(label) => formatDayLabel(String(label))}
+                cursor={{ fill: "var(--popover)" }}
                 contentStyle={{
                   background: "var(--popover)",
                   borderColor: "var(--border)",
@@ -99,8 +107,20 @@ export function BreachesOverTimeChart({
                   fontSize: 12,
                 }}
               />
-              <Bar dataKey="supportCount" name="Support" stackId="leg" fill="var(--primary)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="engineeringCount" name="Engineering" stackId="leg" fill="var(--destructive)" radius={[2, 2, 0, 0]} />
+              <Bar
+                dataKey="supportCount"
+                name="Support"
+                stackId="leg"
+                fill="var(--primary)"
+                radius={[2, 2, 2, 2]}
+              />
+              <Bar
+                dataKey="engineeringCount"
+                name="Engineering"
+                stackId="leg"
+                fill="var(--destructive)"
+                radius={[2, 2, 2, 2]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

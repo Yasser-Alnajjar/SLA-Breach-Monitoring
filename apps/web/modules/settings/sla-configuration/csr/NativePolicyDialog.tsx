@@ -253,7 +253,7 @@ export function NativePolicyDialog({
 
           <div className="space-y-2">
             <Label>Targets</Label>
-            <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="space-y-2 rounded-lg bg-surface-container p-3">
               {COMMITMENT_KINDS.map((kind) => (
                 <div key={kind} className="flex items-center gap-3">
                   <Checkbox
@@ -300,7 +300,7 @@ export function NativePolicyDialog({
                         disabled={saving}
                         className="w-28"
                       />
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-on-surface-variant">
                         minutes
                       </span>
                     </>
@@ -313,7 +313,7 @@ export function NativePolicyDialog({
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-medium">Matching</h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-on-surface-variant">
                 Define which cases this policy should apply to.
               </p>
             </div>
@@ -339,7 +339,7 @@ export function NativePolicyDialog({
                   disabled={saving}
                 />
 
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-on-surface-variant">
                   Leave empty to match any priority.
                 </p>
               </div>
@@ -383,7 +383,7 @@ export function NativePolicyDialog({
                     disabled={saving}
                   />
 
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-on-surface-variant">
                     Leave empty to match any customer.
                   </p>
                 </div>
@@ -420,7 +420,7 @@ export function NativePolicyDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-on-surface-variant">
                   {state.calendarId === USE_ORGANIZATION_DEFAULT
                     ? "New commitments always use whichever calendar is currently the organization default (Settings → Business calendars), not a fixed snapshot."
                     : "Pinned to this calendar — new commitments use it until this policy is edited to point elsewhere."}
@@ -449,15 +449,15 @@ export function NativePolicyDialog({
               className="max-w-xs"
             />
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-on-surface-variant">
               Comma-separated percentages used to trigger warnings.
             </p>
           </div>
 
           {/* Versioning notice */}
           {mode === "edit" && (
-            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-              <p className="text-xs leading-5 text-muted-foreground">
+            <div className="rounded-lg bg-surface-container px-3 py-2.5">
+              <p className="text-xs leading-5 text-on-surface-variant">
                 This creates a new policy version. Existing commitments keep
                 their current target. The new target applies to new commitments
                 only.
@@ -477,7 +477,7 @@ export function NativePolicyDialog({
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >

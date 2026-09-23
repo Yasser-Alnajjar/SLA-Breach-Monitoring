@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsSectionHeader } from "@/components/settings/section-header";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
@@ -14,12 +15,11 @@ import { SETTINGS_NAV_ITEMS } from "@/components/layout/nav-items";
 export function SettingsOverviewView() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your workspace configuration.
-        </p>
-      </div>
+      <SettingsSectionHeader
+        eyebrow="Workspace configuration"
+        title="All settings"
+        description="Manage your workspace configuration."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {SETTINGS_NAV_ITEMS.map((item) => {
@@ -31,13 +31,13 @@ export function SettingsOverviewView() {
               href={item.href}
               className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <Card className="h-full transition-colors hover:border-foreground/20 hover:bg-muted/40">
+              <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm h-full transition-colors hover:bg-surface-container">
                 <CardHeader className="flex flex-row items-start gap-3 space-y-0">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
                     <Icon className="size-4" />
                   </span>
                   <div className="space-y-1">
-                    <CardTitle className="text-sm font-semibold">
+                    <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
                       {item.label}
                     </CardTitle>
                     <CardDescription>{item.description}</CardDescription>

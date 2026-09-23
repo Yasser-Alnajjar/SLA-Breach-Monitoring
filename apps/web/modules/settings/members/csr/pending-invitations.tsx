@@ -30,16 +30,16 @@ export function PendingInvitations({
   }
 
   return (
-    <Card className="p-6">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm p-6">
       <CardHeader className="p-0">
-        <CardTitle className="text-base font-medium">
+        <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
           Pending invitations
         </CardTitle>
       </CardHeader>
 
       <CardContent className="p-0 pt-5">
         {invitations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-on-surface-variant">
             No pending invitations.
           </p>
         ) : (
@@ -52,7 +52,7 @@ export function PendingInvitations({
                 <div>
                   <p className="text-sm font-medium">{invitation.email}</p>
 
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-on-surface-variant">
                     Sent {formatDateTime(invitation.createdAt)} · expires{" "}
                     {formatDateTime(invitation.expiresAt)}
                   </p>

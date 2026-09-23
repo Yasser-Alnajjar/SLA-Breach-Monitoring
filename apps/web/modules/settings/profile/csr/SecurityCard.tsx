@@ -62,22 +62,22 @@ export function SecurityCard() {
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-muted/10 px-5 py-4">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm overflow-hidden">
+      <CardHeader className="p-6 pb-0">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
             <KeyRound className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-sm font-semibold">Security</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">Security</CardTitle>
+            <p className="mt-1 text-xs text-on-surface-variant">
               Change the password used to sign in to this account.
             </p>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="px-5 py-5">
+      <CardContent className="p-6 pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="current-password">Current password</Label>

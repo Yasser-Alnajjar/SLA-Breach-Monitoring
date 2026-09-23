@@ -275,7 +275,7 @@ export function CalendarEditorDialog({
           <div className="space-y-2">
             <Label>Working hours</Label>
             <div
-              className="space-y-3 rounded-lg border border-border p-3"
+              className="space-y-3 rounded-lg bg-surface-container p-3"
               aria-disabled={isAlwaysOpen}
             >
               {DAY_LABELS.map((label, day) => {
@@ -283,7 +283,7 @@ export function CalendarEditorDialog({
                 return (
                   <div
                     key={label}
-                    className="space-y-1.5 border-b border-border pb-2 last:border-0 last:pb-0"
+                    className="space-y-1.5 border-b border-outline-variant/30 pb-2 last:border-0 last:pb-0"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{label}</span>
@@ -301,7 +301,7 @@ export function CalendarEditorDialog({
                     </div>
 
                     {windows.length === 0 && (
-                      <p className="pl-1 text-xs text-muted-foreground">
+                      <p className="pl-1 text-xs text-on-surface-variant">
                         Closed
                       </p>
                     )}
@@ -310,7 +310,7 @@ export function CalendarEditorDialog({
                       // eslint-disable-next-line react/no-array-index-key
                       <div key={index} className="flex items-center gap-2 pl-1">
                         {w.fullDay ? (
-                          <span className="w-70 text-sm text-muted-foreground">
+                          <span className="w-70 text-sm text-on-surface-variant">
                             Open 24 hours
                           </span>
                         ) : (
@@ -330,7 +330,7 @@ export function CalendarEditorDialog({
                               disabled={saving || isAlwaysOpen}
                               className="w-32"
                             />
-                            <span className="text-sm text-muted-foreground">
+                            <span className="text-sm text-on-surface-variant">
                               to
                             </span>
                             <Input
@@ -368,7 +368,7 @@ export function CalendarEditorDialog({
                           />
                           <Label
                             htmlFor={`fullday-${day}-${index}`}
-                            className="cursor-pointer whitespace-nowrap text-xs font-normal text-muted-foreground"
+                            className="cursor-pointer whitespace-nowrap text-xs font-normal text-on-surface-variant"
                           >
                             24 hours
                           </Label>
@@ -393,7 +393,7 @@ export function CalendarEditorDialog({
                 );
               })}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-on-surface-variant">
               A day can have more than one window (e.g. a lunch-hour split
               shift) — add as many as this calendar needs.
             </p>
@@ -405,7 +405,7 @@ export function CalendarEditorDialog({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="surface"
                 onClick={() =>
                   setState((s) => ({
                     ...s,
@@ -421,7 +421,7 @@ export function CalendarEditorDialog({
               </Button>
             </div>
             {state.holidays.length > 0 && (
-              <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="space-y-2 rounded-lg bg-surface-container p-3">
                 {state.holidays.map((holiday, index) => (
                   // eslint-disable-next-line react/no-array-index-key
                   <div key={index} className="flex items-center gap-2">
@@ -476,7 +476,7 @@ export function CalendarEditorDialog({
 
                       <Label
                         htmlFor={`holiday-recurring-${index}`}
-                        className="cursor-pointer text-xs font-normal text-muted-foreground"
+                        className="cursor-pointer text-xs font-normal text-on-surface-variant"
                       >
                         Recurring
                       </Label>
@@ -499,7 +499,7 @@ export function CalendarEditorDialog({
                 ))}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-on-surface-variant">
               A recurring holiday is expanded into concrete dates for the next
               several years when saved.
             </p>
@@ -515,7 +515,7 @@ export function CalendarEditorDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >

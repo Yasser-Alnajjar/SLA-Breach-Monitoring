@@ -27,8 +27,12 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
   return (
     <div className="bg-surface-container-low shadow-soft flex h-full flex-col justify-between rounded-xl p-4">
       <div>
-        <h3 className="text-on-surface text-base font-medium">Breaches by Stage</h3>
-        <p className="text-outline text-sm">Origin locus across {total} breaches</p>
+        <h3 className="text-on-surface text-base font-medium">
+          Breaches by Stage
+        </h3>
+        <p className="text-outline text-sm">
+          Origin locus across {total} breaches
+        </p>
       </div>
       {total === 0 ? (
         <div className="flex h-40 items-center justify-center">
@@ -54,10 +58,14 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                     stroke="none"
                   >
                     {data.map((row) => (
-                      <Cell key={row.leg} fill={LEG_COLORS[row.leg] ?? "var(--primary)"} />
+                      <Cell
+                        key={row.leg}
+                        fill={LEG_COLORS[row.leg] ?? "var(--primary)"}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
+                    wrapperStyle={{ zIndex: 50 }}
                     formatter={(value, _name, entry) => [
                       `${value} (${Math.round((Number(value) / total) * 100)}%)`,
                       formatLeg(String(entry.payload?.leg ?? "")),
@@ -80,7 +88,9 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                 </span>
                 <span
                   className="mt-0.5 font-mono text-xxs font-medium uppercase"
-                  style={{ color: LEG_COLORS[dominant.leg] ?? "var(--primary)" }}
+                  style={{
+                    color: LEG_COLORS[dominant.leg] ?? "var(--primary)",
+                  }}
                 >
                   {formatLeg(dominant.leg)}
                 </span>
@@ -93,9 +103,13 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                 <div className="flex items-center gap-1.5">
                   <span
                     className="size-2 rounded-full"
-                    style={{ backgroundColor: LEG_COLORS[row.leg] ?? "var(--primary)" }}
+                    style={{
+                      backgroundColor: LEG_COLORS[row.leg] ?? "var(--primary)",
+                    }}
                   />
-                  <span className="text-on-surface-variant">{formatLeg(row.leg)}</span>
+                  <span className="text-on-surface-variant">
+                    {formatLeg(row.leg)}
+                  </span>
                 </div>
                 <span className="text-on-surface font-mono text-sm font-semibold">
                   {row.count} ({Math.round((row.count / total) * 100)}%)

@@ -30,7 +30,7 @@ function CalendarRow({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
+      <div className="flex items-center justify-between gap-4 border-b border-outline-variant/30 pb-3 last:border-0 last:pb-0">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-foreground">{calendar.name}</p>
@@ -39,17 +39,17 @@ function CalendarRow({
             </Badge>
             {isDefault && <Badge variant="success">Org default</Badge>}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-on-surface-variant">
             {calendar.alwaysOpen ? "24/7" : `${calendar.timezone} · ${calendar.holidays.length} holiday(s)`}
           </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={handleSetDefault} disabled={settingDefault}>
+          <Button type="button" size="sm" variant="surface" onClick={handleSetDefault} disabled={settingDefault}>
             {settingDefault && <Loader2 className="animate-spin" />}
             {isDefault ? "Unset default" : "Set as default"}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+          <Button type="button" size="sm" variant="surface" onClick={() => setDialogOpen(true)}>
             Edit
           </Button>
         </div>
@@ -82,7 +82,7 @@ export function BusinessCalendarsCard({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-on-surface-variant">
           Editing an imported calendar&apos;s hours locally is never overwritten by the next Zendesk sync.
         </p>
         <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
@@ -91,7 +91,7 @@ export function BusinessCalendarsCard({
       </div>
 
       {calendars.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No business calendars yet.</p>
+        <p className="text-sm text-on-surface-variant">No business calendars yet.</p>
       ) : (
         <div className="space-y-3">
           {calendars.map((calendar) => (

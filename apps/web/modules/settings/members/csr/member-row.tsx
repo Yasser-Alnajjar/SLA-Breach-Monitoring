@@ -6,7 +6,10 @@ import * as Yup from "yup";
 
 import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { initialsOf } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
+import { TableCell, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -67,76 +70,108 @@ export function MemberRow({ member, isSelf, onSaved }: MemberRowProps) {
   const roleDirty = formik.values.role !== member.role;
 
   return (
-    <li className="flex flex-col gap-2 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">
-            {member.name ?? member.email}
+    <>
+      <TableRow className="hover:bg-surface-container border-outline-variant/20">
+        <TableCell>
+          <div className="flex items-center gap-2 ps-4">
+            <Avatar>
+              <AvatarFallback
+                className={
+                  isSelf
+                    ? "bg-primary text-on-primary text-xs font-bold"
+                    : "bg-surface-container-highest text-on-surface text-xs"
+                }
+              >
+                {initialsOf(member.name, member.email)}
+              </AvatarFallback>
+            </Avatar>
 
-            {isSelf && (
-              <span className="ml-1.5 text-xs text-muted-foreground">
-                (you)
+            <div className="flex flex-col">
+              <span className="text-on-surface text-sm font-medium">
+                {member.name ?? member.email}
               </span>
+              {isSelf && (
+                <span className="text-primary font-mono text-xxs uppercase">
+                  Current user
+                </span>
+              )}
+            </div>
+          </div>
+        </TableCell>
+
+        <TableCell className="text-on-surface-variant font-mono text-xs">
+          {member.email}
+        </TableCell>
+
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <Select
+              value={formik.values.role}
+              onValueChange={(value) =>
+                formik.setFieldValue("role", value as UserRole)
+              }
+              disabled={formik.isSubmitting}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="member">Member</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {roleDirty && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => formik.submitForm()}
+                disabled={formik.isSubmitting}
+              >
+                {formik.isSubmitting && <Loader2 className="animate-spin" />}
+
+                {formik.isSubmitting ? "Saving…" : "Save"}
+              </Button>
             )}
-          </p>
+          </div>
+        </TableCell>
 
-          <p className="text-xs text-muted-foreground">
-            {member.name ? `${member.email} · ` : ""}
-            Joined {formatDateTime(member.createdAt)}
-          </p>
-        </div>
+        <TableCell className="text-on-surface-variant  font-mono text-xs">
+          {formatDateTime(member.createdAt)}
+        </TableCell>
 
-        <div className="flex items-center gap-2">
-          <Select
-            value={formik.values.role}
-            onValueChange={(value) =>
-              formik.setFieldValue("role", value as UserRole)
-            }
-            disabled={formik.isSubmitting}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="owner">Owner</SelectItem>
-              <SelectItem value="member">Member</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {roleDirty && (
+        <TableCell className=" text-right">
+          <div className="pe-4">
             <Button
               type="button"
               size="sm"
-              onClick={() => formik.submitForm()}
-              disabled={formik.isSubmitting}
+              variant="ghost"
+              onClick={handleRemove}
+              disabled={isSelf || formik.isSubmitting}
+              title={isSelf ? "You can't remove yourself" : undefined}
             >
-              {formik.isSubmitting && <Loader2 className="animate-spin" />}
-
-              {formik.isSubmitting ? "Saving…" : "Save"}
+              {formik.isSubmitting ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <X />
+              )}
+              Remove
             </Button>
-          )}
-
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={handleRemove}
-            disabled={isSelf || formik.isSubmitting}
-            title={isSelf ? "You can't remove yourself" : undefined}
-          >
-            {formik.isSubmitting ? <Loader2 className="animate-spin" /> : <X />}
-            Remove
-          </Button>
-        </div>
-      </div>
+          </div>
+        </TableCell>
+      </TableRow>
 
       {formik.status && (
-        <Alert variant="destructive">
-          <AlertCircle />
-          <AlertDescription>{formik.status}</AlertDescription>
-        </Alert>
+        <TableRow className="border-outline-variant/20">
+          <TableCell colSpan={5} className="px-4 pb-3 pt-0">
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{formik.status}</AlertDescription>
+            </Alert>
+          </TableCell>
+        </TableRow>
       )}
-    </li>
+    </>
   );
 }

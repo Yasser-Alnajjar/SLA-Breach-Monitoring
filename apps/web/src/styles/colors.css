@@ -179,7 +179,7 @@
 
   --card: #131b2e;
 
-  --popover: oklch(27.761% 0.05856 265.13);
+  --popover: #0b1326;
   --popover-foreground: #f8fafc;
 
   /* ─────────────────────────────────────────────
@@ -346,20 +346,15 @@
     var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ─────────────────────────────────────────────
-   * Type scale
-   * Tailwind defaults (text-xs … text-4xl) plus one tiny size for
-   * metadata / uppercase labels.
-   * ───────────────────────────────────────────── */
-
-  --text-xxs: 0.6875rem;
-  --text-xxs--line-height: 0.875rem;
-
-  /* ─────────────────────────────────────────────
    * Base
    * ───────────────────────────────────────────── */
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
@@ -518,4 +513,12 @@
   --shadow-panel: var(--shadow-panel-value);
   --shadow-elevated: var(--shadow-elevated-value);
   --shadow-glow: var(--shadow-glow-value);
+
+  /* ─────────────────────────────────────────────
+   * Type scale
+   * Tailwind defaults (text-xs … text-4xl) plus one tiny size for
+   * metadata / uppercase labels.
+   * ───────────────────────────────────────────── */
+
+  --text-xxs: 11px;
 }

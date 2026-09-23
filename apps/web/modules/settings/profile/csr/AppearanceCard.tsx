@@ -24,22 +24,22 @@ export function AppearanceCard() {
   useEffect(() => setMounted(true), []);
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-muted/10 px-5 py-4">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm overflow-hidden">
+      <CardHeader className="p-6 pb-0">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
             <Palette className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-sm font-semibold">Appearance</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">Appearance</CardTitle>
+            <p className="mt-1 text-xs text-on-surface-variant">
               Choose how Elapsed looks on this device.
             </p>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="px-5 py-5">
+      <CardContent className="p-6 pt-4">
         {mounted ? (
           <RadioGroup
             value={theme}
@@ -56,7 +56,7 @@ export function AppearanceCard() {
                     "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-3 text-sm font-medium transition-colors",
                     isActive
                       ? "border-primary bg-primary/5 text-foreground"
-                      : "border-border text-muted-foreground hover:bg-interactive/40",
+                      : "border-border text-on-surface-variant hover:bg-interactive/40",
                   )}
                 >
                   <RadioGroupItem
@@ -64,7 +64,7 @@ export function AppearanceCard() {
                       "cursor-pointer",
                       isActive
                         ? "border-primary bg-primary! text-foreground"
-                        : "border-border text-muted-foreground hover:bg-interactive/40",
+                        : "border-border text-on-surface-variant hover:bg-interactive/40",
                     )}
                     value={value}
                     id={`theme-${value}`}

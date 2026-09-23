@@ -21,6 +21,8 @@ import { formatPriorityTier } from "@/lib/format";
 import { Utils, cn } from "@/lib/utils";
 import type { CaseListData } from "@/lib/types/cases";
 import { useCaseListColumns } from "./columns";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type StatusFilter = "all" | "breached" | "at_risk" | "on_track" | "met";
 type OpenFilter = "all" | "open" | "closed";
@@ -155,7 +157,7 @@ const GROUP_LABEL =
   "px-2 font-mono text-xxs font-semibold tracking-wider text-outline sm:inline";
 const groupBtn = (active: boolean, tone: string) =>
   cn(
-    "whitespace-nowrap rounded px-2 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
+    "rounded px-2 py-1 font-mono text-xxs font-semibold tracking-wider",
     active
       ? "bg-surface-container text-primary"
       : cn("hover:bg-surface-container", tone),
@@ -293,18 +295,20 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
               engineering handoffs
             </p>
           </div>
-          <button
+          <Button
             type="button"
+            variant="surface"
+            size="toolbar"
             disabled={data.cases.length === 0}
             onClick={() => Utils.exportToCsv("all-cases.csv", data.cases)}
-            className="group flex shrink-0 items-center gap-2 rounded bg-surface-container-high px-4 py-2 text-sm text-on-surface shadow-sm transition-all hover:bg-surface-bright disabled:opacity-50"
+            className="group shrink-0 px-4 shadow-sm hover:bg-surface-bright"
           >
             <Download className="size-4.5 text-primary transition-transform group-hover:scale-110" />
             <span>Export Full CSV</span>
             <span className="rounded bg-surface-container-lowest px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">
               {data.cases.length} rec
             </span>
-          </button>
+          </Button>
         </div>
       </Reveal>
 
@@ -348,12 +352,12 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
           <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
             <div className="relative min-w-60 flex-1">
               <Search className="absolute left-3 top-2.5 size-4.5 text-outline" />
-              <input
+              <Input
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 placeholder="Search customer, ticket ID, or subject…"
                 aria-label="Search cases"
-                className="w-full rounded bg-surface-container-lowest py-2 pl-10 pr-24 text-sm text-on-surface shadow-inner placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-auto rounded border-0 bg-surface-container-lowest py-2 pl-10 pr-24 text-sm text-on-surface shadow-inner placeholder:text-outline focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0 md:text-sm"
               />
               <div className="pointer-events-none absolute right-2.5 top-2 flex items-center gap-1">
                 <span className="rounded bg-surface-container px-1.5 py-0.5 font-mono text-xxs text-on-surface-variant">
@@ -368,29 +372,35 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             <div className="flex shrink-0 items-center gap-1 self-start rounded bg-surface-container-lowest p-1 lg:self-auto">
               <span className={GROUP_LABEL}>PRIORITY:</span>
               {SEVERITY_FILTERS.map((f) => (
-                <button
+                <Button
                   key={f.value}
                   type="button"
+                  variant="bare"
+                  size="sm"
+                  aria-pressed={severity === f.value}
                   onClick={() => setSeverity(f.value)}
                   className={groupBtn(severity === f.value, f.tone)}
                 >
                   {f.label}
-                </button>
+                </Button>
               ))}
             </div>
 
             <div className="flex shrink-0 items-center gap-1 self-start rounded bg-surface-container-lowest p-1 lg:self-auto">
               <span className={GROUP_LABEL}>LINK:</span>
               {LINK_FILTERS.map((f) => (
-                <button
+                <Button
                   key={f.value}
                   type="button"
+                  variant="bare"
+                  size="sm"
+                  aria-pressed={linkState === f.value}
                   onClick={() => setLinkState(f.value)}
                   className={groupBtn(linkState === f.value, f.tone)}
                 >
                   {f.label}
                   {f.value !== "all" && ` (${linkCounts[f.value]})`}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -404,12 +414,15 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
                 const active = status === f.value;
                 const isAll = f.value === "all";
                 return (
-                  <button
+                  <Button
                     key={f.value}
                     type="button"
+                    variant="bare"
+                    size="sm"
+                    aria-pressed={active}
                     onClick={() => setStatus(f.value)}
                     className={cn(
-                      "flex items-center gap-1 rounded px-2.5 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
+                      "gap-1 rounded px-2.5 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
                       active
                         ? "bg-primary text-on-primary shadow-sm"
                         : "bg-surface-container-high text-on-surface hover:bg-surface-bright",
@@ -427,16 +440,19 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
                     >
                       {statusCounts[f.value]}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
 
               <span className="mx-1 hidden h-5 w-px bg-border md:block" />
 
               {OPEN_FILTERS.map((f) => (
-                <button
+                <Button
                   key={f.value}
                   type="button"
+                  variant="bare"
+                  size="sm"
+                  aria-pressed={openState === f.value}
                   onClick={() => setOpenState(f.value)}
                   className={groupBtn(
                     openState === f.value,
@@ -445,7 +461,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
                 >
                   {f.value === "all" ? "Any state" : f.label} (
                   {openCounts[f.value]})
-                </button>
+                </Button>
               ))}
             </div>
 

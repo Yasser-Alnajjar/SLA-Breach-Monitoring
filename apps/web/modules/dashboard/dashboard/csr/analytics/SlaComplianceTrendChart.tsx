@@ -2,24 +2,21 @@
 
 import { Gauge } from "lucide-react";
 import {
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
   YAxis,
 } from "recharts";
+
 import { EmptyState } from "@/components/shared/empty-state";
 import type { ComplianceTrendPoint } from "@/lib/types/dashboard";
 
-/**
- * Stitch's "SLA Compliance Trend" chart: a genuinely new time series (no
- * compliance history existed anywhere before this reconstruction — see
- * `computeComplianceTrend`). Stitch's mockup also draws a dashed "95%
- * Benchmark" reference line, but no org-level compliance target exists in
- * the data model (unlike the analogous, real `engineeringLegTargetMinutes`)
- * — rather than fabricate that number, this chart omits the benchmark line
- * and says so, showing only real peak/current/low figures.
- */
+const BENCHMARK = 95;
+const GUIDE_LINE = 90;
+
 export function SlaComplianceTrendChart({
   data,
   currentCompliance,
@@ -28,14 +25,21 @@ export function SlaComplianceTrendChart({
   currentCompliance: number | null;
 }) {
   const values = data
-    .map((p) => p.compliancePercent)
-    .filter((v): v is number => v !== null);
+    .map((point) => point.compliancePercent)
+    .filter((value): value is number => value !== null);
 
   if (values.length === 0) {
     return (
-      <div className="bg-surface-container-low shadow-soft flex h-full flex-col justify-between rounded-xl p-4">
-        <h3 className="text-on-surface text-base font-medium">SLA Compliance Trend</h3>
-        <div className="flex h-48 items-center justify-center">
+      <div className="bg-surface-container-low shadow-soft flex h-full min-h-0 flex-col overflow-hidden rounded-xl p-4">
+        <div className="shrink-0">
+          <h3 className="text-on-surface text-base font-medium">
+            SLA Compliance Trend
+          </h3>
+
+          <p className="text-outline text-sm">Trailing 7-day compliance rate</p>
+        </div>
+
+        <div className="flex min-h-48 flex-1 items-center justify-center">
           <EmptyState
             icon={Gauge}
             title="No trend yet"
@@ -49,49 +53,141 @@ export function SlaComplianceTrendChart({
   const peak = Math.max(...values);
   const low = Math.min(...values);
 
+  /**
+   * Only render days that actually have a compliance value.
+   *
+   * Null means "no closed commitments / no measurable compliance"
+   * for that day, so it should not consume horizontal chart space.
+   */
+  const chartData = data
+    .filter(
+      (
+        point,
+      ): point is ComplianceTrendPoint & {
+        compliancePercent: number;
+      } => point.compliancePercent !== null,
+    )
+    .map((point, index) => ({
+      ...point,
+      index,
+    }));
+
+  const maxIndex = Math.max(chartData.length - 1, 1);
+
   return (
-    <div className="bg-surface-container-low shadow-soft flex h-full flex-col justify-between rounded-xl p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <div>
-          <h3 className="text-on-surface text-base font-medium">SLA Compliance Trend</h3>
+    <div className="bg-surface-container-low shadow-soft flex h-full min-h-0 flex-col overflow-hidden rounded-xl p-4">
+      {/* Header */}
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-on-surface text-base font-medium">
+            SLA Compliance Trend
+          </h3>
+
           <p className="text-outline text-sm">Trailing 7-day compliance rate</p>
         </div>
-        <span className="bg-surface-container-highest text-on-surface-variant rounded px-2 py-0.5 font-mono text-xxs">
+
+        <span className="bg-surface-container-highest text-on-surface-variant shrink-0 rounded px-2 py-0.5 font-mono text-xxs">
           No target configured
         </span>
       </div>
-      <div className="h-48 w-full">
+
+      {/* Chart */}
+      <div className="min-h-0 min-w-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <YAxis hide domain={[0, 100]} />
+          <AreaChart
+            data={chartData}
+            margin={{
+              top: 24,
+              right: 0,
+              left: 0,
+              bottom: 0,
+            }}
+          >
+            <defs>
+              <linearGradient
+                id="complianceGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.25} />
+
+                <stop offset="100%" stopColor="#38bdf8" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+
+            <XAxis type="number" dataKey="index" domain={[0, maxIndex]} hide />
+
+            <YAxis type="number" domain={[0, 100]} hide />
+
+            {/* 90% reference */}
+            <CartesianGrid
+              horizontalCoordinatesGenerator={({ height }) => [
+                height * (1 - GUIDE_LINE / 100),
+              ]}
+              vertical={false}
+              stroke="currentColor"
+              className="text-surface-container-highest"
+              strokeWidth={1}
+            />
+
+            {/* 95% benchmark */}
+            <CartesianGrid
+              horizontalCoordinatesGenerator={({ height }) => [
+                height * (1 - BENCHMARK / 100),
+              ]}
+              vertical={false}
+              stroke="#38bdf8"
+              strokeDasharray="3 3"
+              strokeWidth={1.5}
+              opacity={0.6}
+            />
+
             <Tooltip
-              formatter={(value) => [value === null ? "—" : `${value}%`, "Compliance"]}
+              cursor={false}
+              labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
+              formatter={(value) => [
+                value === null ? "—" : `${value}%`,
+                "Compliance",
+              ]}
               contentStyle={{
                 background: "var(--popover)",
-                borderColor: "var(--border)",
+                border: "1px solid var(--border)",
                 borderRadius: 8,
                 color: "var(--popover-foreground)",
                 fontSize: 12,
               }}
             />
-            <Line
+
+            <Area
               type="monotone"
               dataKey="compliancePercent"
-              name="Compliance"
-              stroke="var(--warning)"
+              stroke="#f59e0b"
               strokeWidth={2.5}
-              dot={false}
+              fill="url(#complianceGradient)"
+              fillOpacity={1}
               connectNulls={false}
-              activeDot={{ r: 4 }}
+              dot={false}
+              activeDot={{
+                r: 4,
+                fill: "#f59e0b",
+                stroke: "#0b1326",
+                strokeWidth: 2,
+              }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
-      <div className="text-outline border-surface-container-highest/60 flex items-center justify-between border-t pt-2 font-mono text-xxs">
+
+      {/* Footer */}
+      <div className="text-outline border-surface-container-highest/60 mt-2 flex shrink-0 items-center justify-between border-t pt-2 font-mono text-xxs">
         <span>{peak}% peak</span>
+
         <span className="font-medium text-warning">
           Current: {currentCompliance !== null ? `${currentCompliance}%` : "—"}
         </span>
+
         <span>{low}% low</span>
       </div>
     </div>

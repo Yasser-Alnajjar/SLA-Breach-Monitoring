@@ -125,24 +125,24 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-muted/10 px-5 py-4">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm overflow-hidden">
+      <CardHeader className="p-6 pb-0">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
             <UserRound className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-sm font-semibold">
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
               Profile information
             </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-on-surface-variant">
               How you appear across this organization's workspace.
             </p>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="px-5 py-5">
+      <CardContent className="p-6 pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center gap-4">
             <Avatar size="lg">
@@ -163,7 +163,7 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="surface"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -181,7 +181,7 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
                   </Button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-on-surface-variant">
                 JPG, PNG, WEBP or GIF. Up to 8MB.
               </p>
               {avatarError && (

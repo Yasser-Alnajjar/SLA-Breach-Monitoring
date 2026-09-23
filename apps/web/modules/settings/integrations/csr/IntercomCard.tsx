@@ -51,7 +51,7 @@ export function IntercomBackfillButton({ initialReauthRequired = false }: { init
 
   return (
     <div className="space-y-3">
-      <Button type="button" size="sm" variant="outline" onClick={handleClick} disabled={running}>
+      <Button type="button" size="sm" variant="surface" onClick={handleClick} disabled={running}>
         {running && <Loader2 className="animate-spin" />}
         {running ? "Running backfill…" : "Run backfill"}
       </Button>
@@ -62,7 +62,7 @@ export function IntercomBackfillButton({ initialReauthRequired = false }: { init
         </Alert>
       )}
       {result && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-on-surface-variant">
           {result.conversationsFetched} conversations · {result.conversationPartsFetched} events ·{" "}
           {result.companiesFetched} companies.
         </p>

@@ -65,7 +65,7 @@ function PolicyRow({
 
   return (
     <>
-      <div className="space-y-3 border-b border-border pb-4 last:border-0 last:pb-0">
+      <div className="space-y-3 border-b border-outline-variant/30 pb-4 last:border-0 last:pb-0">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -73,7 +73,7 @@ function PolicyRow({
                 {policy.name}
               </p>
 
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-on-surface-variant">
                 v{policy.version}
               </span>
 
@@ -88,7 +88,7 @@ function PolicyRow({
               {!policy.active && <Badge variant="warning">Inactive</Badge>}
             </div>
 
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-on-surface-variant">
               {formatPolicyMatch(policy.match)}
             </p>
           </div>
@@ -98,7 +98,7 @@ function PolicyRow({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="surface"
                 onClick={handleToggleActive}
                 disabled={togglingActive}
               >
@@ -110,7 +110,7 @@ function PolicyRow({
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="surface"
               onClick={() => setDialogOpen(true)}
             >
               {policy.source === "native"
@@ -122,15 +122,15 @@ function PolicyRow({
           </div>
         </div>
 
-        <div className="rounded-md bg-muted/40 px-3 py-2.5">
-          <p className="text-xs text-muted-foreground">Current targets</p>
+        <div className="rounded-lg bg-surface-container px-3 py-2.5">
+          <p className="text-xs text-on-surface-variant">Current targets</p>
 
           <p className="mt-1 text-sm text-foreground">
             {formatTargets(policy.targets)}
           </p>
 
           {policy.overridden && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-on-surface-variant">
               {policy.source === "imported" ? "Imported" : "Original"}:{" "}
               {formatTargets(policy.importedTargets)}
             </p>
@@ -187,7 +187,7 @@ export function SlaPoliciesCard({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="max-w-3xl text-xs text-muted-foreground">
+        <p className="max-w-3xl text-xs text-on-surface-variant">
           Imported policies come from Zendesk and are matched first. Native
           policies are matched only when no imported policy matches (D12).
         </p>
@@ -208,7 +208,7 @@ export function SlaPoliciesCard({
       </div>
 
       {policies.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-on-surface-variant">
           No SLA policies yet — import from Zendesk or create a native policy.
         </p>
       ) : (

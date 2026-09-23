@@ -22,7 +22,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
   return (
     <div className="min-w-0 space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs text-on-surface-variant">{label}</Label>
       <div className="flex min-w-0 items-center gap-2">
         <Input
           readOnly
@@ -34,7 +34,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
         <Button
           type="button"
           size="icon"
-          variant="outline"
+          variant="surface"
           className="shrink-0"
           onClick={handleCopy}
           aria-label={`Copy ${label}`}
@@ -74,7 +74,7 @@ export function WebhookInfo({
 
   if (!webhookSecret) {
     return (
-      <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+      <p className="text-xs leading-relaxed text-on-surface-variant wrap-break-word">
         Webhooks aren&apos;t available for this connection yet — disconnect and
         reconnect to enable real-time updates.
       </p>
@@ -90,7 +90,7 @@ export function WebhookInfo({
       <div className="space-y-3">
         <CopyField label="Endpoint URL" value={baseUrl} />
         <CopyField label="Bearer token" value={webhookSecret} />
-        <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+        <p className="text-xs leading-relaxed text-on-surface-variant wrap-break-word">
           In Zendesk Admin Center, create a webhook with this Endpoint URL
           (Request format: JSON) and Authentication set to{" "}
           <strong>Bearer token</strong> using this token — Zendesk only
@@ -110,13 +110,13 @@ export function WebhookInfo({
     <div className="space-y-3">
       <CopyField label="Webhook URL" value={baseUrl} />
       <CopyField label="Secret" value={webhookSecret} />
-      <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+      <p className="text-xs leading-relaxed text-on-surface-variant wrap-break-word">
         In Jira, add a WebHook (Settings → System → WebHooks) with this URL,
         paste this value into its <strong>Secret</strong> field, and subscribe
         it to Issue: created and Issue: updated events. Jira signs every
         delivery with the secret, so it never appears in the URL.
       </p>
-      <p className="text-xs leading-relaxed text-muted-foreground wrap-break-word">
+      <p className="text-xs leading-relaxed text-on-surface-variant wrap-break-word">
         Set up earlier with a URL ending in <code>?secret=…</code>? It keeps
         working, but that URL can end up in proxy logs. Edit the webhook in
         Jira, remove <code>?secret=…</code> from the URL, and paste the secret

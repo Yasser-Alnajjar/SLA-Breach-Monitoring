@@ -58,14 +58,14 @@ export function IntervalSettingRow({ label, description, valueMs, options, canEd
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium">{label}</p>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-on-surface-variant">{description}</p>
         </div>
 
         {!editing ? (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">Every {formatIntervalMs(valueMs)}</span>
             {canEdit && (
-              <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Button type="button" size="sm" variant="surface" onClick={() => setEditing(true)}>
                 Edit
               </Button>
             )}
@@ -91,7 +91,7 @@ export function IntervalSettingRow({ label, description, valueMs, options, canEd
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="surface"
               onClick={() => {
                 setEditing(false);
                 setSelected(String(valueMs));

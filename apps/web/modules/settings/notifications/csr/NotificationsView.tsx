@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsSectionHeader } from "@/components/settings/section-header";
 import { Reveal } from "@/components/shared/reveal";
 import type { NotificationSettingsData } from "@/lib/types/notification-settings";
 import { EmailNotificationsCard } from "./EmailNotificationsCard";
@@ -18,12 +19,11 @@ interface NotificationsViewProps {
 export const NotificationsView = ({ data }: NotificationsViewProps) => {
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">Notifications</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure how at-risk and breach alerts reach this organization.
-        </p>
-      </div>
+      <SettingsSectionHeader
+        eyebrow="Outbound alerts & webhooks"
+        title="Alert Channels"
+        description="Configure how at-risk and breach alerts reach this organization."
+      />
 
       <Reveal delay={0}>
         <EmailNotificationsCard status={data.emailSettings} />

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatCaseLinkMethod, formatMinutes } from "@/lib/format";
 import type { AgingEscalationRow } from "@/lib/types/dashboard";
+import { Button } from "@/components/ui/button";
 
 /**
  * The Stitch dashboard's "Aging in Engineering Queue" card list — an icon
@@ -86,13 +87,15 @@ export function AgingQueueList({ rows }: { rows: AgingEscalationRow[] }) {
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <Button
                     type="button"
+                    variant="bare"
+                    size="compact"
                     disabled
-                    className="bg-surface-container text-on-surface cursor-not-allowed rounded px-3 py-1.5 text-xs opacity-60"
+                    className="bg-surface-container text-on-surface cursor-not-allowed text-xs font-normal disabled:pointer-events-auto disabled:opacity-60"
                   >
                     Ping team
-                  </button>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   Slack/Jira write-back isn&apos;t implemented yet.

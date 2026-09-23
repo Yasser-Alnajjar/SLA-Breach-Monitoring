@@ -123,7 +123,7 @@ export function IntegrationConfigGate({
         type="button"
         variant="link"
         onClick={() => setEditing(true)}
-        className="mt-3 h-auto self-start p-0 text-xs font-normal text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        className="mt-3 h-auto self-start p-0 text-xs font-normal text-on-surface-variant underline-offset-2 hover:text-foreground hover:underline"
       >
         Edit configuration
       </Button>

@@ -135,27 +135,27 @@ export function PolicyOverrideDialog({
               return (
                 <div
                   key={target.kind}
-                  className="rounded-lg border border-border p-4"
+                  className="rounded-lg bg-surface-container p-4"
                 >
                   <div className="mb-4">
                     <p className="text-sm font-medium text-foreground">
                       {formatCommitmentKind(target.kind)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-on-surface-variant">
                       Configure the target for new commitments.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Imported</p>
+                      <p className="text-xs text-on-surface-variant">Imported</p>
                       <p className="text-sm font-medium text-foreground">
                         {formatMinutes(importedMinutes ?? target.minutes)}
                       </p>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Current</p>
+                      <p className="text-xs text-on-surface-variant">Current</p>
                       <p className="text-sm font-medium text-foreground">
                         {formatMinutes(target.minutes)}
                       </p>
@@ -182,7 +182,7 @@ export function PolicyOverrideDialog({
                         className="w-32"
                       />
 
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-on-surface-variant">
                         minutes
                       </span>
                     </div>
@@ -192,8 +192,8 @@ export function PolicyOverrideDialog({
             })}
           </div>
 
-          <div className="rounded-md bg-muted/50 px-3 py-2.5">
-            <p className="text-xs leading-5 text-muted-foreground">
+          <div className="rounded-lg bg-surface-container px-3 py-2.5">
+            <p className="text-xs leading-5 text-on-surface-variant">
               This creates a new policy version. Existing commitments keep their
               current target. The new target applies to new commitments only.
             </p>
@@ -209,7 +209,7 @@ export function PolicyOverrideDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >

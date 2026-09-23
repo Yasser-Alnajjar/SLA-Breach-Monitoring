@@ -33,7 +33,7 @@ export function ZendeskConnectForm() {
             required
             className="max-w-40"
           />
-          <span className="text-sm text-muted-foreground">.zendesk.com</span>
+          <span className="text-sm text-on-surface-variant">.zendesk.com</span>
         </div>
       </div>
       <Button type="submit" size="sm">
@@ -95,7 +95,7 @@ export function ZendeskBackfillButton({
       <Button
         type="button"
         size="sm"
-        variant="outline"
+        variant="surface"
         onClick={handleClick}
         disabled={running}
       >
@@ -113,7 +113,7 @@ export function ZendeskBackfillButton({
       )}
 
       {result && (
-        <div className="w-full min-w-0 space-y-1 text-sm text-muted-foreground">
+        <div className="w-full min-w-0 space-y-1 text-sm text-on-surface-variant">
           <p className="wrap-break-word">
             {result.backfill.ticketsFetched} tickets ·{" "}
             {result.backfill.ticketAuditsFetched} ticket events ·{" "}

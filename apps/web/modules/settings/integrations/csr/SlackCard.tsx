@@ -62,7 +62,7 @@ export function SlackChannelPicker() {
   if (channels === null) {
     return (
       <div className="space-y-3">
-        <Button type="button" size="sm" variant="outline" onClick={loadChannels} disabled={loading}>
+        <Button type="button" size="sm" variant="surface" onClick={loadChannels} disabled={loading}>
           {loading && <Loader2 className="animate-spin" />}
           {loading ? "Loading channels…" : "Choose a channel"}
         </Button>
@@ -108,7 +108,7 @@ export function SlackChannelChangeButton() {
   const [changing, setChanging] = useState(false);
   if (changing) return <SlackChannelPicker />;
   return (
-    <Button type="button" size="sm" variant="outline" onClick={() => setChanging(true)}>
+    <Button type="button" size="sm" variant="surface" onClick={() => setChanging(true)}>
       Change channel
     </Button>
   );

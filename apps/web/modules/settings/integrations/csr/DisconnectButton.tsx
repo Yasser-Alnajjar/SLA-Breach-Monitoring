@@ -65,7 +65,7 @@ export function DisconnectButton({
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
+        <Button type="button" size="sm" variant="surface">
           Disconnect
         </Button>
       </AlertDialogTrigger>

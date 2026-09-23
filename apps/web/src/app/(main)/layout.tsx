@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Actions } from "@/actions";
 import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 import { UserMenu } from "@/components/layout/user-menu";
+import { Input } from "@/components/ui/input";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -78,11 +79,11 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           <div className="mx-auto hidden max-w-md flex-1 lg:block">
             <div className="relative flex items-center">
               <Search className="text-outline pointer-events-none absolute left-3 size-4" />
-              <input
+              <Input
                 disabled
                 readOnly
                 placeholder="Search coming soon…"
-                className="bg-surface-container-low border-border-subtle text-on-surface placeholder:text-outline w-full cursor-not-allowed rounded border py-1.5 pl-9 pr-3 text-sm"
+                className="bg-surface-container-low border-border-subtle text-on-surface placeholder:text-outline h-auto rounded py-1.5 pl-9 pr-3 text-sm md:text-sm"
               />
             </div>
           </div>

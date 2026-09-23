@@ -67,7 +67,7 @@ export function JiraBackfillButton({
       <Button
         type="button"
         size="sm"
-        variant="outline"
+        variant="surface"
         onClick={handleClick}
         disabled={running}
       >
@@ -81,7 +81,7 @@ export function JiraBackfillButton({
         </Alert>
       )}
       {result && (
-        <p className="text-sm text-muted-foreground wrap-break-word">
+        <p className="text-sm text-on-surface-variant wrap-break-word">
           {result.issuesFetched} issues · {result.changelogHistoriesFetched}{" "}
           changelog events · {result.remoteLinksFetched} remote links.
         </p>

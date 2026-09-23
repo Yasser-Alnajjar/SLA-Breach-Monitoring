@@ -5,6 +5,7 @@ import { caseCommitmentHref } from "@/lib/case-links";
 import { formatCommitmentKind, formatMinutes } from "@/lib/format";
 import type { AtRiskRow } from "@/lib/types/dashboard";
 import { CountdownClock } from "@/components/shared/countdown-clock";
+import { Button } from "@/components/ui/button";
 
 /**
  * The Stitch dashboard's "At Risk Right Now" panel: a fixed 8-column
@@ -113,12 +114,16 @@ export function AtRiskSnapshotTable({ rows }: { rows: AtRiskRow[] }) {
                 />
               </td>
               <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                <Link
-                  href={caseCommitmentHref(row.caseId, row.commitmentId)}
-                  className="bg-surface-container-high hover:bg-surface-active text-on-surface inline-block rounded px-2.5 py-1 text-xs font-medium transition-colors"
+                <Button
+                  asChild
+                  variant="surface"
+                  size="chip"
+                  className="rounded shadow-none"
                 >
-                  Open trace
-                </Link>
+                  <Link href={caseCommitmentHref(row.caseId, row.commitmentId)}>
+                    Open trace
+                  </Link>
+                </Button>
               </td>
             </tr>
           );

@@ -42,9 +42,9 @@ const PROVIDER_ICONS: Record<IntegrationDetailData["provider"], ReactNode> = {
 };
 
 const iconWrapper =
-  "flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground";
+  "flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary";
 
-const descriptionClass = "text-sm leading-6 text-muted-foreground";
+const descriptionClass = "text-sm text-on-surface-variant";
 
 function SectionCard({
   icon,
@@ -58,18 +58,18 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-muted/10 px-5 py-4">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm overflow-hidden">
+      <CardHeader className="p-6 pb-0">
         <div className="flex items-center gap-3">
           <span className={iconWrapper}>{icon}</span>
           <div>
-            <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">{title}</CardTitle>
+            <p className="mt-1 text-xs text-on-surface-variant">{description}</p>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="px-5 py-5">{children}</CardContent>
+      <CardContent className="p-6 pt-4">{children}</CardContent>
     </Card>
   );
 }
@@ -105,7 +105,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
     <div className="mx-auto max-w-6xl space-y-6">
       <Link
         href="/settings/integrations"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm text-on-surface-variant transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
         Integrations
@@ -121,7 +121,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
                 {INTEGRATION_PROVIDER_LABELS[provider]}
               </h1>
 
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-sm text-on-surface-variant">
                 Connected {Utils.formatDateTimeV2(connectedAt)}
               </p>
             </div>
@@ -174,7 +174,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
             </p>
 
             {lastSyncAt && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
+              <p className="text-xs leading-relaxed text-on-surface-variant">
                 Last sync attempt {Utils.formatDateTimeV2(lastSyncAt)}
                 {lastSyncError ? (
                   <span className="text-destructive"> — {lastSyncError}</span>
@@ -234,7 +234,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
                   ? "Download issues and their status history from Jira's changelog as CSVs."
                   : "Download tickets and their status changes from Zendesk's ticket audits as CSVs."}
               </p>
-              <Button variant="outline" size="sm" className="text-nowrap" asChild>
+              <Button variant="surface" size="sm" className="text-nowrap" asChild>
                 <Link href={CONCIERGE_PROVIDER_COPY[provider].exportHref}>
                   Open export
                   <ChevronRight className="size-3.5" />

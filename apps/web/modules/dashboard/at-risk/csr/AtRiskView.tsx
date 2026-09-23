@@ -252,19 +252,16 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
                 Severity
               </span>
               {SEVERITY_FILTERS.map((f) => (
-                <button
+                <Button
                   key={f.value}
                   type="button"
+                  variant="filter"
+                  size="chip"
+                  aria-pressed={severity === f.value}
                   onClick={() => setSeverity(f.value)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    severity === f.value
-                      ? "bg-interactive text-primary"
-                      : "text-muted-foreground hover:bg-interactive/60",
-                  )}
                 >
                   {f.label} ({severityCounts[f.value]})
-                </button>
+                </Button>
               ))}
 
               <span className="mx-1 hidden h-5 w-px bg-border md:block" />
@@ -273,19 +270,16 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
                 Locus
               </span>
               {LEG_FILTERS.map((f) => (
-                <button
+                <Button
                   key={f.value}
                   type="button"
+                  variant="filter"
+                  size="chip"
+                  aria-pressed={leg === f.value}
                   onClick={() => setLeg(f.value)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    leg === f.value
-                      ? "bg-interactive text-primary"
-                      : "text-muted-foreground hover:bg-interactive/60",
-                  )}
                 >
                   {f.label} ({legCounts[f.value]})
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -312,19 +306,16 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
               Status
             </span>
             {STATUS_FILTERS.map((f) => (
-              <button
+              <Button
                 key={f.value}
                 type="button"
+                variant="filter"
+                size="chip"
+                aria-pressed={status === f.value}
                 onClick={() => setStatus(f.value)}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                  status === f.value
-                    ? "bg-interactive text-primary"
-                    : "text-muted-foreground hover:bg-interactive/60",
-                )}
               >
                 {f.label} ({statusCounts[f.value]})
-              </button>
+              </Button>
             ))}
           </div>
         </div>

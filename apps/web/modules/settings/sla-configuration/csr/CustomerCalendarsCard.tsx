@@ -43,7 +43,7 @@ function CustomerRow({ customer, calendars }: { customer: CustomerCalendarSummar
   }
 
   return (
-    <div className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+    <div className="space-y-2 border-b border-outline-variant/30 pb-4 last:border-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-foreground">{customer.name}</p>
         {customer.tier && <Badge variant="outline">{customer.tier}</Badge>}
@@ -89,11 +89,11 @@ export function CustomerCalendarsCard({
   calendars: BusinessCalendarOption[];
 }) {
   if (customers.length === 0) {
-    return <p className="text-sm text-muted-foreground">No customers yet.</p>;
+    return <p className="text-sm text-on-surface-variant">No customers yet.</p>;
   }
   if (calendars.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-on-surface-variant">
         No business calendars available yet — import Zendesk business hours or SLA policies first.
       </p>
     );

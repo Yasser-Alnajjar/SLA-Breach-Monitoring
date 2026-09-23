@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsSectionHeader } from "@/components/settings/section-header";
 import {
   ChevronRight,
   GitBranch,
@@ -38,33 +39,11 @@ interface IntegrationsViewProps {
   data: IntegrationsPageData;
 }
 
-const descriptionClass = "text-sm leading-6 text-muted-foreground";
-const providerToneClasses = {
-  success: "bg-success/10 text-success",
-  primary: "bg-primary/10 text-primary",
-  warning: "bg-warning/10 text-warning",
-  destructive: "bg-destructive/10 text-destructive",
-  interactive: "bg-interactive/15 text-foreground",
-  muted: "bg-muted/60 text-muted-foreground",
-  accent: "bg-accent/60 text-accent-foreground",
-} as const;
-
-const providerToneBorders = {
-  success: "border-success/20",
-  primary: "border-primary/20",
-  warning: "border-warning/20",
-  destructive: "border-destructive/20",
-  interactive: "border-interactive/15",
-  muted: "border-border/60",
-  accent: "border-accent",
-} as const;
-
-type ProviderTone = keyof typeof providerToneClasses;
-
+const descriptionClass = "text-sm text-on-surface-variant";
 const statusToneClasses = {
   success: { dot: "bg-success", text: "text-success" },
   warning: { dot: "bg-warning", text: "text-warning" },
-  muted: { dot: "bg-muted-foreground/60", text: "text-muted-foreground" },
+  muted: { dot: "bg-muted-foreground/60", text: "text-on-surface-variant" },
 } as const;
 
 function StatusIndicator({
@@ -77,9 +56,22 @@ function StatusIndicator({
   const { dot, text } = statusToneClasses[tone];
 
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium">
-      <span className={cn("size-1.5 rounded-full", dot)} />
-      <span className={text}>{label}</span>
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded px-2 py-1",
+        tone === "success" ? "bg-success/10" : "bg-surface-container",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          dot,
+          tone === "success" && "animate-pulse",
+        )}
+      />
+      <span className={cn("font-mono text-xxs font-semibold", text)}>
+        {label}
+      </span>
     </span>
   );
 }
@@ -106,7 +98,7 @@ function formatDateTime(iso: string | Date): string {
 function IntegrationCard({
   delay,
   icon,
-  tone,
+  connected,
   title,
   badge,
   status,
@@ -114,7 +106,7 @@ function IntegrationCard({
 }: {
   delay: number;
   icon: React.ReactNode;
-  tone: ProviderTone;
+  connected: boolean;
   title: string;
   /** Optional label next to the title — e.g. `<Badge variant="beta">Beta</Badge>` for Intercom/Linear/GitHub (roadmap task 2.10). */
   badge?: React.ReactNode;
@@ -123,24 +115,22 @@ function IntegrationCard({
 }) {
   return (
     <Reveal delay={delay}>
-      <Card
-        className={cn(
-          "flex h-full flex-col gap-5 p-6 transition-shadow duration-300 hover:shadow-elevated border-e-8!",
-          providerToneBorders[tone],
+      <Card className="bg-surface-container-low relative flex h-full flex-col gap-4 overflow-hidden rounded-xl border-0 p-6 shadow-sm">
+        {connected && (
+          <div className="bg-tertiary absolute bottom-0 left-0 top-0 w-1" />
         )}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span
               className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                providerToneClasses[tone],
+                "bg-surface-container-highest flex size-10 shrink-0 items-center justify-center rounded",
+                connected ? "text-primary" : "text-outline",
               )}
             >
               {icon}
             </span>
 
-            <CardTitle className="truncate text-base font-medium">
+            <CardTitle className="text-on-surface truncate text-lg font-medium">
               {title}
             </CardTitle>
 
@@ -186,7 +176,7 @@ function ConnectedCardBody({
 
       <div className="mt-auto pt-6 flex items-center gap-2">
         <DisconnectButton provider={provider} providerLabel={providerLabel} />
-        <Button variant="outline" className="text-nowrap" size="sm" asChild>
+        <Button variant="surface" className="text-nowrap" size="sm" asChild>
           <Link href={`/settings/integrations/${provider}`}>
             Manage
             <ChevronRight className="size-3.5" />
@@ -202,7 +192,6 @@ interface IntegrationCardConfig {
   provider: ConfigurableIntegrationProvider;
   label: string;
   icon: React.ReactNode;
-  tone: ProviderTone;
   badge?: React.ReactNode;
   connected: boolean;
   status: React.ReactNode;
@@ -230,7 +219,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "zendesk",
       label: "Zendesk",
       icon: <Ticket className="size-4" />,
-      tone: "success",
       connected: zendesk.connected,
       status:
         zendeskConfig.configured &&
@@ -278,7 +266,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "jira",
       label: "Jira",
       icon: <GitBranch className="size-4" />,
-      tone: "primary",
       connected: jira.connected,
       status:
         jiraConfig.configured &&
@@ -326,7 +313,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "linear",
       label: "Linear",
       icon: <Workflow className="size-4" />,
-      tone: "accent",
       badge: <Badge variant="beta">Beta</Badge>,
       connected: linear.connected,
       status: linear.connected ? (
@@ -374,7 +360,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "intercom",
       label: "Intercom",
       icon: <LifeBuoy className="size-4" />,
-      tone: "primary",
       badge: <Badge variant="beta">Beta</Badge>,
       connected: intercom.connected,
       status:
@@ -424,7 +409,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "github",
       label: "GitHub",
       icon: <GitPullRequest className="size-4" />,
-      tone: "muted",
       badge: <Badge variant="beta">Beta</Badge>,
       connected: github.connected,
       status:
@@ -475,7 +459,6 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       provider: "slack",
       label: "Slack",
       icon: <MessageSquare className="size-4" />,
-      tone: "warning",
       connected: slack.connected,
       status: slackConfig.configured && slack.connected && (
         <StatusIndicator tone="success" label="Connected" />
@@ -540,20 +523,19 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     <div className="space-y-8">
       {/* Integrations */}
       <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold">Integrations</h2>
-          <p className="text-sm text-muted-foreground">
-            Connect your support, engineering, and alerting systems.
-          </p>
-        </div>
+        <SettingsSectionHeader
+          eyebrow="Data ingestion pipelines"
+          title="Ticket & Issue Integrations (Read-Only)"
+          description="Connect your support, engineering, and alerting systems."
+        />
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {sortedIntegrations.map((integration, index) => (
             <IntegrationCard
               key={integration.provider}
               delay={index * 0.05}
               icon={integration.icon}
-              tone={integration.tone}
+              connected={integration.connected}
               title={integration.label}
               badge={integration.badge}
               status={integration.status}

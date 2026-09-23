@@ -122,15 +122,15 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
   const anyPending = testConnection.pending || testSend.pending || saving;
 
   return (
-    <Card className="p-6">
+    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm p-6">
       <CardHeader className="flex flex-row items-center justify-between gap-3 p-0">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
             <Mail className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-base font-medium">Email notifications</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">Email notifications</CardTitle>
+            <p className="text-sm text-on-surface-variant">
               SMTP server used to email at-risk and breach alerts to everyone in this organization.
             </p>
           </div>
@@ -240,11 +240,11 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
           )}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button type="button" size="sm" variant="outline" onClick={handleTestConnection} disabled={anyPending}>
+            <Button type="button" size="sm" variant="surface" onClick={handleTestConnection} disabled={anyPending}>
               {testConnection.pending && <Loader2 className="animate-spin" />}
               {testConnection.pending ? "Testing…" : "Test Connection"}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={handleSendTest} disabled={anyPending}>
+            <Button type="button" size="sm" variant="surface" onClick={handleSendTest} disabled={anyPending}>
               {testSend.pending && <Loader2 className="animate-spin" />}
               {testSend.pending ? "Sending…" : "Send Test Email"}
             </Button>

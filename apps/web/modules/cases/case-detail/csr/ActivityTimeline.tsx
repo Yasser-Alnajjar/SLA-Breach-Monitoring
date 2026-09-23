@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { INTEGRATION_PROVIDER_LABELS } from "@/lib/types/integrations";
 import type { CaseDetailData, TimelineEventDetail } from "@/lib/types/cases";
+import { Button } from "@/components/ui/button";
 
 /* ─── Per-event pill labels (Stitch "State Transitions") ─────── */
 
@@ -220,7 +221,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
               State Transitions
             </h2>
           </div>
-          <span className="font-mono text-xxs text-outline">
+          <span className="font-mono text-xs leading-4 text-outline">
             {data.timeline.length} Event{data.timeline.length !== 1 ? "s" : ""}{" "}
             Recorded
           </span>
@@ -233,7 +234,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
           <ol
             ref={containerRef}
             onScroll={onScroll}
-            className="relative max-h-144 overflow-y-auto pl-6 flex flex-col gap-5 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-container-high"
+            className="relative max-h-144 overflow-y-auto pl-6 flex flex-col gap-5"
           >
             {data.timeline.map((event, index) => {
               const isLast = index === data.timeline.length - 1;
@@ -246,13 +247,20 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
                 event.type.replace(/_/g, " ").toUpperCase();
 
               return (
-                <li key={event.id} className="relative flex flex-col">
+                <li
+                  key={event.id}
+                  className={cn(
+                    "relative flex flex-col",
+                    !isLast &&
+                      "before:absolute before:-start-4.75 before:top-2.5 before:-bottom-5 before:w-0.5 before:bg-surface-container-high",
+                  )}
+                >
                   {/* Dot node */}
                   <div
                     className={cn(
-                      "absolute -start-0 top-1 size-3 rounded-full ring-4 ring-surface-container-low",
+                      "absolute -start-6 top-1 size-3 rounded-full ring-4 ring-surface-container-low",
                       dotClass,
-                      isLast && "animate-ping",
+                      isLast && "animate-pulse",
                     )}
                   />
 
@@ -263,7 +271,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
                     </span>
                     <span
                       className={cn(
-                        "rounded px-1.5 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider",
+                        "rounded px-1.5 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider",
                         pillClass,
                       )}
                     >
@@ -272,17 +280,17 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
                   </div>
 
                   {/* Event body */}
-                  <div className="mt-0.5">
+                  <div className="mt-0.5 text-sm leading-5">
                     <EventBody event={event} />
                   </div>
 
                   {/* Description */}
-                  <div className="mt-0.5">
+                  <div className="mt-0.5 text-xs leading-4">
                     <EventDescription event={event} />
                   </div>
 
                   {/* Actor + provider — small meta line */}
-                  <div className="mt-1 flex items-center gap-2 text-xxs text-outline">
+                  <div className="mt-1 flex items-center gap-2 text-xxs leading-3.5 text-outline">
                     <span>{formatActor(event.actor)}</span>
                     <span>·</span>
                     <span>{PROVIDER_LABELS[event.system] ?? event.system}</span>
@@ -296,7 +304,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
 
       <div className="mt-4 rounded-xl bg-surface-container-low p-6 shadow-sm flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <Bell className="size-5.5 text-error" />
             <h2 className="text-xl font-medium tracking-tight text-on-surface">
               Escalation Dispatch Log
@@ -307,11 +315,11 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
           </span>
         </div>
 
-        <div className="rounded-lg bg-surface-container p-2 flex items-start justify-between gap-2">
+        <div className="rounded-lg bg-surface-container p-3 flex items-start justify-between gap-2">
           <div className="flex items-start gap-2">
             <Bell className="size-4.5 text-outline mt-0.5" />
             <div className="flex flex-col">
-              <span className="font-mono text-sm text-on-surface">
+              <span className="text-sm font-medium text-on-surface">
                 No escalation dispatch records
               </span>
               <span className="text-xs leading-4.5 text-outline">
@@ -325,14 +333,16 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
           </span>
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="bare"
+          size="bare"
           disabled
-          className="w-full rounded py-2 px-4 bg-surface-container text-outline text-xs leading-4.5 font-medium flex items-center justify-center gap-1.5 opacity-60 cursor-not-allowed"
+          className="bg-surface-container text-outline w-full cursor-not-allowed gap-1.5 rounded px-4 py-2 text-xs leading-4.5 font-medium disabled:opacity-60"
         >
           <Bell className="size-4" />
           Re-trigger Escalation Ping to Eng On-Call
-        </button>
+        </Button>
       </div>
     </div>
   );

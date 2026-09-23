@@ -1,5 +1,7 @@
 "use client";
 
+import { SettingsSectionHeader } from "@/components/settings/section-header";
+import { ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { PendingInvitation } from "@/lib/types/invitations";
 import type { OrganizationMemberSummary } from "@/lib/types/members";
@@ -27,10 +29,20 @@ export function MembersView({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Members</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage who has access to this organization.
+      <SettingsSectionHeader
+        eyebrow="Access control"
+        title="Members & Roles"
+        description="Manage who has access to this organization."
+      />
+
+      <div className="bg-surface-container-low flex items-start gap-2 rounded-lg p-4">
+        <ShieldCheck className="text-primary mt-0.5 size-5 shrink-0" />
+        <p className="text-on-surface-variant text-xs">
+          Roles in Elapsed are strictly{" "}
+          <strong className="text-on-surface">Owner</strong> and{" "}
+          <strong className="text-on-surface">Member</strong>. Owners control
+          connections and configuration; Members have read-only access to all
+          dashboards, cases, and exports.
         </p>
       </div>
 

@@ -61,13 +61,13 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
   if (!editing && initialTargetMinutes !== null) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-on-surface-variant">
           Target: <span className="text-foreground">{formatMinutes(initialTargetMinutes)}</span>
         </p>
-        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+        <Button type="button" size="sm" variant="surface" onClick={() => setEditing(true)}>
           Change
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={handleClear} disabled={saving}>
+        <Button type="button" size="sm" variant="surface" onClick={handleClear} disabled={saving}>
           {saving && <Loader2 className="animate-spin" />}
           Clear
         </Button>
@@ -86,13 +86,13 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
         onChange={(e) => setHours(e.target.value)}
         className="w-24"
       />
-      <span className="text-sm text-muted-foreground">hours</span>
+      <span className="text-sm text-on-surface-variant">hours</span>
       <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
         {saving && <Loader2 className="animate-spin" />}
         {saving ? "Saving…" : "Set target"}
       </Button>
       {initialTargetMinutes !== null && (
-        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>
+        <Button type="button" size="sm" variant="surface" onClick={() => setEditing(false)}>
           Cancel
         </Button>
       )}

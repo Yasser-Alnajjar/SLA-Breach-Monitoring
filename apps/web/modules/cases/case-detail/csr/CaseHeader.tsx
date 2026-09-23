@@ -10,6 +10,7 @@ import { formatDateTime, formatLeg, formatTicketSource } from "@/lib/format";
 import type { CaseDetailData } from "@/lib/types/cases";
 
 import { CaseRunwayHero, pickHeroCommitment } from "./CaseRunwayHero";
+import { Button } from "@/components/ui/button";
 
 /**
  * Customer (account/company) and Requester (the individual who submitted
@@ -51,8 +52,10 @@ function CopyKeysButton({ reference }: { reference: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
-    <button
+    <Button
       type="button"
+      variant="bare"
+      size="compact"
       onClick={() => {
         navigator.clipboard
           .writeText(reference)
@@ -62,7 +65,7 @@ function CopyKeysButton({ reference }: { reference: string }) {
           })
           .catch(() => {});
       }}
-      className="flex items-center gap-1 rounded bg-surface-container-high px-3 py-1.5 font-mono text-xs text-on-surface transition-colors hover:bg-surface-container-highest"
+      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-mono text-xs font-normal"
     >
       {copied ? (
         <Check className="size-3.5 text-tertiary" />
@@ -70,7 +73,7 @@ function CopyKeysButton({ reference }: { reference: string }) {
         <Copy className="size-3.5 text-outline" />
       )}
       Copy Keys
-    </button>
+    </Button>
   );
 }
 
@@ -126,25 +129,23 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
 
           <CopyKeysButton reference={caseReference} />
 
-          <button
+          <Button
             type="button"
+            variant="tonal"
+            size="compact"
             onClick={() => router.refresh()}
-            className="flex items-center gap-1 rounded bg-primary-container px-3 py-1.5 text-sm font-medium text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
           >
             <RefreshCw className="size-4" />
             Recalculate Run
-          </button>
+          </Button>
 
           {c.ticketUrl && (
-            <a
-              href={c.ticketUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 rounded bg-primary-container px-3 py-1.5 text-sm font-medium text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
-            >
-              <ExternalLink className="size-3.5" />
-              Open in {formatTicketSource(c.system)}
-            </a>
+            <Button asChild variant="tonal" size="compact">
+              <a href={c.ticketUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" />
+                Open in {formatTicketSource(c.system)}
+              </a>
+            </Button>
           )}
         </div>
       </div>

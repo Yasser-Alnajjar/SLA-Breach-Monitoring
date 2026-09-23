@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsSectionHeader } from "@/components/settings/section-header";
 import { AlertCircle, Building2, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -64,25 +65,24 @@ export function OrganizationView({ data }: OrganizationViewProps) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">Organization</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage this organization's name and display timezone.
-        </p>
-      </div>
+      <SettingsSectionHeader
+        eyebrow="Workspace"
+        title="Organization"
+        description="Manage this organization's name and display timezone."
+      />
 
       <Reveal delay={0}>
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b bg-muted/10 px-5 py-4">
+        <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm overflow-hidden">
+          <CardHeader className="p-6 pb-0">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
                 <Building2 className="size-4" />
               </span>
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
                   Organization details
                 </CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-on-surface-variant">
                   {data.canEdit
                     ? "The timezone only groups days on the dashboard — it's never used in SLA calculations."
                     : "View only — ask an organization owner to change these."}
@@ -91,7 +91,7 @@ export function OrganizationView({ data }: OrganizationViewProps) {
             </div>
           </CardHeader>
 
-          <CardContent className="px-5 py-5">
+          <CardContent className="p-6 pt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="organization-name">Name</Label>

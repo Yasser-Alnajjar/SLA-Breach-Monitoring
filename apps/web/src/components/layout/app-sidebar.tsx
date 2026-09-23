@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -22,6 +22,7 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
@@ -38,7 +39,12 @@ import {
 import { BrandMark } from "../shared/brand-mark";
 import { isNavItemActive, NAV_ITEMS, type NavItem } from "./nav-items";
 
-export function AppSidebar() {
+export function AppSidebar({
+  autoSyncSeconds,
+}: {
+  /** The worker's active poll interval, for the footer's real sync cadence — never a fabricated version number. */
+  autoSyncSeconds?: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -86,6 +92,23 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="group-data-[collapsible=icon]:hidden">
+        <div className="text-outline flex flex-col gap-1.5 border-t border-border-subtle px-2 pt-3 font-mono text-[11px]">
+          <div className="flex items-center justify-between uppercase tracking-wider">
+            <span>Tracking engine</span>
+            {autoSyncSeconds !== undefined && (
+              <span className="text-tertiary font-semibold">
+                Auto-sync {autoSyncSeconds}s
+              </span>
+            )}
+          </div>
+          <div className="text-muted-foreground flex items-center gap-1">
+            <ShieldCheck className="text-tertiary size-3.5" />
+            <span>Zendesk ↔ Jira deterministic</span>
+          </div>
+        </div>
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

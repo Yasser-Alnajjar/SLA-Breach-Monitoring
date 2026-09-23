@@ -10,12 +10,22 @@ import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvid
  * the browser bundle.
  */
 export const Dashboard = async () => {
-  const data = await Actions.Dashboard.getData();
-  const worker = await Actions.WorkerSettings.getData();
+  const [data, worker, integrations] = await Promise.all([
+    Actions.Dashboard.getData(),
+    Actions.WorkerSettings.getData(),
+    Actions.Integrations.getData(),
+  ]);
 
   return (
     <>
-      <DashboardView data={data} />
+      <DashboardView
+        data={data}
+        autoSyncSeconds={Math.round(worker.activePollIntervalMs / 1000)}
+        sourceStatus={{
+          zendesk: integrations.zendesk.connected,
+          jira: integrations.jira.connected,
+        }}
+      />
       <SlaAutoRefreshProvider
         initInterval={worker.activePollIntervalMs - 2000}
       />

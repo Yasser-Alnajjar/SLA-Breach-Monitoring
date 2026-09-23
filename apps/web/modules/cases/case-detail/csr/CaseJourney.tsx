@@ -1,397 +1,415 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Layers } from "lucide-react";
 
-import { Reveal } from "@/components/shared/reveal";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime, formatLeg, formatMinutes } from "@/lib/format";
-import { LEG_BG_CLASS } from "@/lib/status-styles";
 import type { CaseDetailData } from "@/lib/types/cases";
 import { cn } from "@/lib/utils";
 
+/* ─── Stitch token mappings for each leg ─────────────────────── */
+
+const LEG_BAR_CLASS: Record<string, string> = {
+  support:          "bg-[var(--primary-container,#38bdf8)]",
+  engineering:      "bg-[var(--leg-engineering,#6366f1)]",
+  waiting_customer: "bg-[var(--leg-waiting,#f59e0b)]",
+  unknown:          "bg-[var(--leg-unknown,#6b7280)]",
+};
+
+const LEG_TEXT_CLASS: Record<string, string> = {
+  support:          "text-[var(--on-primary,#fff)]",
+  engineering:      "text-white",
+  waiting_customer: "text-[var(--warning-foreground,#fff)]",
+  unknown:          "text-white",
+};
+
+const LEG_PCT_CLASS: Record<string, string> = {
+  support:          "text-[var(--primary)]",
+  engineering:      "text-[var(--secondary-foreground)]",
+  waiting_customer: "text-[var(--outline)]",
+  unknown:          "text-[var(--tertiary)]",
+};
+
+const LEG_METRIC_CLASS: Record<string, string> = {
+  support:          "text-[var(--on-surface)]",
+  engineering:      "text-[var(--error)]",
+  waiting_customer: "text-[var(--on-surface-variant)]",
+  unknown:          "text-[var(--tertiary)]",
+};
+
+/** Fixed order — 4-metric grid always shows all 4 cells. */
+const LEG_ORDER = ["support", "engineering", "waiting_customer", "unknown"] as const;
+
+const LEG_HEADER_CLASS: Record<string, string> = {
+  support:          "text-[var(--outline)]",
+  engineering:      "text-[var(--secondary-foreground)]",
+  waiting_customer: "text-[var(--outline)]",
+  unknown:          "text-[var(--outline)]",
+};
+
+const LEG_DESCRIPTIONS: Record<(typeof LEG_ORDER)[number], string> = {
+  support:          "Triage, reproduction, and Jira sync dispatch.",
+  engineering:      "Currently in engineering queue backlog.",
+  waiting_customer: "No pending customer queries or blockers.",
+  unknown:          "Zero unmapped interval gaps across sync.",
+};
+
+/* ─── Geometry helpers ───────────────────────────────────────── */
+
 function formatLiveDuration(seconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-
-  const days = Math.floor(totalSeconds / 86_400);
-  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
-  const minutes = Math.floor((totalSeconds % 3_600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-
-  if (days > 0) {
-    return `${days}d ${hours}h ${minutes}m ${remainingSeconds}s`;
-  }
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${remainingSeconds}s`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-
-  return `${remainingSeconds}s`;
+  const s = Math.max(0, Math.floor(seconds));
+  const d = Math.floor(s / 86_400);
+  const h = Math.floor((s % 86_400) / 3_600);
+  const m = Math.floor((s % 3_600) / 60);
+  const r = s % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m ${r}s`;
+  if (h > 0) return `${h}h ${m}m ${r}s`;
+  if (m > 0) return `${m}m ${r}s`;
+  return `${r}s`;
 }
 
-function toMs(value: string | number | Date | null | undefined): number | null {
-  if (value == null) return null;
-
-  const ms = new Date(value).getTime();
-
+function toMs(v: string | number | Date | null | undefined): number | null {
+  if (v == null) return null;
+  const ms = new Date(v).getTime();
   return Number.isFinite(ms) ? ms : null;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
+
+function segmentGeometry(
+  start: number, end: number,
+  domainStart: number, domainSpan: number,
+  minW = 0.5,
+): { leftPct: number; widthPct: number } {
+  const left  = clamp(((start - domainStart) / domainSpan) * 100, 0, 100);
+  const right = clamp(((end   - domainStart) / domainSpan) * 100, 0, 100);
+  return { leftPct: left, widthPct: Math.min(100 - left, Math.max(minW, right - left)) };
 }
 
-function segmentStyle(
-  start: number,
-  end: number,
-  domainStart: number,
-  domainSpan: number,
-  minWidthPct = 0.5,
+function segStyle(
+  start: number, end: number,
+  ds: number, dspan: number,
 ): CSSProperties {
-  const left = clamp(((start - domainStart) / domainSpan) * 100, 0, 100);
-
-  const right = clamp(((end - domainStart) / domainSpan) * 100, 0, 100);
-
-  return {
-    left: `${left}%`,
-    width: `${Math.min(100 - left, Math.max(minWidthPct, right - left))}%`,
-  };
+  const { leftPct, widthPct } = segmentGeometry(start, end, ds, dspan);
+  return { left: `${leftPct}%`, width: `${widthPct}%` };
 }
 
 function useNow(enabled: boolean, fallback: number) {
   const [now, setNow] = useState<number | null>(null);
-
   useEffect(() => {
     if (!enabled) return;
-
     setNow(Date.now());
-
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(timer);
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
   }, [enabled]);
-
   return now ?? fallback;
 }
 
+/* ─── Component ──────────────────────────────────────────────── */
+
 export function CaseJourney({ data }: { data: CaseDetailData }) {
-  const isOpen = !data.case.closedAt;
-
-  const openedAt = toMs(data.case.openedAt) ?? 0;
-  const closedAt = toMs(data.case.closedAt);
+  const isOpen    = !data.case.closedAt;
+  const openedAt  = toMs(data.case.openedAt) ?? 0;
+  const closedAt  = toMs(data.case.closedAt);
   const snapshotAt = toMs(data.asOf) ?? openedAt;
+  const now       = useNow(isOpen, snapshotAt);
 
-  const now = useNow(isOpen, snapshotAt);
-
-  /*
-   * Normalize and sort the stage spans.
-   */
+  /* sorted leg segments */
   const legSegments = useMemo(
     () =>
       data.legSpans
         .flatMap((span) => {
           const start = toMs(span.startedAt);
-
           if (start === null) return [];
-
-          return [
-            {
-              span,
-              start,
-              end: toMs(span.endedAt),
-            },
-          ];
+          return [{ span, start, end: toMs(span.endedAt) }];
         })
         .sort((a, b) => a.start - b.start),
     [data.legSpans],
   );
 
-  /*
-   * Find the actual current stage.
-   *
-   * We use currentLeg from the API instead of assuming that
-   * the last array element is always the active stage.
-   */
+  /* index of the currently-active segment */
   const currentStageIndex = useMemo(() => {
     if (!isOpen) return -1;
-
-    for (let index = legSegments.length - 1; index >= 0; index--) {
-      if (legSegments[index]?.span.leg === data.currentLeg) {
-        return index;
-      }
+    for (let i = legSegments.length - 1; i >= 0; i--) {
+      if (legSegments[i]?.span.leg === data.currentLeg) return i;
     }
-
     return -1;
   }, [data.currentLeg, isOpen, legSegments]);
 
-  /*
-   * The timeline must cover:
-   * - openedAt
-   * - every stored segment
-   * - every SLA interval
-   * - now for an open case
-   */
-  const latestStoredEnd = useMemo(() => {
-    return Math.max(
-      openedAt,
+  /* timeline domain */
+  const latestStoredEnd = useMemo(
+    () =>
+      Math.max(
+        openedAt,
+        ...legSegments.map((s) => s.end ?? s.start),
+        ...data.runningIntervals.map((i) => toMs(i.end) ?? 0),
+        ...data.pausedIntervals.map((i) => toMs(i.end) ?? 0),
+      ),
+    [openedAt, legSegments, data.runningIntervals, data.pausedIntervals],
+  );
 
-      ...legSegments.map((segment) => segment.end ?? segment.start),
-
-      ...data.runningIntervals.map((interval) => toMs(interval.end) ?? 0),
-
-      ...data.pausedIntervals.map((interval) => toMs(interval.end) ?? 0),
-    );
-  }, [openedAt, legSegments, data.runningIntervals, data.pausedIntervals]);
-
-  const timelineEnd = isOpen
-    ? Math.max(now, latestStoredEnd)
-    : Math.max(closedAt ?? latestStoredEnd, latestStoredEnd);
-
+  const timelineEnd  = isOpen ? Math.max(now, latestStoredEnd) : Math.max(closedAt ?? latestStoredEnd, latestStoredEnd);
   const timelineSpan = Math.max(1, timelineEnd - openedAt);
 
-  /*
-   * Live per-leg totals.
-   *
-   * data.legTotals is computed server-side up to the snapshot (asOf), so
-   * the current stage's bucket is stale as soon as time passes. Extend
-   * just that bucket by the time elapsed since the snapshot.
-   */
+  /* live leg totals */
   const liveLegTotals = useMemo(() => {
     if (!isOpen || currentStageIndex < 0) return data.legTotals;
-
     const currentLegName = legSegments[currentStageIndex]?.span.leg;
-    const extraMinutes = Math.max(0, (now - snapshotAt) / 60_000);
-
-    return data.legTotals.map((total) =>
-      total.leg === currentLegName
-        ? { ...total, minutes: total.minutes + extraMinutes }
-        : total,
+    const extra = Math.max(0, (now - snapshotAt) / 60_000);
+    return data.legTotals.map((t) =>
+      t.leg === currentLegName ? { ...t, minutes: t.minutes + extra } : t,
     );
   }, [data.legTotals, isOpen, currentStageIndex, legSegments, now, snapshotAt]);
 
-  /*
-   * Live SLA elapsed time.
-   *
-   * If the current running interval is still open, extend it to now.
-   */
-  const liveSlaSeconds = useMemo(() => {
-    return data.runningIntervals.reduce((total, interval, index) => {
-      const start = toMs(interval.start);
+  const totalLegMinutes = liveLegTotals.reduce((s, t) => s + t.minutes, 0);
 
-      if (start === null) return total;
+  const minutesByLeg = useMemo(
+    () => new Map(liveLegTotals.map((t) => [t.leg, t.minutes])),
+    [liveLegTotals],
+  );
 
-      const storedEnd = toMs(interval.end);
+  /* live SLA elapsed */
+  const liveSlaSeconds = useMemo(
+    () =>
+      data.runningIntervals.reduce((total, interval, i) => {
+        const start     = toMs(interval.start);
+        if (start === null) return total;
+        const storedEnd = toMs(interval.end);
+        const isLast    = i === data.runningIntervals.length - 1;
+        const end       = isOpen && isLast ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+        if (end <= start) return total;
+        return total + (end - start) / 1000;
+      }, 0),
+    [data.runningIntervals, isOpen, now],
+  );
 
-      const isLastInterval = index === data.runningIntervals.length - 1;
+  /* first handoff timestamp */
+  const firstHandoffAt = legSegments.length > 1 ? legSegments[1]!.start : null;
 
-      const end =
-        isOpen && isLastInterval
-          ? Math.max(storedEnd ?? now, now)
-          : (storedEnd ?? start);
+  /* dominant leg for attribution finding */
+  const dominantLeg = useMemo(() => {
+    if (totalLegMinutes <= 0) return null;
+    return [...liveLegTotals].sort((a, b) => b.minutes - a.minutes)[0] ?? null;
+  }, [liveLegTotals, totalLegMinutes]);
 
-      if (end <= start) return total;
-
-      return total + (end - start) / 1000;
-    }, 0);
-  }, [data.runningIntervals, isOpen, now]);
+  if (legSegments.length === 0) {
+    return (
+      <div className="rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm">
+        <p className="text-sm text-[var(--on-surface-variant)]">No journey data yet.</p>
+      </div>
+    );
+  }
 
   return (
-    <Reveal delay={0.15}>
-      <Card>
-        <CardHeader className="flex-row items-center gap-2 space-y-0">
-          <Layers className="size-4 text-muted-foreground" />
+    <div className="flex w-full flex-col gap-4 rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm">
+      {/* Title row + legend */}
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">
+            Deterministic Time Split
+          </span>
+          <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--on-surface)]">
+            Segmented Case Journey &amp; Queue Attribution
+          </h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[var(--outline)]">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded bg-[var(--primary-container,#38bdf8)]" />
+            Support Leg
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded bg-[var(--leg-engineering,#6366f1)]" />
+            Engineering Leg
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded bg-[var(--surface-variant,#374151)]" />
+            Maintenance (Excluded)
+          </span>
+        </div>
+      </div>
 
-          <CardTitle className="text-base">Case journey</CardTitle>
-        </CardHeader>
+      {/* ── Flagship segmented bar ── */}
+      <div className="flex flex-col gap-2">
+        <div className="relative h-8 w-full overflow-hidden rounded-lg bg-[var(--surface-container)] p-1 flex gap-1">
+          {legSegments.map(({ span, start, end }, index) => {
+            const isCurrent  = isOpen && index === currentStageIndex;
+            const visualEnd  = isCurrent ? Math.max(end ?? now, now) : (end ?? start);
+            const { leftPct, widthPct } = segmentGeometry(start, visualEnd, openedAt, timelineSpan);
+            const segMinutes = Math.max(0, (visualEnd - start) / 60_000);
+            const showLabel  = widthPct >= 12;
 
-        <CardContent>
-          {legSegments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No journey data yet.
-            </p>
-          ) : (
-            <div className="space-y-5">
-              {/* Stage timeline */}
-              <div>
-                <div className="relative h-3 w-full overflow-hidden rounded-full bg-interactive">
-                  {legSegments.map(({ span, start, end }, index) => {
-                    /*
-                     * This is the important part:
-                     *
-                     * The active stage is determined by currentLeg,
-                     * not simply by array position.
-                     */
-                    const isCurrentStage =
-                      isOpen && index === currentStageIndex;
-
-                    /*
-                     * For the current stage, the backend's endedAt
-                     * is only the last snapshot. The stage is still
-                     * running, so visually extend it to now.
-                     */
-                    const visualEnd = isCurrentStage
-                      ? Math.max(end ?? now, now)
-                      : (end ?? start);
-
-                    return (
-                      <Tooltip key={`${span.leg}-${span.startedAt}-${index}`}>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={cn(
-                              "absolute inset-y-0 transition-[filter] hover:brightness-110",
-                              LEG_BG_CLASS[span.leg] ?? "bg-muted-foreground",
-                            )}
-                            style={segmentStyle(
-                              start,
-                              visualEnd,
-                              openedAt,
-                              timelineSpan,
-                            )}
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {`${formatLeg(span.leg)} · ${formatDateTime(
-                            span.startedAt,
-                          )} – ${
-                            isCurrentStage
-                              ? "Now"
-                              : end !== null
-                                ? formatDateTime(span.endedAt)
-                                : "Now"
-                          }`}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-                  {liveLegTotals.map((total) => (
-                    <div
-                      key={total.leg}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
-                    >
+            return (
+              <Tooltip key={`${span.leg}-${index}`}>
+                <TooltipTrigger asChild>
+                  <div
+                    className={cn(
+                      "absolute inset-y-1 flex items-center overflow-hidden whitespace-nowrap rounded px-2 transition-[filter] hover:brightness-110 cursor-pointer",
+                      LEG_BAR_CLASS[span.leg] ?? "bg-[var(--outline)]",
+                    )}
+                    style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                  >
+                    {showLabel && (
                       <span
                         className={cn(
-                          "size-2 rounded-full",
-                          LEG_BG_CLASS[total.leg] ?? "bg-muted-foreground",
+                          "font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold truncate",
+                          LEG_TEXT_CLASS[span.leg] ?? "text-white",
                         )}
-                      />
-
-                      <span>
-                        {formatLeg(total.leg)} ·{" "}
-                        <span className="tabular-nums text-foreground">
-                          {formatMinutes(total.minutes)}
-                        </span>
+                      >
+                        {formatLeg(span.leg)}{" "}
+                        {formatMinutes(segMinutes)}
+                        {totalLegMinutes > 0 &&
+                          ` (${((segMinutes / totalLegMinutes) * 100).toFixed(1)}%)`}
+                        {isCurrent && (
+                          <span className="ml-2 inline-flex items-center gap-1">
+                            <span className="size-1.5 animate-pulse rounded-full bg-white/80" />
+                            RUNNING NOW
+                          </span>
+                        )}
                       </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* SLA clock */}
-              <div className="border-t border-border pt-4">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">SLA clock</span>
-
-                    <span className="font-mono tabular-nums text-foreground">
-                      {formatLiveDuration(liveSlaSeconds)}
-                    </span>
+                    )}
                   </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {formatLeg(span.leg)} · {formatDateTime(span.startedAt)} –{" "}
+                  {isCurrent ? "Now" : end !== null ? formatDateTime(span.endedAt) : "Now"}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
 
-                  <div className="flex items-center gap-4 text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-clock-running" />
-                      Running
-                    </span>
-
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-clock-paused" />
-                      Paused
-                    </span>
-                  </div>
-                </div>
-
-                <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-interactive">
-                  {data.runningIntervals.map((interval, index) => {
-                    const start = toMs(interval.start);
-
-                    if (start === null) return null;
-
-                    const storedEnd = toMs(interval.end);
-
-                    const isLast = index === data.runningIntervals.length - 1;
-
-                    const visualEnd =
-                      isOpen && isLast
-                        ? Math.max(storedEnd ?? now, now)
-                        : (storedEnd ?? start);
-
-                    return (
-                      <div
-                        key={`running-${index}`}
-                        className="absolute inset-y-0 bg-clock-running"
-                        style={segmentStyle(
-                          start,
-                          visualEnd,
-                          openedAt,
-                          timelineSpan,
-                          0.4,
-                        )}
-                      />
-                    );
-                  })}
-
-                  {data.pausedIntervals.map((interval, index) => {
-                    const start = toMs(interval.start);
-                    const storedEnd = toMs(interval.end);
-
-                    if (start === null) return null;
-
-                    /*
-                     * The case is currently waiting_customer,
-                     * therefore the latest paused interval is
-                     * still active and must continue to now.
-                     */
-                    const isLast = index === data.pausedIntervals.length - 1;
-
-                    const isCurrentPause =
-                      isOpen &&
-                      isLast &&
-                      data.currentLeg === "waiting_customer";
-
-                    const visualEnd = isCurrentPause
-                      ? Math.max(storedEnd ?? now, now)
-                      : (storedEnd ?? start);
-
-                    return (
-                      <div
-                        key={`paused-${index}`}
-                        className="absolute inset-y-0 bg-clock-paused"
-                        style={segmentStyle(
-                          start,
-                          visualEnd,
-                          openedAt,
-                          timelineSpan,
-                          0.4,
-                        )}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+        {/* Axis captions */}
+        <div className="flex items-center justify-between px-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+          <span>{formatDateTime(data.case.openedAt)} · Clock Start</span>
+          {firstHandoffAt && (
+            <span className="text-[var(--primary)]">
+              {formatDateTime(new Date(firstHandoffAt).toISOString())} · Handoff
+            </span>
           )}
-        </CardContent>
-      </Card>
-    </Reveal>
+          <span className={cn(isOpen && !firstHandoffAt ? "text-[var(--error)] font-medium" : "")}>
+            {isOpen ? "Now" : formatDateTime(data.case.closedAt ?? data.asOf)}
+          </span>
+        </div>
+      </div>
+
+      {/* ── 4-metric grid ── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {LEG_ORDER.map((leg) => {
+          const minutes = minutesByLeg.get(leg) ?? 0;
+          const pct     = totalLegMinutes > 0 ? (minutes / totalLegMinutes) * 100 : 0;
+          const isCurr  = isOpen && leg === data.currentLeg;
+
+          return (
+            <div
+              key={leg}
+              className="flex flex-col rounded-lg bg-[var(--surface-container)] p-3"
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className={cn(
+                    "font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+                    LEG_HEADER_CLASS[leg],
+                  )}
+                >
+                  {formatLeg(leg)}
+                </span>
+                {isCurr && (
+                  <span className="size-2 animate-pulse rounded-full bg-[var(--error)]" />
+                )}
+              </div>
+              <span
+                className={cn(
+                  "mt-1 font-[family-name:var(--font-mono,monospace)] text-lg font-semibold tabular-nums",
+                  LEG_METRIC_CLASS[leg],
+                )}
+              >
+                {formatLiveDuration(minutes * 60)}
+              </span>
+              <span
+                className={cn(
+                  "font-[family-name:var(--font-mono,monospace)] text-[11px] mt-1",
+                  LEG_PCT_CLASS[leg],
+                )}
+              >
+                {pct.toFixed(1)}% of Net Elapsed
+              </span>
+              <span className="mt-1 text-[11px] text-[var(--outline)]">
+                {LEG_DESCRIPTIONS[leg]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Attribution finding ── */}
+      {dominantLeg && dominantLeg.minutes > 0 && (
+        <div className="flex items-start gap-3 rounded-lg bg-[var(--surface-container-high)] p-3 text-sm text-[var(--on-surface)]">
+          <span className="mt-0.5 text-[var(--primary)] text-base">ℹ</span>
+          <p>
+            <strong className="font-medium text-[var(--primary)]">Attribution Finding: </strong>
+            {((dominantLeg.minutes / totalLegMinutes) * 100).toFixed(1)}% of this case&apos;s
+            total elapsed SLA window has accrued while under{" "}
+            <strong className="text-[var(--on-surface)]">{formatLeg(dominantLeg.leg)}</strong>{" "}
+            care. SLA clock has been running for{" "}
+            <strong className="text-[var(--on-surface)]">
+              {formatLiveDuration(liveSlaSeconds)}
+            </strong>{" "}
+            net.
+          </p>
+        </div>
+      )}
+
+      {/* ── SLA clock bar ── */}
+      <div className="border-t border-[var(--border)] pt-4">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-[var(--on-surface)]">SLA clock</span>
+            <span className="font-[family-name:var(--font-mono,monospace)] tabular-nums text-[var(--on-surface)]">
+              {formatLiveDuration(liveSlaSeconds)}
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-[var(--outline)]">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[var(--clock-running)]" /> Running
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[var(--clock-paused)]" /> Paused
+            </span>
+          </div>
+        </div>
+
+        <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--surface-container)]">
+          {data.runningIntervals.map((interval, i) => {
+            const start     = toMs(interval.start);
+            if (start === null) return null;
+            const storedEnd = toMs(interval.end);
+            const isLast    = i === data.runningIntervals.length - 1;
+            const vEnd      = isOpen && isLast ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+            return (
+              <div
+                key={`r-${i}`}
+                className="absolute inset-y-0 bg-[var(--clock-running)]"
+                style={segStyle(start, vEnd, openedAt, timelineSpan)}
+              />
+            );
+          })}
+          {data.pausedIntervals.map((interval, i) => {
+            const start     = toMs(interval.start);
+            const storedEnd = toMs(interval.end);
+            if (start === null) return null;
+            const isLast    = i === data.pausedIntervals.length - 1;
+            const isCurrPause = isOpen && isLast && data.currentLeg === "waiting_customer";
+            const vEnd = isCurrPause ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+            return (
+              <div
+                key={`p-${i}`}
+                className="absolute inset-y-0 bg-[var(--clock-paused)]"
+                style={segStyle(start, vEnd, openedAt, timelineSpan)}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

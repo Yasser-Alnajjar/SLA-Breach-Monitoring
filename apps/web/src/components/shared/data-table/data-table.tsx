@@ -41,6 +41,12 @@ interface DataTableProps<TData, TValue> {
   dialogClassName?: string;
   className?: string;
   headerClassName?: string;
+  /** Applied to the scroll wrapper; defaults to forcing `text-xs` on every descendant. Pass `""` to let cells own their type scale. */
+  textClassName?: string;
+  /** Extra classes for every `<th>` / `<td>`. */
+  headCellClassName?: string;
+  cellClassName?: string;
+  rowClassName?: (row: TData, index: number) => string;
   globalFilter?: string;
   setGlobalFilter?: (value: string) => void;
   onDoubleClick?: (row: TData) => void;
@@ -54,6 +60,10 @@ export function DataTable<TData, TValue>({
   data,
   header,
   headerClassName,
+  textClassName = "**:text-xs",
+  headCellClassName,
+  cellClassName,
+  rowClassName,
   globalFilter,
   setGlobalFilter,
   rowSelection,
@@ -268,7 +278,7 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="overflow-x-auto **:text-xs">
+      <div className={cn("overflow-x-auto", textClassName)}>
         <Table className="table-auto w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -276,14 +286,13 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header, index) => (
                   <TableHead
                     key={header.id}
-                    className="relative cursor-move select-none whitespace-nowrap"
+                    className={cn("relative cursor-move select-none whitespace-nowrap", headCellClassName)}
                     draggable
                     onDragStart={(e) => handleDragStart(e, header.id)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, header.id)}
                     style={{
                       width: header.id === "actions" ? "1%" : colWidths[index],
-                      whiteSpace: "nowrap",
                     }}
                   >
                     {header.isPlaceholder
@@ -307,11 +316,15 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className={cn("hover:bg-muted/30")}>
+              table.getRowModel().rows.map((row, rowIndex) => (
+                <TableRow
+                  key={row.id}
+                  className={cn("hover:bg-muted/30", rowClassName?.(row.original, rowIndex))}
+                >
                   {row.getVisibleCells().map((cell, index) => (
                     <TableCell
                       key={cell.id}
+                      className={cellClassName}
                       style={{
                         width:
                           cell.column.id === "actions"

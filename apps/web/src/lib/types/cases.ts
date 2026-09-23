@@ -208,6 +208,54 @@ export interface CaseListRow {
   closedAt: string | null;
   /** Worst-precedence status across the case's commitments, or null if it has none. */
   worstCommitmentStatus: CommitmentStatus | null;
+  /** The case's current support-side assignee (`Case.assigneeName`), or null when unassigned. */
+  assigneeName: string | null;
+  /**
+   * The case's primary correlated record (e.g. the linked Jira issue), or
+   * null when nothing is currently linked. A Zendesk `CaseLink` never
+   * occurs — the case itself is the Zendesk side — so this is always the
+   * "other" system, mirroring `CaseDetailData.links[0]`.
+   */
+  primaryLink: {
+    system: "jira" | "linear" | "github";
+    externalId: string;
+    confidence: "certain" | "probable";
+    /** Jira's live status name (e.g. "In Progress"), stashed into evidence by the normalizer — see `CaseLinkDetail.statusName`. Null when unavailable. */
+    statusName: string | null;
+  } | null;
+  /**
+   * A live snapshot of this case's most urgent still-open commitment
+   * (lowest `remainingMinutes`, matching `worstCommitmentStatus`'s
+   * worst-first precedence), or null when the case has no open commitment
+   * right now (e.g. it's closed) — mirrors `AtRiskRowData`, scoped down to
+   * what the "SLA Target & Runway" and "Leg Allocation" columns need. Never
+   * computed for a closed case: its SLA outcome is already final in
+   * `worstCommitmentStatus`.
+   */
+  liveCommitment: {
+    kind: CommitmentKind;
+    status: CommitmentStatus;
+    targetMinutes: number;
+    remainingMinutes: number;
+    elapsedSeconds: number;
+    supportLegMinutes: number;
+    engineeringLegMinutes: number;
+  } | null;
+  /**
+   * The final outcome of the case's worst commitment when there is no live
+   * one (closed case / settled commitments): the latest persisted
+   * `Evaluation`'s elapsed vs. target, plus leg minutes derived from the
+   * case's events up to `closedAt` (or now). Null while `liveCommitment` is
+   * set, or when the case has no commitment / evaluation.
+   */
+  settledCommitment: {
+    kind: CommitmentKind;
+    status: CommitmentStatus;
+    targetMinutes: number;
+    elapsedSeconds: number;
+    supportLegMinutes: number;
+    engineeringLegMinutes: number;
+  } | null;
 }
 
 export interface CaseListData {

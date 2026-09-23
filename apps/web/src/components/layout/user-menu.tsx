@@ -73,6 +73,9 @@ export function UserMenu({ user }: { user: IUser }) {
 
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
+          <Link href="/">Home</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/settings/profile">Profile</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

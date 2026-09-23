@@ -5,6 +5,18 @@ import type {
   Leg,
 } from "@sla/core";
 
+/**
+ * A case's linked Jira/Linear issue as surfaced to a dashboard-scoped row —
+ * the same `CaseLink` concept case-detail already renders, narrowed to what
+ * a list row needs. Only ever built from an active (`unlinkedAt: null`) link.
+ */
+export interface LinkedIssueRef {
+  system: "jira" | "linear" | "github";
+  externalId: string;
+  confidence: "certain" | "probable";
+  method: "official_link" | "remote_link" | "pattern" | "manual";
+}
+
 export interface AtRiskRow {
   commitmentId: string;
   caseId: string;
@@ -19,6 +31,23 @@ export interface AtRiskRow {
   status: CommitmentStatus;
   currentLeg: Leg;
   minutesInCurrentLeg: number;
+  // The dashboard reconstruction's own fields below are optional: only
+  // `dashboard-data.ts`'s `getDashboardData` populates them today.
+  // `at-risk-data.ts`'s `getAtRiskData` (the separate /at-risk route) is out
+  // of scope for that reconstruction and doesn't set them — `undefined`
+  // there is accurate, not a stand-in for a real value.
+  /** The source ticket's priority (Zendesk/Intercom), or null when unset. */
+  priority?: string | null;
+  /** `Customer.tier`, falling back to `Case.tier` for a ticket with no linked customer. */
+  tier?: string | null;
+  /** This commitment's target minutes, from the matched `SLAPolicyVersion` — the "Resolution (4h Max)"-style ceiling. */
+  targetMinutes?: number;
+  /** Cumulative minutes this case has spent in the support leg, via `sumLegMinutes` — same primitive the worker uses. */
+  supportLegMinutes?: number;
+  /** Cumulative minutes this case has spent in the engineering leg, via `sumLegMinutes`. */
+  engineeringLegMinutes?: number;
+  /** This case's active Jira/Linear correlation, or null when none exists yet. */
+  linkedIssue?: LinkedIssueRef | null;
 }
 
 export interface AgingEscalationRow {
@@ -27,6 +56,38 @@ export interface AgingEscalationRow {
   customerName: string | null;
   minutesInCurrentLeg: number;
   legTarget: EngineeringLegEvaluation | null;
+  /** This case's active Jira/Linear correlation, or null when none exists yet. Only populated by `getDashboardData` — see the note on `AtRiskRow`. */
+  linkedIssue?: LinkedIssueRef | null;
+  /**
+   * Minutes between the case opening and this case's current engineering
+   * span starting — how long it waited before reaching engineering, distinct
+   * from `minutesInCurrentLeg` (how long it has been in that leg since).
+   * Only populated by `getDashboardData` — see the note on `AtRiskRow`.
+   */
+  queueWaitMinutes?: number;
+}
+
+/** The dashboard's "Total Escalated" KPI: cases whose leg history touches engineering at all within the reporting period, cross-referenced against link confidence. */
+export interface TotalEscalatedSummary {
+  /** Cases (open now, or closed within the period) whose derived leg spans include at least one engineering span. */
+  count: number;
+  /** Of `count`, how many have an active `certain`-confidence Jira/Linear link. */
+  linkedCertain: number;
+  /** `count - linkedCertain` — probable-confidence links and cases with no active link at all, grouped for the footer's two-way split. */
+  unlinkedOrOther: number;
+}
+
+/** The "30-Day Attribution Ledger" panel: period-scoped leg-hour totals and linking precision, computed over the same case set as `TotalEscalatedSummary`. */
+export interface AttributionLedger {
+  supportLegHours: number;
+  engineeringLegHours: number;
+  waitingCustomerLegHours: number;
+  /** `linkedCertain / totalTrackedCases`, or null when there are no tracked cases yet. */
+  linkingPrecisionPercent: number | null;
+  directMatches: number;
+  unlinkedOrStandalone: number;
+  /** Same instant as `DashboardData.asOf` — the ledger is only ever as fresh as the whole dashboard's snapshot. */
+  auditTimestamp: string;
 }
 
 export interface BreachedCaseRow {
@@ -70,21 +131,45 @@ export interface BreachesByStageRow {
   count: number;
 }
 
+/** One day's new-breach count, split by which leg owned the case at the moment it breached — `count` on `BreachesOverTimePoint` collapsed into two series. Support/waiting/unknown all fold into `supportCount`: the dashboard's chart distinguishes only "in engineering" vs. "not." */
+export interface BreachesOverTimeLegPoint {
+  date: string;
+  supportCount: number;
+  engineeringCount: number;
+}
+
+/** One day's trailing-7-day compliance rate among commitments closed in that window — null for a day with nothing closed in its trailing window, a real gap rather than a fabricated flat line. */
+export interface ComplianceTrendPoint {
+  date: string;
+  compliancePercent: number | null;
+}
+
 export interface ProjectAnalyticsData {
   compliance: SlaComplianceBreakdown;
   breachesOverTime: BreachesOverTimePoint[];
+  breachesOverTimeByLeg: BreachesOverTimeLegPoint[];
   breachesByStage: BreachesByStageRow[];
+  complianceTrend: ComplianceTrendPoint[];
 }
 
 export interface DashboardData {
   asOf: string;
+  organizationName: string | null;
   periodDays: number;
   atRisk: AtRiskRow[];
   atRiskOverflowCount: number;
   otherOpenCommitments: AtRiskRow[];
   breachedThisPeriod: BreachedCaseRow[];
+  /** Breached-and-closed count for the prior 30-day period, for the KPI tile's trend arrow — null only when the underlying query hasn't run (never fabricated as 0). */
+  breachedPreviousPeriodCount: number | null;
   agingInEngineering: AgingEscalationRow[];
   agingOverflowCount: number;
+  /** Of `agingInEngineering` (pre-slice), how many have exceeded the org's engineering-leg target — powers the operational anomaly banner. Null when no target is configured, since "exceeded" is meaningless without one. */
+  engineeringOverTargetCount: number | null;
+  /** Average of `queueWaitMinutes` across the full (pre-slice) aging list, or null when nothing is currently aging in engineering. */
+  avgQueueWaitMinutes: number | null;
+  totalEscalated: TotalEscalatedSummary;
+  attributionLedger: AttributionLedger;
   compliance: { current: number | null; previous: number | null };
   cycleTimeAnomalies: CycleTimeAnomalyRow[];
   analytics: ProjectAnalyticsData;

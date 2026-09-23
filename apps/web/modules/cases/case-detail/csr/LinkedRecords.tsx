@@ -2,132 +2,226 @@
 
 import { ExternalLink } from "lucide-react";
 
-import { Reveal } from "@/components/shared/reveal";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCaseLinkMethod, formatTicketSource } from "@/lib/format";
-import type { CaseDetailData } from "@/lib/types/cases";
+import {
+  formatCaseLinkMethod,
+  formatDateTime,
+  formatNormalizedState,
+  formatTicketSource,
+} from "@/lib/format";
+import type { CaseDetailData, CaseLinkDetail } from "@/lib/types/cases";
+
+function systemLabel(s: CaseLinkDetail["system"] | string): string {
+  switch (s) {
+    case "zendesk": return "Zendesk";
+    case "jira":    return "Jira Software";
+    case "linear":  return "Linear";
+    case "github":  return "GitHub";
+    default:        return s;
+  }
+}
 
 export function LinkedRecords({ data }: { data: CaseDetailData }) {
+  const primaryJira = data.links.find((l) => l.system === "jira") ?? null;
+  const extraLinks  = data.links.filter((l) => l !== primaryJira);
+
   return (
-    <Reveal delay={0.05}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Linked records</CardTitle>
-        </CardHeader>
+    <div className="flex flex-col gap-4 rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[var(--secondary-foreground)]">⬡</span>
+          <h2 className="text-xl font-semibold tracking-tight text-[var(--on-surface)]">
+            Deterministic Correlation &amp; Linked Records
+          </h2>
+        </div>
 
-        <CardContent className="max-h-128 overflow-y-auto">
-          <ul className="space-y-3">
-            {data.case.ticketUrl && (
-              <li>
-                <a
-                  href={data.case.ticketUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex items-center justify-between gap-3 rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-xs text-muted-foreground">
-                      {formatTicketSource(data.case.system)}
-                    </span>
-                    <span className="block truncate text-sm font-medium">
-                      #{data.case.externalId}
-                    </span>
-                  </span>
+        {primaryJira ? (
+          <span className="inline-flex items-center gap-1.5 rounded bg-[var(--tertiary-container)] px-2.5 py-1 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
+            <span className="size-1.5 rounded-full bg-on-tertiary-container" />
+            LINK {primaryJira.confidence.toUpperCase()}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded bg-[var(--surface-container-highest)] px-2.5 py-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+            UNLINKED
+          </span>
+        )}
+      </div>
 
-                  <ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-                </a>
-              </li>
+      {/* Side-by-side ZD ↔ Jira cards */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Zendesk card */}
+        <div className="flex flex-col gap-2 rounded-lg bg-[var(--surface-container)] p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+              Primary Customer Ticket
+            </span>
+            <span className="rounded bg-[var(--primary-container)]/20 px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--primary)]">
+              {formatTicketSource(data.case.system)}
+            </span>
+          </div>
+
+          {data.case.ticketUrl ? (
+            <a
+              href={data.case.ticketUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group inline-flex items-center gap-1 text-[var(--on-surface)] hover:text-[var(--primary)]"
+            >
+              <span className="font-[family-name:var(--font-mono,monospace)] text-base font-semibold">
+                #{data.case.externalId}
+              </span>
+              <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
+            </a>
+          ) : (
+            <span className="font-[family-name:var(--font-mono,monospace)] text-base font-semibold text-[var(--on-surface)]">
+              #{data.case.externalId}
+            </span>
+          )}
+
+          {data.case.openedAt && (
+            <span className="text-sm text-[var(--outline)]">
+              Created: {formatDateTime(data.case.openedAt)}
+            </span>
+          )}
+
+          <div className="mt-2 flex justify-between border-t border-[var(--surface-container-high)]/40 pt-2 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+            {data.case.priority && (
+              <span>Priority: {data.case.priority}</span>
+            )}
+            {data.case.status && (
+              <span className="text-[var(--on-surface)]">
+                Status: {formatNormalizedState(data.case.status)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Engineering / Jira card */}
+        {primaryJira ? (
+          <div className="flex flex-col gap-2 rounded-lg bg-[var(--surface-container)] p-4">
+            <div className="flex items-center justify-between">
+              <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+                Linked Engineering Issue
+              </span>
+              <span className="rounded bg-[var(--secondary)]/20 px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--secondary-foreground)]">
+                {systemLabel(primaryJira.system)}
+              </span>
+            </div>
+
+            {primaryJira.url ? (
+              <a
+                href={primaryJira.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group inline-flex items-center gap-1 text-[var(--on-surface)] hover:text-[var(--primary)]"
+              >
+                <span className="font-[family-name:var(--font-mono,monospace)] text-base font-semibold">
+                  {primaryJira.externalId}
+                </span>
+                <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
+              </a>
+            ) : (
+              <span className="font-[family-name:var(--font-mono,monospace)] text-base font-semibold text-[var(--on-surface)]">
+                {primaryJira.externalId}
+              </span>
             )}
 
-            {data.links.map((link, index) => {
-              const provider =
-                link.system === "jira"
-                  ? "Jira"
-                  : link.system === "linear"
-                    ? "Linear"
-                    : link.system === "github"
-                      ? "GitHub"
-                      : "Zendesk";
+            <span className="text-sm text-[var(--outline)]">
+              Method: {formatCaseLinkMethod(primaryJira.method)}
+            </span>
 
-              return (
-                <li key={`${link.system}-${link.externalId}-${index}`}>
-                  {link.url ? (
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group block rounded-md border border-border p-2.5 transition-colors hover:bg-muted/50"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="block text-xs text-muted-foreground">
-                            {provider}
-                          </span>
+            <div className="mt-2 flex justify-between border-t border-[var(--surface-container-high)]/40 pt-2 font-[family-name:var(--font-mono,monospace)] text-[11px]">
+              <span className="text-[var(--outline)]">
+                Confidence: {primaryJira.confidence}
+              </span>
+              {primaryJira.statusName && (
+                <span className="font-medium text-[var(--on-surface)]">
+                  Status: {primaryJira.statusName}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-container)] p-4 text-center">
+            <div>
+              <span className="block font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+                Engineering
+              </span>
+              <span className="mt-2 block text-sm text-[var(--on-surface-variant)]">
+                No linked issue
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
-                          <span className="block truncate text-sm font-medium">
-                            {link.externalId}
-                          </span>
-                        </div>
+      {/* Link method footer */}
+      {primaryJira && (
+        <div className="flex flex-col gap-1 rounded-lg bg-[var(--surface-container)] px-4 py-3 text-sm text-[var(--outline)]">
+          <div className="flex items-center justify-between">
+            <span className="font-[family-name:var(--font-mono,monospace)] text-xs text-[var(--on-surface)]">
+              Link Method: {formatCaseLinkMethod(primaryJira.method)}
+            </span>
+          </div>
+          <p className="font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline-variant)]">
+            {primaryJira.externalId} correlated to #{data.case.externalId} via{" "}
+            {formatCaseLinkMethod(primaryJira.method)}. Confidence:{" "}
+            <span className="text-[var(--on-surface)]">{primaryJira.confidence}</span>.
+          </p>
+        </div>
+      )}
 
-                        <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className="text-[10px]">
-                          {formatCaseLinkMethod(link.method)}
-                        </Badge>
-
-                        <Badge variant="outline" className="text-[10px]">
-                          {link.confidence}
-                        </Badge>
-
-                        {link.statusName && (
-                          <Badge variant="outline" className="text-[10px]">
-                            {link.statusName}
-                          </Badge>
-                        )}
-                      </div>
-                    </a>
-                  ) : (
-                    <div className="rounded-md border border-border p-2.5">
-                      <span className="block text-xs text-muted-foreground">
-                        {provider}
+      {/* Extra links */}
+      {extraLinks.length > 0 && (
+        <div>
+          <p className="mb-2 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+            Additional Links
+          </p>
+          <ul className="space-y-2">
+            {extraLinks.map((link, i) => (
+              <li
+                key={`${link.system}-${link.externalId}-${i}`}
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface-container)] p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="block font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+                      {systemLabel(link.system)}
+                    </span>
+                    <span className="block font-[family-name:var(--font-mono,monospace)] text-sm font-semibold text-[var(--on-surface)]">
+                      {link.externalId}
+                    </span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span className="rounded bg-[var(--surface-container-high)] px-1.5 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[10px] text-[var(--outline)]">
+                        {formatCaseLinkMethod(link.method)}
                       </span>
-
-                      <span className="block truncate text-sm font-medium">
-                        {link.externalId}
+                      <span className="rounded bg-[var(--surface-container-high)] px-1.5 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[10px] text-[var(--outline)]">
+                        {link.confidence}
                       </span>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className="text-[10px]">
-                          {formatCaseLinkMethod(link.method)}
-                        </Badge>
-
-                        <Badge variant="outline" className="text-[10px]">
-                          {link.confidence}
-                        </Badge>
-
-                        {link.statusName && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            {link.statusName}
-                          </Badge>
-                        )}
-                      </div>
+                      {link.statusName && (
+                        <span className="rounded bg-[var(--surface-container-high)] px-1.5 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[10px] text-[var(--outline)]">
+                          {link.statusName}
+                        </span>
+                      )}
                     </div>
+                  </div>
+                  {link.url && (
+                    <a href={link.url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="size-3.5 text-[var(--outline)] hover:text-[var(--on-surface)]" />
+                    </a>
                   )}
-                </li>
-              );
-            })}
-
-            {!data.case.ticketUrl && data.links.length === 0 && (
-              <li className="py-4 text-center text-sm text-muted-foreground">
-                No linked records.
+                </div>
               </li>
-            )}
+            ))}
           </ul>
-        </CardContent>
-      </Card>
-    </Reveal>
+        </div>
+      )}
+
+      {!primaryJira && data.links.length === 0 && !data.case.ticketUrl && (
+        <p className="py-4 text-center text-sm text-[var(--on-surface-variant)]">
+          No linked records.
+        </p>
+      )}
+    </div>
   );
 }

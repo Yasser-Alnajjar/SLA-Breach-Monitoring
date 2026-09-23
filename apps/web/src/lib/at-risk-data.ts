@@ -2,6 +2,7 @@ import type { PrismaClient } from "@sla/db";
 import {
   deriveLegSpans,
   evaluateCommitment,
+  sumLegMinutes,
   type BusinessCalendarVersion,
   type CommitmentKind,
   type Leg,
@@ -14,17 +15,33 @@ import {
 } from "@sla/core";
 import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 
-import type { AtRiskRow } from "@/lib/types/dashboard";
+import type { AtRiskLinkedIssue, AtRiskRowData } from "@/lib/types/at-risk";
 
 function minutesBetween(from: string, to: Date): number {
   return Math.round((to.getTime() - new Date(from).getTime()) / 60000);
+}
+
+const ISSUE_TRACKER_SYSTEMS = new Set(["jira", "linear", "github"]);
+
+/** Picks one active link to show per case — `certain` over `probable` when a case somehow carries both. Mirrors `dashboard-data.ts`'s `preferredLink`, kept local so this route's data shape stays decoupled from the dashboard reconstruction. */
+function preferredLink(
+  links: { system: string; externalId: string; confidence: string }[],
+): AtRiskLinkedIssue | null {
+  const trackerLinks = links.filter((l) => ISSUE_TRACKER_SYSTEMS.has(l.system));
+  if (trackerLinks.length === 0) return null;
+  const best = trackerLinks.find((l) => l.confidence === "certain") ?? trackerLinks[0]!;
+  return {
+    system: best.system as AtRiskLinkedIssue["system"],
+    externalId: best.externalId,
+    confidence: best.confidence as AtRiskLinkedIssue["confidence"],
+  };
 }
 
 export async function getAtRiskData(
   prisma: PrismaClient,
   organizationId: string,
   asOfDate: Date = new Date(),
-): Promise<AtRiskRow[]> {
+): Promise<AtRiskRowData[]> {
   const asOf = asOfDate.toISOString();
 
   const openCommitmentRows = await prisma.commitment.findMany({
@@ -64,8 +81,8 @@ export async function getAtRiskData(
     ...new Set(openCommitmentRows.map((commitment) => commitment.caseId)),
   ];
 
-  const [policyVersionRows, calendarVersionRows, eventRows] = await Promise.all(
-    [
+  const [policyVersionRows, calendarVersionRows, eventRows, caseLinkRows] =
+    await Promise.all([
       prisma.sLAPolicyVersion.findMany({
         where: {
           id: {
@@ -89,8 +106,32 @@ export async function getAtRiskData(
           },
         },
       }),
-    ],
-  );
+
+      // Same "active relationship" filter as case-detail-data.ts's `links` —
+      // powers the dual Zendesk⇄Jira id pairing and "Linked: Certain (n/n)"
+      // pill, neither of which existed on this row before this reconstruction.
+      prisma.caseLink.findMany({
+        where: { caseId: { in: caseIds }, unlinkedAt: null },
+      }),
+    ]);
+
+  const linksByCaseId = new Map<
+    string,
+    { system: string; externalId: string; confidence: string }[]
+  >();
+
+  for (const link of caseLinkRows) {
+    const existing = linksByCaseId.get(link.caseId);
+
+    if (existing) {
+      existing.push(link);
+    } else {
+      linksByCaseId.set(link.caseId, [link]);
+    }
+  }
+
+  const linkedIssueFor = (caseId: string): AtRiskLinkedIssue | null =>
+    preferredLink(linksByCaseId.get(caseId) ?? []);
 
   const policyVersionsById = new Map<string, SLAPolicyVersion>(
     policyVersionRows.map((row) => [
@@ -158,7 +199,7 @@ export async function getAtRiskData(
     return spans;
   };
 
-  const rows: AtRiskRow[] = [];
+  const rows: AtRiskRowData[] = [];
 
   for (const row of openCommitmentRows) {
     const policyVersion = policyVersionsById.get(row.policyVersionId);
@@ -197,6 +238,9 @@ export async function getAtRiskData(
       ? minutesBetween(currentSpan.startedAt, asOfDate)
       : 0;
 
+    const targetMinutes =
+      policyVersion.targets.find((t) => t.kind === row.kind)?.minutes ?? 0;
+
     rows.push({
       commitmentId: row.id,
       caseId: row.caseId,
@@ -209,6 +253,14 @@ export async function getAtRiskData(
       status: evaluation.status,
       currentLeg,
       minutesInCurrentLeg,
+      priority: row.case.priority ?? null,
+      tier: row.case.customer?.tier ?? row.case.tier ?? null,
+      targetMinutes,
+      elapsedSeconds: evaluation.elapsedSeconds,
+      supportLegMinutes: sumLegMinutes(spans, "support", asOf),
+      engineeringLegMinutes: sumLegMinutes(spans, "engineering", asOf),
+      supportAssigneeName: row.case.assigneeName ?? null,
+      linkedIssue: linkedIssueFor(row.caseId),
     });
   }
 

@@ -155,6 +155,11 @@ function fakePrisma(cases: Seeded[]): PrismaClient {
       findMany: async ({ where }: { where: { caseId: { in: string[] } } }) =>
         events.filter((e) => where.caseId.in.includes(e.caseId)),
     },
+    caseLink: {
+      // Dashboard reconstruction (Total Escalated / Attribution Ledger):
+      // no case-link fixtures in these tests, so every case is unlinked.
+      findMany: async () => [],
+    },
   } as unknown as PrismaClient;
 }
 

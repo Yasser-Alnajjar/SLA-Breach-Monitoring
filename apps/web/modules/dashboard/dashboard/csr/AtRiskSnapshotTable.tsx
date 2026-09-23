@@ -1,0 +1,129 @@
+import { ArrowRightLeft } from "lucide-react";
+import Link from "next/link";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { caseCommitmentHref } from "@/lib/case-links";
+import { formatCommitmentKind, formatMinutes } from "@/lib/format";
+import type { AtRiskRow } from "@/lib/types/dashboard";
+import { CountdownClock } from "@/components/shared/countdown-clock";
+
+/**
+ * The Stitch dashboard's "At Risk Right Now" panel: a fixed 8-column
+ * operational snapshot, not a generic sortable/paginated/searchable table —
+ * this component deliberately has no such chrome. Composite cells (dual-ID
+ * correlation, leg-allocation bar) instead of one scalar value per cell.
+ */
+export function AtRiskSnapshotTable({ rows }: { rows: AtRiskRow[] }) {
+  return (
+    <table className="w-full text-left border-collapse">
+      <thead>
+        <tr className="bg-surface-container-lowest/80 text-outline border-b border-surface-container-highest/60 font-mono text-[11px] font-semibold uppercase tracking-wider">
+          <th className="py-3 px-4">Priority</th>
+          <th className="py-3 px-4">Ticket correlation</th>
+          <th className="py-3 px-4">Customer</th>
+          <th className="py-3 px-4">SLA target</th>
+          <th className="py-3 px-4">Health status</th>
+          <th className="py-3 px-4">Leg time allocation</th>
+          <th className="py-3 px-4 text-right">Time remaining</th>
+          <th className="py-3 px-4 text-right">Inspect</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-surface-container-highest/40 text-sm">
+        {rows.map((row) => {
+          const supportMinutes = row.supportLegMinutes ?? 0;
+          const engineeringMinutes = row.engineeringLegMinutes ?? 0;
+          const legTotal = supportMinutes + engineeringMinutes;
+          const supportPercent = legTotal > 0 ? (supportMinutes / legTotal) * 100 : 100;
+          const overdue = row.remainingMinutes < 0;
+
+          return (
+            <tr
+              key={row.commitmentId}
+              className="hover:bg-surface-container transition-colors"
+            >
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <span className="bg-surface-container-highest text-on-surface-variant rounded px-2 py-0.5 font-mono text-xs font-semibold uppercase">
+                  {row.priority ?? "—"}
+                </span>
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <span className="text-on-surface font-semibold">
+                    #{row.externalId}
+                  </span>
+                  {row.linkedIssue ? (
+                    <>
+                      <ArrowRightLeft className="text-outline size-3" />
+                      <span className="text-primary">
+                        {row.linkedIssue.externalId}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-outline">standalone</span>
+                  )}
+                </div>
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <div className="flex flex-col">
+                  <span className="text-on-surface font-medium">
+                    {row.customerName ?? row.requesterName ?? "—"}
+                  </span>
+                  {row.tier && (
+                    <span className="text-outline font-mono text-[11px]">
+                      {row.tier}
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <span className="text-on-surface-variant font-mono text-xs">
+                  {formatCommitmentKind(row.kind)}
+                  {row.targetMinutes ? ` (${formatMinutes(row.targetMinutes)} max)` : ""}
+                </span>
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <StatusBadge status={row.status} />
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 font-mono text-xs">
+                    <span className="text-primary">
+                      Support {formatMinutes(supportMinutes)}
+                    </span>
+                    <span className="text-outline-variant">•</span>
+                    <span className="text-error font-medium">
+                      Eng {formatMinutes(engineeringMinutes)}
+                    </span>
+                  </div>
+                  <div className="bg-surface-container-highest flex h-1.5 w-32 overflow-hidden rounded-full">
+                    <div
+                      className="bg-primary h-full"
+                      style={{ width: `${supportPercent}%` }}
+                    />
+                    <div
+                      className="bg-error h-full"
+                      style={{ width: `${100 - supportPercent}%` }}
+                    />
+                  </div>
+                </div>
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                <CountdownClock
+                  remainingMinutes={row.remainingMinutes}
+                  className={`text-sm font-semibold ${overdue ? "text-error" : "text-on-surface"}`}
+                />
+              </td>
+              <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                <Link
+                  href={caseCommitmentHref(row.caseId, row.commitmentId)}
+                  className="bg-surface-container-high hover:bg-surface-active text-on-surface inline-block rounded px-2.5 py-1 text-xs font-medium transition-colors"
+                >
+                  Open trace
+                </Link>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}

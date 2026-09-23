@@ -5,30 +5,126 @@
 @source "../**/*.{ts,tsx}";
 
 @theme {
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  /* ─────────────────────────────────────────────
+   * Fonts
+   * ───────────────────────────────────────────── */
+
+  --font-sans:
+    var(--font-hanken-grotesk), -apple-system, BlinkMacSystemFont, sans-serif;
+
   --font-display: var(--font-fraunces), Georgia, serif;
 
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Stitch "Elapsed" spacing + type scale (font-X / text-X pairs) ── */
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-gutter: 1rem;
+  --spacing-gutter-desktop: 1.5rem;
+  --spacing-margin: 1rem;
+  --spacing-margin-desktop: 2rem;
+
+  --font-display-hero: var(--font-hanken-grotesk), sans-serif;
+  --font-headline-sm: var(--font-hanken-grotesk), sans-serif;
+  --font-body-md: var(--font-inter), var(--font-hanken-grotesk), sans-serif;
+  --font-body-sm: var(--font-inter), var(--font-hanken-grotesk), sans-serif;
+  --font-mono-metric-lg: var(--font-mono);
+  --font-mono-metric-md: var(--font-mono);
+  --font-label-caps: var(--font-mono);
+  --font-code-audit: var(--font-mono);
+
+  --text-display-hero: 40px;
+  --text-display-hero--line-height: 48px;
+  --text-display-hero--letter-spacing: -0.02em;
+  --text-display-hero--font-weight: 600;
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 26px;
+  --text-headline-sm--font-weight: 500;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 18px;
+  --text-mono-metric-lg: 24px;
+  --text-mono-metric-lg--line-height: 28px;
+  --text-mono-metric-lg--letter-spacing: -0.02em;
+  --text-mono-metric-lg--font-weight: 500;
+  --text-mono-metric-md: 14px;
+  --text-mono-metric-md--line-height: 18px;
+  --text-mono-metric-md--letter-spacing: -0.01em;
+  --text-mono-metric-md--font-weight: 500;
+  --text-label-caps: 11px;
+  --text-label-caps--line-height: 14px;
+  --text-label-caps--letter-spacing: 0.08em;
+  --text-label-caps--font-weight: 600;
+  --text-code-audit: 12px;
+  --text-code-audit--line-height: 16px;
+
+  /* ─────────────────────────────────────────────
+   * Base
+   * ───────────────────────────────────────────── */
+
+  --color-brand: var(--brand);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-subtle: var(--foreground-subtle);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ─────────────────────────────────────────────
+   * Text
+   * ───────────────────────────────────────────── */
+
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+
+  /* ─────────────────────────────────────────────
+   * Primary
+   * ───────────────────────────────────────────── */
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+
+  --color-primary-container: var(--primary-container);
+  --color-primary-fixed: var(--primary-fixed);
+  --color-primary-fixed-dim: var(--primary-fixed-dim);
+
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-on-primary-fixed: var(--on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--on-primary-fixed-variant);
+
+  /* ─────────────────────────────────────────────
+   * Secondary
+   * ───────────────────────────────────────────── */
 
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
 
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
+  --color-secondary-container: var(--secondary-container);
+  --color-secondary-fixed: var(--secondary-fixed);
+  --color-secondary-fixed-dim: var(--secondary-fixed-dim);
 
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
+  --color-on-secondary: var(--on-secondary);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-on-secondary-fixed: var(--on-secondary-fixed);
+  --color-on-secondary-fixed-variant: var(--on-secondary-fixed-variant);
 
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
+  /* ─────────────────────────────────────────────
+   * Muted / Accent
+   * ───────────────────────────────────────────── */
 
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
@@ -36,40 +132,156 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
 
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
+  /* ─────────────────────────────────────────────
+   * Destructive / Error
+   * ───────────────────────────────────────────── */
 
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-error: var(--error);
+  --color-error-container: var(--error-container);
+  --color-error-foreground: var(--error-foreground);
 
-  /* Sidebar */
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  /* SLA */
+  --color-on-error: var(--on-error);
+  --color-on-error-container: var(--on-error-container);
+
+  /* ─────────────────────────────────────────────
+   * Status
+   * ───────────────────────────────────────────── */
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-status-danger: var(--status-danger);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+
+  /* ─────────────────────────────────────────────
+   * Surfaces
+   * ───────────────────────────────────────────── */
+
   --color-elevated: var(--elevated);
   --color-interactive: var(--interactive);
+
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-variant: var(--surface-variant);
+
+  /* ─────────────────────────────────────────────
+   * Surface Container Ladder
+   * ───────────────────────────────────────────── */
+
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+
+  /* ─────────────────────────────────────────────
+   * On-Surface / Foreground
+   * ───────────────────────────────────────────── */
+
+  --color-on-background: var(--on-background);
+
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+
+  --color-inverse-on-surface: var(--inverse-on-surface);
+  --color-inverse-primary: var(--inverse-primary);
+  --color-inverse-surface: var(--inverse-surface);
+
+  /* ─────────────────────────────────────────────
+   * Outline
+   * ───────────────────────────────────────────── */
+
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  /* ─────────────────────────────────────────────
+   * Tertiary
+   * ───────────────────────────────────────────── */
+
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-tertiary-foreground: var(--tertiary-foreground);
+
+  --color-tertiary-fixed: var(--tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--tertiary-fixed-dim);
+
+  --color-on-tertiary: var(--on-tertiary);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+  --color-on-tertiary-fixed: var(--on-tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--on-tertiary-fixed-variant);
+
+  /* ─────────────────────────────────────────────
+   * Sidebar
+   * ───────────────────────────────────────────── */
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ─────────────────────────────────────────────
+   * SLA
+   * ───────────────────────────────────────────── */
+
   --color-leg-support: var(--leg-support);
   --color-leg-engineering: var(--leg-engineering);
   --color-leg-waiting: var(--leg-waiting);
   --color-leg-unknown: var(--leg-unknown);
+
   --color-clock-running: var(--clock-running);
   --color-clock-paused: var(--clock-paused);
+
+  /* ─────────────────────────────────────────────
+   * Charts
+   * ───────────────────────────────────────────── */
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* ─────────────────────────────────────────────
+   * Radius
+   * ───────────────────────────────────────────── */
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) + 2px);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+
+  /* ─────────────────────────────────────────────
+   * Shadows
+   * ───────────────────────────────────────────── */
+
   --shadow-soft: var(--shadow-soft-value);
   --shadow-panel: var(--shadow-panel-value);
   --shadow-elevated: var(--shadow-elevated-value);
   --shadow-glow: var(--shadow-glow-value);
 }
+
 @theme {
   --animate-collapsible-down: collapsible-down 200ms ease-out;
   --animate-collapsible-up: collapsible-up 200ms ease-out;
@@ -109,7 +321,6 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-feature-settings: "cv11", "ss01";
   }
 
   ::selection {

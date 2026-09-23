@@ -1,22 +1,19 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, Link2, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Reveal } from "@/components/shared/reveal";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDateTime, formatLeg, formatNormalizedState, formatTicketSource } from "@/lib/format";
-import { NORMALIZED_STATE_VARIANT } from "@/lib/status-styles";
-import { Priority, PRIORITY_VARIANT } from "@/lib/status-styles";
+import { cn } from "@/lib/utils";
+import { formatDateTime, formatLeg, formatTicketSource } from "@/lib/format";
 import type { CaseDetailData } from "@/lib/types/cases";
+
+import { CaseRunwayHero, pickHeroCommitment } from "./CaseRunwayHero";
 
 /**
  * Customer (account/company) and Requester (the individual who submitted
- * the ticket) are distinct concepts and must never be merged: a requester is
- * never shown as if it were the customer. When there's no customer, the
- * requester is labeled explicitly rather than filling the customer's slot
- * unlabeled — that would read as "this is the customer."
+ * the ticket) are distinct concepts and must never be merged.
  */
 export function formatCaseIdentity(
   customerName: string | null,
@@ -29,76 +26,213 @@ export function formatCaseIdentity(
   return "—";
 }
 
-export function CaseHeader({ data }: { data: CaseDetailData }) {
-  const { case: caseData, currentLeg } = data;
-  const identity = formatCaseIdentity(
-    caseData.customerName,
-    caseData.requesterName,
-  );
+/** Priority label → Stitch badge styling */
+const PRIORITY_CHIP: Record<string, { label: string; className: string }> = {
+  urgent: {
+    label: "P1 — CRITICAL",
+    className: "bg-[var(--error-container)] text-[var(--error-foreground)]",
+  },
+  high: {
+    label: "P2 — HIGH",
+    className: "bg-[var(--error-container)] text-[var(--error-foreground)]",
+  },
+  normal: {
+    label: "P3 — NORMAL",
+    className: "bg-surface-container-highest text-[var(--on-surface-variant)]",
+  },
+  low: {
+    label: "P4 — LOW",
+    className: "bg-surface-container-highest text-[var(--on-surface-variant)]",
+  },
+};
+
+/** Copyable dual-key chip — "#ZD-8921" or "#ZD-8921 ↔ ENG-4102" */
+function CopyKeysButton({ reference }: { reference: string }) {
+  const [copied, setCopied] = useState(false);
 
   return (
-    <Reveal delay={0.05} className="mt-5">
-      <div className="flex flex-col gap-5 border-b border-border pb-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <h1 className="min-w-0 max-w-3xl font-display text-2xl font-medium tracking-tight">
-                  {caseData.subject ?? `${identity} · #${caseData.externalId}`}
-                </h1>
-              </TooltipTrigger>
-              <TooltipContent>
-                {caseData.subject ?? `#${caseData.externalId}`}
-              </TooltipContent>
-            </Tooltip>
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard
+          .writeText(reference)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          })
+          .catch(() => {});
+      }}
+      className="flex items-center gap-1 rounded bg-surface-container-high px-3 py-1.5 font-mono text-xs text-on-surface transition-colors hover:bg-surface-container-highest"
+    >
+      {copied ? (
+        <Check className="size-3.5 text-tertiary" />
+      ) : (
+        <Copy className="size-3.5 text-outline" />
+      )}
+      Copy Keys
+    </button>
+  );
+}
 
-            <Badge variant="outline" className="shrink-0">
-              {formatLeg(currentLeg)}
-            </Badge>
-          </div>
+export function CaseHeader({ data }: { data: CaseDetailData }) {
+  const { case: c, currentLeg } = data;
+  const router = useRouter();
 
-          {caseData.subject && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {identity} · #{caseData.externalId}
-            </p>
+  const primaryLink = data.links[0] ?? null;
+  const zdKey = `ZD-${c.externalId}`;
+  const engKey = primaryLink?.externalId ?? null;
+  const caseReference = engKey ? `${zdKey} / ${engKey}` : zdKey;
+
+  const heroCommitment = pickHeroCommitment(data.commitments);
+
+  const priorityChip = c.priority ? PRIORITY_CHIP[c.priority] : null;
+  const identity = formatCaseIdentity(c.customerName, c.requesterName);
+
+  return (
+    <Reveal delay={0.05}>
+      {/* Sub-header breadcrumb bar */}
+      <div className="w-full flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest px-6 py-2 rounded-xl">
+        <div className="flex items-center gap-1 font-mono text-sm leading-[18px]">
+          <span className="text-outline">Cases</span>
+          <span className="text-outline-variant">/</span>
+          {(c.customerName ?? c.requesterName) && (
+            <>
+              <span className="text-outline">
+                {c.customerName ?? c.requesterName}
+              </span>
+              <span className="text-outline-variant">/</span>
+            </>
           )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {caseData.status && (
-              <Badge variant={NORMALIZED_STATE_VARIANT[caseData.status] ?? "default"}>
-                {formatNormalizedState(caseData.status)}
-              </Badge>
+          <span className="font-medium text-primary">
+            {zdKey}
+            {engKey && (
+              <>
+                {" ↔ "}
+                <span className="text-secondary-foreground">{engKey}</span>
+              </>
             )}
-
-            {caseData.priority && (
-              <Badge variant={PRIORITY_VARIANT[caseData.priority as Priority]}>
-                {caseData.priority}
-              </Badge>
-            )}
-
-            {caseData.tier && <Badge variant="default">{caseData.tier}</Badge>}
-
-            {caseData.channel && (
-              <Badge variant="default">{caseData.channel}</Badge>
-            )}
-          </div>
-
-          <p className="mt-3 text-xs text-muted-foreground">
-            Opened {formatDateTime(caseData.openedAt)}
-            {caseData.closedAt
-              ? ` · Resolved ${formatDateTime(caseData.closedAt)}`
-              : ` · Currently in ${formatLeg(currentLeg)}`}
-            {caseData.assigneeName && ` · Assigned to ${caseData.assigneeName}`}
-          </p>
+          </span>
         </div>
 
-        {caseData.ticketUrl && (
-          <Button variant="outline" size="sm" asChild className="shrink-0">
-            <a href={caseData.ticketUrl} target="_blank" rel="noreferrer">
-              Open in {formatTicketSource(caseData.system)}
-              <ExternalLink />
+        <div className="flex items-center gap-2">
+          {/* LIVE TELEMETRY STREAM badge */}
+          <div className="flex items-center gap-1.5 rounded bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-tertiary">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
+            </span>
+            LIVE TELEMETRY STREAM
+          </div>
+
+          <CopyKeysButton reference={caseReference} />
+
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="flex items-center gap-1 rounded bg-primary-container px-3 py-1.5 text-sm font-medium text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
+          >
+            <RefreshCw className="size-4" />
+            Recalculate Run
+          </button>
+
+          {c.ticketUrl && (
+            <a
+              href={c.ticketUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 rounded bg-primary-container px-3 py-1.5 text-sm font-medium text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
+            >
+              <ExternalLink className="size-3.5" />
+              Open in {formatTicketSource(c.system)}
             </a>
-          </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Case Identity & Live Clock Banner */}
+      <div className="mt-4 flex flex-col justify-between gap-6 rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm lg:flex-row lg:items-center">
+        {/* Left: identity */}
+        <div className="flex max-w-3xl flex-col gap-2">
+          {/* Badge row */}
+          <div className="flex flex-wrap items-center gap-2">
+            {priorityChip && (
+              <span
+                className={cn(
+                  "rounded px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider",
+                  priorityChip.className,
+                )}
+              >
+                {priorityChip.label}
+              </span>
+            )}
+
+            {/* ZD key chip */}
+            <span className="rounded bg-surface-container-highest px-2 py-0.5 font-mono text-xs text-primary">
+              {zdKey}
+            </span>
+
+            {engKey && (
+              <>
+                <span className="text-sm text-outline">↔</span>
+                <span className="rounded bg-surface-container-highest px-2 py-0.5 font-mono text-xs text-secondary-foreground">
+                  {engKey}
+                </span>
+              </>
+            )}
+
+            {primaryLink && (
+              <span className="inline-flex items-center gap-1 rounded bg-tertiary-container px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
+                <Link2 className="size-3" />
+                LINKED — {primaryLink.confidence.toUpperCase()}
+              </span>
+            )}
+
+            {(c.customerName ?? c.tier) && (
+              <span className="text-sm text-outline">
+                {c.customerName}
+                {c.tier && ` • ${c.tier}`}
+              </span>
+            )}
+          </div>
+
+          {/* Subject h1 */}
+          <h1 className="font-semibold tracking-tight text-[28px] leading-9 text-on-surface">
+            {c.subject ?? identity}
+          </h1>
+
+          {/* Meta line */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-outline">
+            <span>
+              Source:{" "}
+              <strong className="text-on-surface">
+                {formatTicketSource(c.system)}
+              </strong>
+            </span>
+            {c.assigneeName && (
+              <>
+                <span>•</span>
+                <span>
+                  Support Assignee:{" "}
+                  <strong className="text-on-surface">{c.assigneeName}</strong>
+                </span>
+              </>
+            )}
+            <span>•</span>
+            <span>
+              {c.closedAt
+                ? `Resolved ${formatDateTime(c.closedAt)}`
+                : `Currently in ${formatLeg(currentLeg)}`}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: hero runway callout */}
+        {heroCommitment && (
+          <CaseRunwayHero
+            commitment={heroCommitment}
+            currentLeg={currentLeg}
+            linkedIssueLabel={engKey}
+          />
         )}
       </div>
     </Reveal>

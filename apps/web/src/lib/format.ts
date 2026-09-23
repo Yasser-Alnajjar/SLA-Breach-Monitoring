@@ -42,6 +42,28 @@ export function formatSeconds(totalSeconds: number): string {
   return (totalSeconds < 0 ? "-" : "") + parts.join(" ");
 }
 
+/**
+ * Formats a signed second count as fixed-width clock digits — "00:35:09"
+ * under a day, "1d 00:35:09" beyond it. Distinct from `formatSeconds`
+ * (human-readable "35m 09s"): this is for a dedicated digital-clock display
+ * (the case-detail hero runway callout), where Stitch's own mockup renders
+ * fixed HH:MM:SS digits rather than a variable-width duration string.
+ */
+export function formatClockDigits(totalSeconds: number): string {
+  const sign = totalSeconds < 0 ? "-" : "";
+  const abs = Math.trunc(Math.abs(totalSeconds));
+
+  const days = Math.floor(abs / 86_400);
+  const hours = Math.floor((abs % 86_400) / 3_600);
+  const minutes = Math.floor((abs % 3_600) / 60);
+  const seconds = abs % 60;
+
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const clock = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+  return sign + (days > 0 ? `${days}d ${clock}` : clock);
+}
+
 const LEG_LABELS: Record<string, string> = {
   support: "Support",
   engineering: "Engineering",
@@ -51,6 +73,23 @@ const LEG_LABELS: Record<string, string> = {
 
 export function formatLeg(leg: string): string {
   return LEG_LABELS[leg] ?? leg;
+}
+
+/**
+ * Maps a raw ticket priority string (Zendesk/Intercom: urgent/high/normal/
+ * low/none) to a Stitch-style "P1"/"P2"/"P3" severity label — display-only,
+ * not a stored field; never used for matching, sorting weight, or SLA logic.
+ */
+const PRIORITY_TIER_LABELS: Record<string, string> = {
+  urgent: "P1",
+  high: "P2",
+  normal: "P3",
+  low: "P4",
+};
+
+export function formatPriorityTier(priority: string | null): string | null {
+  if (!priority) return null;
+  return PRIORITY_TIER_LABELS[priority] ?? null;
 }
 
 // Record<CommitmentKind, string>, not Record<string, string>: a new

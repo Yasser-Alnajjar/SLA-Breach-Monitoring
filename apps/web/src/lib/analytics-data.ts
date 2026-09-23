@@ -18,13 +18,30 @@ import { toCommitmentDomain, toNormalizedEventDomain } from "@sla/commitments";
 import type {
   BreachedCaseRow,
   BreachesByStageRow,
+  BreachesOverTimeLegPoint,
   BreachesOverTimePoint,
+  ComplianceTrendPoint,
   ProjectAnalyticsData,
   SlaComplianceBreakdown,
 } from "./types/dashboard";
 
 function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function everyDayInRange(periodStart: Date, asOfDate: Date): string[] {
+  const days: string[] = [];
+  const cursor = new Date(
+    Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), periodStart.getUTCDate()),
+  );
+  const end = new Date(
+    Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth(), asOfDate.getUTCDate()),
+  );
+  while (cursor.getTime() <= end.getTime()) {
+    days.push(dayKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
 }
 
 /**
@@ -60,6 +77,62 @@ export function bucketBreachesByDay(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return points;
+}
+
+/**
+ * The Breaches Over Time chart's Support/Engineering split (dashboard
+ * reconstruction, Stitch `elapsed_dashboard`): same day-bucketing as
+ * `bucketBreachesByDay`, but each breach is additionally attributed to
+ * whichever leg owned the case at the instant it breached. Kept as its own
+ * function rather than changing `bucketBreachesByDay`'s return shape, since
+ * that shape is a tested contract for the plain breach-count chart.
+ */
+export function bucketBreachesByDayAndLeg(
+  breaches: { breachedAt: Date; leg: Leg }[],
+  periodStart: Date,
+  asOfDate: Date,
+): BreachesOverTimeLegPoint[] {
+  const supportCounts = new Map<string, number>();
+  const engineeringCounts = new Map<string, number>();
+  for (const { breachedAt, leg } of breaches) {
+    const key = dayKey(breachedAt);
+    const bucket = leg === "engineering" ? engineeringCounts : supportCounts;
+    bucket.set(key, (bucket.get(key) ?? 0) + 1);
+  }
+
+  return everyDayInRange(periodStart, asOfDate).map((date) => ({
+    date,
+    supportCount: supportCounts.get(date) ?? 0,
+    engineeringCount: engineeringCounts.get(date) ?? 0,
+  }));
+}
+
+/**
+ * The "SLA Compliance Trend" chart's time series (dashboard reconstruction):
+ * for each day in range, the met-vs-breached rate among commitments closed
+ * in the trailing 7 days ending that day. A day with nothing closed in its
+ * trailing window is `null` — a real gap, never interpolated or fabricated.
+ */
+export function computeComplianceTrend(
+  closedRows: { status: CommitmentStatus; closedAt: Date }[],
+  periodStart: Date,
+  asOfDate: Date,
+): ComplianceTrendPoint[] {
+  const TRAILING_WINDOW_DAYS = 7;
+  return everyDayInRange(periodStart, asOfDate).map((date) => {
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    const windowStart = new Date(dayEnd.getTime() - TRAILING_WINDOW_DAYS * 86_400_000);
+    const windowRows = closedRows.filter(
+      (row) => row.closedAt > windowStart && row.closedAt <= dayEnd,
+    );
+    const relevant = windowRows.filter((r) => r.status === "met" || r.status === "breached");
+    if (relevant.length === 0) return { date, compliancePercent: null };
+    const met = relevant.filter((r) => r.status === "met").length;
+    return {
+      date,
+      compliancePercent: Math.round((met / relevant.length) * 1000) / 10,
+    };
+  });
 }
 
 export interface BreachOccurrence {
@@ -206,7 +279,7 @@ export async function getProjectAnalytics(
   periodStart: Date,
   asOfDate: Date,
   openCommitmentStatuses: { caseId: string; status: CommitmentStatus }[],
-  closedPeriodCommitmentStatuses: { caseId: string; status: CommitmentStatus }[],
+  closedPeriodCommitmentStatuses: { caseId: string; status: CommitmentStatus; closedAt?: Date | null }[],
 ): Promise<{ analytics: ProjectAnalyticsData; breachedThisPeriod: BreachedCaseRow[] }> {
   const compliance = summarizeCompliance([
     ...openCommitmentStatuses,
@@ -309,17 +382,30 @@ export async function getProjectAnalytics(
   );
 
   const legCounts = new Map<Leg, number>();
+  const breachLegs: { breachedAt: Date; leg: Leg }[] = [];
   for (const breach of breaches) {
     const { spans } = deriveLegSpans(eventsByCaseId.get(breach.caseId) ?? [], {
       caseOpenedAt: breach.caseOpenedAt.toISOString(),
     });
     const leg = legAtTime(spans, breach.breachedAt.toISOString());
     legCounts.set(leg, (legCounts.get(leg) ?? 0) + 1);
+    breachLegs.push({ breachedAt: breach.breachedAt, leg });
   }
 
   const breachesByStage: BreachesByStageRow[] = [...legCounts.entries()]
     .map(([leg, count]) => ({ leg, count }))
     .sort((a, b) => b.count - a.count);
+
+  const breachesOverTimeByLeg = bucketBreachesByDayAndLeg(breachLegs, periodStart, asOfDate);
+
+  const complianceTrend = computeComplianceTrend(
+    closedPeriodCommitmentStatuses.filter(
+      (row): row is { caseId: string; status: CommitmentStatus; closedAt: Date } =>
+        row.closedAt != null,
+    ),
+    periodStart,
+    asOfDate,
+  );
 
   const breachedThisPeriod = toBreachedCaseRows(
     breaches,
@@ -336,7 +422,7 @@ export async function getProjectAnalytics(
   );
 
   return {
-    analytics: { compliance, breachesOverTime, breachesByStage },
+    analytics: { compliance, breachesOverTime, breachesOverTimeByLeg, breachesByStage, complianceTrend },
     breachedThisPeriod,
   };
 }

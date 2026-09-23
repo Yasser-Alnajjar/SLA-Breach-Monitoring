@@ -1,36 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StatusBadge } from "@/components/shared/status-badge";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 import {
   formatCommitmentDeadline,
   formatCommitmentKind,
-  formatDateTimeWithOffset,
-  formatMinutes,
-  formatPolicyMatch,
   formatSeconds,
-  formatWeeklyWindow,
 } from "@/lib/format";
-import { STATUS_BORDER_CLASS } from "@/lib/status-styles";
 import type { CommitmentDetail } from "@/lib/types/cases";
 
-const getLiveRemainingSeconds = (commitment: CommitmentDetail): number => {
-  if (commitment.clockState !== "running" || !commitment.effectiveDueAt) {
-    return commitment.remainingSeconds;
-  }
+const getLiveRemainingSeconds = (c: CommitmentDetail): number => {
+  if (c.clockState !== "running" || !c.effectiveDueAt) return c.remainingSeconds;
+  return Math.floor((new Date(c.effectiveDueAt).getTime() - Date.now()) / 1000);
+};
 
-  const dueAt = new Date(commitment.effectiveDueAt).getTime();
-  const now = Date.now();
+const STATUS_LABEL: Record<string, string> = {
+  met: "Met",
+  at_risk: "At risk",
+  breached: "Breached",
+  on_track: "On track",
+  cancelled: "Cancelled",
+};
 
-  return Math.floor((dueAt - now) / 1000);
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  met: "bg-[var(--tertiary)]/15 text-[var(--tertiary)]",
+  at_risk: "bg-[var(--error)]/15 text-[var(--error)]",
+  breached: "bg-[var(--error)]/15 text-[var(--error)]",
+  on_track: "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]",
+  cancelled: "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]",
+};
+
+const STATUS_COUNTER_CLASS: Record<string, string> = {
+  met: "text-[var(--on-surface)]",
+  at_risk: "text-[var(--error)]",
+  breached: "text-[var(--error)]",
+  on_track: "text-[var(--on-surface)]",
+  cancelled: "text-[var(--on-surface-variant)]",
+};
+
+const STATUS_BAR_CLASS: Record<string, string> = {
+  met: "bg-[var(--tertiary)]",
+  at_risk: "bg-[var(--error)]",
+  breached: "bg-[var(--error)]",
+  on_track: "bg-[var(--primary)]",
+  cancelled: "bg-[var(--on-surface-variant)]",
+};
+
+const STATUS_ICON: Record<string, React.ReactNode> = {
+  met: <CheckCircle2 className="size-5 text-[var(--tertiary)]" />,
+  at_risk: <AlertTriangle className="size-5 text-[var(--error)]" />,
+  breached: <AlertTriangle className="size-5 text-[var(--error)]" />,
+  on_track: <CheckCircle2 className="size-5 text-[var(--tertiary)]" />,
+  cancelled: <CheckCircle2 className="size-5 text-[var(--outline)]" />,
 };
 
 export const CommitmentCard = ({
@@ -38,158 +61,110 @@ export const CommitmentCard = ({
   cycleNumber,
 }: {
   commitment: CommitmentDetail;
-  /** This commitment's 1-based Next Reply cycle position (`nextReplyCycleNumbers`), when it has one — presentation-only, never the engine's `cycleKey`. */
   cycleNumber?: number;
 }) => {
+  // Start from the server snapshot so SSR and first client render agree;
+  // the effect below switches to the live ticking value.
   const [remainingSeconds, setRemainingSeconds] = useState(
-    () => commitment.remainingSeconds,
+    commitment.remainingSeconds,
   );
 
   useEffect(() => {
-    const update = () => {
-      setRemainingSeconds(getLiveRemainingSeconds(commitment));
-    };
-
-    // First update happens after hydration.
+    const update = () => setRemainingSeconds(getLiveRemainingSeconds(commitment));
     update();
+    if (commitment.clockState !== "running" || !commitment.effectiveDueAt) return;
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, [commitment]);
 
-    if (commitment.clockState !== "running" || !commitment.effectiveDueAt) {
-      return;
-    }
-
-    const interval = window.setInterval(update, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [
-    commitment.effectiveDueAt,
-    commitment.clockState,
-    commitment.remainingSeconds,
-  ]);
-
-  const counterText =
-    commitment.status === "breached"
-      ? `${formatSeconds(Math.max(0, -remainingSeconds))} over target`
-      : remainingSeconds < 0
-        ? `${formatSeconds(-remainingSeconds)} overdue`
-        : `${formatSeconds(remainingSeconds)} remaining`;
+  const targetSeconds = commitment.targetMinutes * 60;
+  const isClosed = commitment.closedAt !== null;
+  const liveElapsedSeconds = isClosed
+    ? commitment.elapsedSeconds
+    : Math.max(0, targetSeconds - Math.max(0, remainingSeconds));
+  const percentConsumed = targetSeconds > 0
+    ? Math.min(100, Math.max(0, (liveElapsedSeconds / targetSeconds) * 100))
+    : 0;
+  const headroomSeconds = targetSeconds - liveElapsedSeconds;
+  const status = commitment.status;
+  const kindLabel = `${formatCommitmentKind(commitment.kind)}${
+    commitment.kind === "next_reply" && cycleNumber !== undefined ? ` · Cycle ${cycleNumber}` : ""
+  }`;
+  const clockChip =
+    !isClosed && commitment.clockState === "paused"
+      ? { label: "Paused", className: "bg-[var(--warning)]/15 text-[var(--warning)]" }
+      : !isClosed && commitment.clockState === "running"
+        ? { label: "Running", className: "bg-[var(--primary)]/15 text-[var(--primary)]" }
+        : null;
 
   return (
-    <Card className={`border-l-4 ${STATUS_BORDER_CLASS[commitment.status]}`}>
-      <CardContent className="pt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">
-            {formatCommitmentKind(commitment.kind)}
-            {cycleNumber !== undefined && (
-              <span className="ml-1.5 font-normal text-muted-foreground">
-                · Cycle {cycleNumber}
-              </span>
-            )}
+    <div className="rounded-xl bg-[var(--surface-container-low)] p-4 shadow-sm">
+      <div className="flex items-center justify-between pb-2">
+        <div className="flex items-center gap-1">
+          {STATUS_ICON[status]}
+          <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+            Commitment {commitment.kind === "first_response" ? "A" : "B"} • {kindLabel}
           </span>
-
-          <div className="flex items-center gap-2">
-            {commitment.clockState !== "stopped" && (
-              <Badge variant="outline" className="text-nowrap">
-                <span
-                  className={`size-2 rounded-full ${
-                    commitment.clockState === "paused"
-                      ? "bg-clock-paused"
-                      : "bg-clock-running"
-                  }`}
-                />
-                {commitment.clockState === "paused" ? "Paused" : "Running"}
-              </Badge>
-            )}
-
-            <StatusBadge status={commitment.status} />
-          </div>
         </div>
+        <div className="flex items-center gap-1.5">
+        {clockChip && (
+          <span className={cn(
+            "rounded px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+            clockChip.className,
+          )}>
+            {clockChip.label}
+          </span>
+        )}
+        <span className={cn(
+          "rounded px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+          STATUS_BADGE_CLASS[status] ?? STATUS_BADGE_CLASS.on_track,
+        )}>
+          {STATUS_LABEL[status] ?? status}
+        </span>
+        </div>
+      </div>
 
-        <p className="mt-2 font-display text-2xl font-medium tracking-tight tabular-nums">
-          {counterText}
-        </p>
+      <div className="flex items-end justify-between py-2">
+        <div>
+          <span className={cn(
+            "font-[family-name:var(--font-mono,monospace)] text-2xl font-medium tabular-nums leading-none",
+            STATUS_COUNTER_CLASS[status] ?? "text-[var(--on-surface)]",
+          )}>
+            {isClosed ? `${formatSeconds(commitment.elapsedSeconds)} achieved` : `${formatSeconds(Math.max(0, remainingSeconds))} remaining`}
+          </span>
+        </div>
+        <div className="text-right">
+          <span className="block font-[family-name:var(--font-mono,monospace)] text-[11px] uppercase tracking-wider text-[var(--outline)]">
+            TARGET THRESHOLD
+          </span>
+          <span className="font-[family-name:var(--font-mono,monospace)] text-sm text-[var(--on-surface)]">
+            {formatSeconds(targetSeconds)}
+          </span>
+        </div>
+      </div>
 
-        <p className="mt-1 text-sm text-muted-foreground">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--surface-container)]">
+        <div
+          className={cn("h-full rounded-full transition-all", STATUS_BAR_CLASS[status] ?? STATUS_BAR_CLASS.on_track)}
+          style={{ width: `${percentConsumed}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+        <span>
+          {isClosed
+            ? formatCommitmentDeadline(commitment)
+            : `Elapsed Net: ${formatSeconds(liveElapsedSeconds)} (${percentConsumed.toFixed(1)}% consumed)`}
+        </span>
+        <span className={headroomSeconds >= 0 ? "text-[var(--tertiary)]" : "text-[var(--error)]"}>
+          {headroomSeconds >= 0 ? `+${formatSeconds(headroomSeconds)} headroom` : `Breached by ${formatSeconds(-headroomSeconds)}`}
+        </span>
+      </div>
+      {!isClosed && (
+        <p className="mt-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline-variant)]">
           {formatCommitmentDeadline(commitment)}
         </p>
-
-        <Accordion type="single" collapsible className="mt-3">
-          <AccordionItem value="calculation" className="border-b-0">
-            <AccordionTrigger className="cursor-pointer items-center justify-start gap-1 py-0 text-xs text-muted-foreground transition-colors hover:text-foreground hover:no-underline [&>svg]:size-3.5 [&>svg]:translate-y-0 [&>svg]:text-current [&>svg]:duration-150">
-              How this was calculated
-            </AccordionTrigger>
-
-            <AccordionContent className="pb-0">
-              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
-                <dt className="text-muted-foreground">Target</dt>
-                <dd>{formatMinutes(commitment.targetMinutes)}</dd>
-
-                <dt className="text-muted-foreground">Started</dt>
-                <dd>{formatDateTimeWithOffset(commitment.startedAt)}</dd>
-
-                <dt className="text-muted-foreground">Policy</dt>
-                <dd>
-                  {commitment.policyVersion.name} — v{commitment.policyVersion.version} (effective{" "}
-                  {formatDateTimeWithOffset(commitment.policyVersion.effectiveFrom)})
-                </dd>
-
-                <dt className="text-muted-foreground">Match</dt>
-                <dd>{formatPolicyMatch(commitment.policyVersion.match)}</dd>
-
-                <dt className="text-muted-foreground">Pauses on</dt>
-                <dd>
-                  {commitment.pauseOnStates.length > 0
-                    ? commitment.pauseOnStates.join(", ")
-                    : "Never pauses"}
-                </dd>
-
-                <dt className="text-muted-foreground">Warn thresholds</dt>
-                <dd>{commitment.policyVersion.warnAtPercent.join("%, ")}%</dd>
-
-                <dt className="text-muted-foreground">Calendar</dt>
-                <dd>
-                  {commitment.calendar.alwaysOpen ? (
-                    "Always open (24/7)"
-                  ) : (
-                    <>
-                      {commitment.calendar.timezone}
-                      {", "}
-                      {commitment.calendar.weekly
-                        .map(formatWeeklyWindow)
-                        .join(", ")}
-                      {commitment.calendar.holidays.length > 0 &&
-                        ` · Holidays: ${commitment.calendar.holidays.join(", ")}`}
-                    </>
-                  )}
-                  <span className="block text-muted-foreground">
-                    {commitment.calendar.source === "customer_override"
-                      ? "From the customer's calendar override"
-                      : commitment.calendar.source === "organization_default"
-                        ? "From the organization's default calendar (the matched policy has no calendar of its own)"
-                        : "From the matched policy"}
-                  </span>
-                </dd>
-
-                {commitment.targetChangeHistory.length > 0 && (
-                  <>
-                    <dt className="text-muted-foreground">Target changes</dt>
-                    <dd>
-                      <ul className="space-y-1">
-                        {commitment.targetChangeHistory.map((change) => (
-                          <li key={change.changedAt}>
-                            {formatMinutes(change.previousTargetMinutes)} →{" "}
-                            {formatMinutes(change.newTargetMinutes)} ({formatDateTimeWithOffset(change.changedAt)} —{" "}
-                            {change.reason})
-                          </li>
-                        ))}
-                      </ul>
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 };

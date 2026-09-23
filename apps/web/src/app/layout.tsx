@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
-import { Open_Sans } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionProvider } from "@/providers/session-provider";
 
-const open_Sans = Open_Sans({
+const hankenGrotesk = Hanken_Grotesk({
   subsets: ["latin"],
-  variable: "--font-open-sans",
-  weight: ["500", "600"],
+  variable: "--font-hanken-grotesk",
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -30,7 +37,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={` ${open_Sans.variable}`}
+      className={`${hankenGrotesk.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>

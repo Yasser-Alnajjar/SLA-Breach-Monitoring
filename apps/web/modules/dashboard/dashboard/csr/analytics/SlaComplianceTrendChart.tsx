@@ -56,7 +56,7 @@ export function SlaComplianceTrendChart({
           <h3 className="text-on-surface text-base font-medium">SLA Compliance Trend</h3>
           <p className="text-outline text-sm">Trailing 7-day compliance rate</p>
         </div>
-        <span className="bg-surface-container-highest text-on-surface-variant rounded px-2 py-0.5 font-mono text-[11px]">
+        <span className="bg-surface-container-highest text-on-surface-variant rounded px-2 py-0.5 font-mono text-xxs">
           No target configured
         </span>
       </div>
@@ -87,7 +87,7 @@ export function SlaComplianceTrendChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="text-outline border-surface-container-highest/60 flex items-center justify-between border-t pt-2 font-mono text-[11px]">
+      <div className="text-outline border-surface-container-highest/60 flex items-center justify-between border-t pt-2 font-mono text-xxs">
         <span>{peak}% peak</span>
         <span className="font-medium text-warning">
           Current: {currentCompliance !== null ? `${currentCompliance}%` : "—"}

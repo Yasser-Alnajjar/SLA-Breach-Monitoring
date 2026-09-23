@@ -79,19 +79,19 @@ export const DashboardView = ({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1720px] flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-430 flex-col gap-6">
       {/* Operational status bar */}
       <Reveal delay={0}>
         <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="text-outline font-mono text-[11px] font-semibold uppercase tracking-wider">
+              <span className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider">
                 Deterministic Attribution
               </span>
               {data.organizationName && (
                 <>
                   <span className="text-outline-variant">•</span>
-                  <span className="text-primary font-mono text-[11px] uppercase">
+                  <span className="text-primary font-mono text-xxs uppercase">
                     {data.organizationName}
                   </span>
                 </>
@@ -116,7 +116,7 @@ export const DashboardView = ({
               >
                 Zendesk ({sourceStatus.zendesk ? "Connected" : "Not connected"})
               </span>
-              <span className="text-outline-variant text-[10px]">•</span>
+              <span className="text-outline-variant text-xxs">•</span>
               <span
                 className={
                   sourceStatus.jira
@@ -169,7 +169,7 @@ export const DashboardView = ({
                     <AlertTriangle className="text-warning size-5" />
                   </span>
                   <div>
-                    <p className="text-warning font-mono text-[11px] font-semibold uppercase tracking-wider">
+                    <p className="text-warning font-mono text-xxs font-semibold uppercase tracking-wider">
                       Engineering leg over target
                     </p>
                     <p className="text-on-surface mt-0.5 text-sm">
@@ -217,7 +217,7 @@ export const DashboardView = ({
                   <AlertTriangle className="text-warning size-4" />
                 </span>
                 <div>
-                  <p className="text-warning font-mono text-[11px] font-semibold uppercase tracking-wider">
+                  <p className="text-warning font-mono text-xxs font-semibold uppercase tracking-wider">
                     Unusual cycle times
                   </p>
                   <ul className="text-outline mt-1.5 space-y-1 text-sm">
@@ -325,7 +325,7 @@ export const DashboardView = ({
                     style={{ width: `${data.compliance.current ?? 0}%` }}
                   />
                 </div>
-                <span className="text-outline truncate text-[11px]">
+                <span className="text-outline truncate text-xxs">
                   No compliance target configured
                 </span>
               </div>

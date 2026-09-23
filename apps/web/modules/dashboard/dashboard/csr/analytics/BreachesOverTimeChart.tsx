@@ -46,7 +46,7 @@ export function BreachesOverTimeChart({
             Fixed {periodDays}-day cadence by ticket failure locus
           </p>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
+        <div className="flex items-center gap-3 text-xxs">
           <span className="flex items-center gap-1.5">
             <span className="bg-primary size-2.5 rounded-sm" />
             <span className="text-outline">Support</span>

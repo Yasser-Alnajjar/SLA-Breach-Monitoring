@@ -66,7 +66,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
               className={`size-1.5 rounded-full ${anySynced ? "bg-success animate-pulse" : "bg-outline"}`}
               aria-hidden
             />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-foreground">
+            <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-foreground">
               {anySynced ? "Sync active" : "Not connected"}
             </span>
           </div>
@@ -89,7 +89,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
 
           <div className="flex-1 lg:flex-none" />
 
-          <div className="hidden items-center gap-1.5 rounded border border-border-subtle bg-surface-container-low px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground md:flex">
+          <div className="hidden items-center gap-1.5 rounded border border-border-subtle bg-surface-container-low px-2.5 py-1 font-mono text-xxs font-medium uppercase tracking-wider text-muted-foreground md:flex">
             Last 30 days (fixed)
           </div>
 
@@ -105,13 +105,13 @@ export default async function AppLayout({ children }: AppLayoutProps) {
               className={`size-1.5 rounded-full ${integrations.slack.connected ? "bg-success" : "bg-outline"}`}
               aria-hidden
             />
-            <span className="font-mono text-[11px] text-muted-foreground">
+            <span className="font-mono text-xxs text-muted-foreground">
               {integrations.slack.connected
                 ? `#${integrations.slack.channelName ?? "slack"}`
                 : "#alerts"}
             </span>
             <span
-              className={`text-[11px] font-semibold ${integrations.slack.connected ? "text-success" : "text-outline"}`}
+              className={`text-xxs font-semibold ${integrations.slack.connected ? "text-success" : "text-outline"}`}
             >
               {integrations.slack.connected ? "connected" : "not connected"}
             </span>

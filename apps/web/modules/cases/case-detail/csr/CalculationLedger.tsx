@@ -44,16 +44,16 @@ function AppliedClauses({ commitment }: { commitment: CommitmentDetail }) {
   const neverPauses = pauseStates.length === 0;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg bg-[var(--surface-container)] p-3">
-      <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+    <div className="flex flex-col gap-2 rounded-lg bg-surface-container p-3">
+      <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-outline">
         Applied Contract Clauses
       </span>
 
-      <p className="text-sm text-[var(--on-surface-variant)]">
+      <p className="text-sm text-on-surface-variant">
         •{" "}
         {neverPauses ? (
           <>
-            <strong className="text-[var(--on-surface)]">
+            <strong className="text-on-surface">
               Clock runs continuously.
             </strong>{" "}
             This commitment type does not pause for any ticket state — the
@@ -62,13 +62,13 @@ function AppliedClauses({ commitment }: { commitment: CommitmentDetail }) {
           </>
         ) : (
           <>
-            <strong className="text-[var(--on-surface)]">
+            <strong className="text-on-surface">
               Pause states:{" "}
               {pauseStates.map((s) => s.replace(/_/g, " ")).join(", ")}.
             </strong>{" "}
             When the ticket enters one of these states the SLA clock pauses.
             Internal engineering backlog or cross-team transfers{" "}
-            <strong className="text-[var(--on-surface)]">
+            <strong className="text-on-surface">
               do not pause the customer-facing clock
             </strong>
             .
@@ -77,9 +77,9 @@ function AppliedClauses({ commitment }: { commitment: CommitmentDetail }) {
       </p>
 
       {!commitment.calendar.alwaysOpen && (
-        <p className="text-sm text-[var(--on-surface-variant)]">
+        <p className="text-sm text-on-surface-variant">
           •{" "}
-          <strong className="text-[var(--on-surface)]">
+          <strong className="text-on-surface">
             Business-hours calendar applied.
           </strong>{" "}
           Only time within the configured business windows (
@@ -110,34 +110,34 @@ function LedgerRow({
     | "runway-risk";
 }) {
   const rowClass = {
-    default: "border-b border-[var(--surface-container-high)]/30",
+    default: "border-b border-surface-container-high/30",
     deduction:
-      "border-b border-[var(--surface-container-high)]/30 bg-[var(--surface-container-lowest)]/40",
+      "border-b border-surface-container-high/30 bg-surface-container-lowest/40",
     subtotal:
-      "border-b border-[var(--surface-container-high)]/50 bg-[var(--surface-container-high)]",
-    target: "bg-[var(--surface-container-highest)]",
-    "runway-ok": "bg-[var(--tertiary-container)]",
-    "runway-risk": "bg-[var(--error-container)]",
+      "border-b border-surface-container-high/50 bg-surface-container-high",
+    target: "bg-surface-container-highest",
+    "runway-ok": "bg-tertiary-container",
+    "runway-risk": "bg-error-container",
   }[variant];
 
   const labelClass = {
-    default: "text-[var(--on-surface)]",
-    deduction: "text-[var(--primary)]",
-    subtotal: "text-[var(--on-surface)] font-semibold",
-    target: "text-[var(--on-surface)]",
+    default: "text-on-surface",
+    deduction: "text-primary",
+    subtotal: "text-on-surface font-semibold",
+    target: "text-on-surface",
     "runway-ok":
       "text-on-tertiary-container font-semibold uppercase tracking-wide text-sm",
     "runway-risk":
-      "text-[var(--error-foreground)] font-semibold uppercase tracking-wide text-sm",
+      "text-error-foreground font-semibold uppercase tracking-wide text-sm",
   }[variant];
 
   const valueClass = {
-    default: "text-[var(--on-surface)]",
-    deduction: "text-[var(--primary)]",
-    subtotal: "text-[var(--on-surface)] font-semibold",
-    target: "text-[var(--on-surface)]",
+    default: "text-on-surface",
+    deduction: "text-primary",
+    subtotal: "text-on-surface font-semibold",
+    target: "text-on-surface",
     "runway-ok": "text-on-tertiary-container text-lg font-bold",
-    "runway-risk": "text-[var(--error-foreground)] text-lg font-bold",
+    "runway-risk": "text-error-foreground text-lg font-bold",
   }[variant];
 
   return (
@@ -147,14 +147,14 @@ function LedgerRow({
       <div className="flex flex-col gap-0.5">
         <span className={cn("text-sm", labelClass)}>{label}</span>
         {sublabel && (
-          <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+          <span className="font-mono text-xxs text-outline">
             {sublabel}
           </span>
         )}
       </div>
       <span
         className={cn(
-          "font-[family-name:var(--font-mono,monospace)] tabular-nums",
+          "font-mono tabular-nums",
           valueClass,
         )}
       >
@@ -234,7 +234,7 @@ export function CalculationLedger({
             How this was calculated
           </h2>
         </div>
-        <span className="rounded bg-surface-container px-2 py-1 font-mono text-[11px] text-outline">
+        <span className="rounded bg-surface-container px-2 py-1 font-mono text-xxs text-outline">
           Policy v{commitment.policyVersion.version}
         </span>
       </div>
@@ -242,20 +242,20 @@ export function CalculationLedger({
       {/* Policy + calendar 2-col grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col rounded-lg bg-surface-container p-3">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-outline">
+          <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-outline">
             Active SLA Policy
           </span>
           <span className="mt-1 text-base font-semibold text-on-surface">
             {commitment.policyVersion.name}
           </span>
-          <span className="mt-0.5 font-mono text-[11px] text-outline">
+          <span className="mt-0.5 font-mono text-xxs text-outline">
             Version: v{commitment.policyVersion.version} (Eff:{" "}
             {formatDateTimeWithOffset(commitment.policyVersion.effectiveFrom)})
           </span>
         </div>
 
         <div className="flex flex-col rounded-lg bg-surface-container p-3">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-outline">
+          <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-outline">
             Calendar Model
           </span>
           <span className="mt-1 text-base font-semibold text-on-surface">
@@ -265,7 +265,7 @@ export function CalculationLedger({
           </span>
           <span
             className={cn(
-              "mt-0.5 font-mono text-[11px]",
+              "mt-0.5 font-mono text-xxs",
               commitment.calendar.alwaysOpen
                 ? "text-tertiary"
                 : "text-outline-variant",
@@ -282,7 +282,7 @@ export function CalculationLedger({
       <AppliedClauses commitment={commitment} />
 
       {/* Match rule */}
-      <p className="font-mono text-[11px] text-outline">
+      <p className="font-mono text-xxs text-outline">
         Match rule:{" "}
         <span className="text-on-surface">
           {formatPolicyMatch(commitment.policyVersion.match)}
@@ -298,7 +298,7 @@ export function CalculationLedger({
       {/* Arithmetic ledger table */}
       <div className="overflow-hidden rounded-lg bg-surface-container">
         {/* Table header */}
-        <div className="flex items-center justify-between bg-surface-container-high px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wider text-outline">
+        <div className="flex items-center justify-between bg-surface-container-high px-3 py-2 font-mono text-xxs font-semibold uppercase tracking-wider text-outline">
           <span>Step / Interval Calculation Ledger</span>
           <span>Duration Applied</span>
         </div>
@@ -354,7 +354,7 @@ export function CalculationLedger({
       </div>
 
       {/* Footer audit note */}
-      <div className="flex items-center justify-between font-mono text-[11px] text-outline">
+      <div className="flex items-center justify-between font-mono text-xxs text-outline">
         <span>
           Target: fixed at {formatMinutes(commitment.targetMinutes)} since
           commitment started.

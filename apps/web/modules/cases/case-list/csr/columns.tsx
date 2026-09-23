@@ -78,11 +78,11 @@ function PriorityDualKeyCell({ row }: { row: CaseListRow }) {
   const link = row.primaryLink;
 
   return (
-    <div className="flex items-center gap-space-xs whitespace-nowrap gap-2">
+    <div className="flex items-center gap-1 whitespace-nowrap gap-2">
       {severity && (
         <span
           className={cn(
-            "shrink-0 rounded px-1.5 py-0.5 font-label-caps text-label-caps font-semibold uppercase tracking-wider",
+            "shrink-0 rounded px-1.5 py-0.5 font-mono text-xxs font-semibold tracking-wider uppercase",
             SEVERITY_TONE[severity],
           )}
         >
@@ -90,11 +90,11 @@ function PriorityDualKeyCell({ row }: { row: CaseListRow }) {
         </span>
       )}
       <div className="flex flex-col">
-        <div className="flex items-center gap-1 font-mono-metric-md text-mono-metric-md text-on-surface group-hover:text-primary">
+        <div className="flex items-center gap-1 font-mono text-sm font-medium text-on-surface group-hover:text-primary">
           <span>#{row.externalId}</span>
           {link && (
             <>
-              <Ms name={"sync_alt"} className="size-[13px] text-tertiary" />
+              <Ms name={"sync_alt"} className="size-3.25 text-tertiary" />
               <span className="font-semibold text-primary">
                 {LINKED_SYSTEM_LABEL[link.system] ?? link.system.toUpperCase()}-
                 {link.externalId}
@@ -102,7 +102,7 @@ function PriorityDualKeyCell({ row }: { row: CaseListRow }) {
             </>
           )}
         </div>
-        <span className="font-code-audit text-[10px] text-outline">
+        <span className="font-mono text-xxs text-outline">
           {link ? `synced · ${link.statusName ?? "linked"}` : "standalone"}
         </span>
       </div>
@@ -113,13 +113,13 @@ function PriorityDualKeyCell({ row }: { row: CaseListRow }) {
 /** "Customer & Subject". */
 function CustomerSubjectCell({ row }: { row: CaseListRow }) {
   return (
-    <div className="flex max-w-[190px] min-w-0 flex-col">
-      <div className="flex items-center gap-space-xs">
-        <span className="font-headline-sm text-body-md font-semibold text-on-surface truncate">
+    <div className="flex max-w-47.5 min-w-0 flex-col">
+      <div className="flex items-center gap-1">
+        <span className=" text-sm font-semibold text-on-surface truncate">
           {row.customerName ?? "—"}
         </span>
         {row.tier && (
-          <span className="shrink-0 rounded bg-surface-container-lowest px-1 font-code-audit text-[10px] text-primary">
+          <span className="shrink-0 rounded bg-surface-container-lowest px-1 font-mono text-xxs text-primary">
             {row.tier}
           </span>
         )}
@@ -128,7 +128,7 @@ function CustomerSubjectCell({ row }: { row: CaseListRow }) {
         <TooltipTrigger asChild>
           <Link
             href={`/cases/${row.caseId}`}
-            className="mt-0.5 block min-w-0 truncate text-body-sm font-body-sm text-on-surface-variant hover:text-primary hover:underline"
+            className="mt-0.5 block min-w-0 truncate text-xs text-on-surface-variant hover:text-primary hover:underline"
           >
             {row.subject ?? `#${row.externalId}`}
           </Link>
@@ -136,8 +136,8 @@ function CustomerSubjectCell({ row }: { row: CaseListRow }) {
         <TooltipContent>{row.subject ?? `#${row.externalId}`}</TooltipContent>
       </Tooltip>
       <div className="mt-1 flex items-center gap-2">
-        <span className="flex items-center gap-1 font-label-caps text-[10px] text-outline">
-          <Ms name={"inbox"} className="size-[11px] text-outline" />
+        <span className="flex items-center gap-1 font-mono text-xxs text-outline">
+          <Ms name={"inbox"} className="size-2.75 text-outline" />
           Zendesk #{row.externalId}
         </span>
       </div>
@@ -152,11 +152,11 @@ function CorrelationCell({ row }: { row: CaseListRow }) {
   if (!link) {
     return (
       <div className="whitespace-nowrap">
-        <div className="inline-flex items-center gap-1.5 rounded bg-surface-container-highest px-2 py-0.5 font-label-caps text-label-caps text-outline">
+        <div className="inline-flex items-center gap-1.5 rounded bg-surface-container-highest px-2 py-0.5 font-mono text-xxs font-semibold tracking-wider text-outline">
           <Unlink className="size-3" />
           <span>Unlinked</span>
         </div>
-        <div className="mt-1 font-code-audit text-[10px] text-outline">
+        <div className="mt-1 font-mono text-xxs text-outline">
           Support-only
         </div>
       </div>
@@ -169,17 +169,17 @@ function CorrelationCell({ row }: { row: CaseListRow }) {
     <div>
       <div
         className={cn(
-          "inline-flex max-w-[112px] items-center gap-1.5 rounded px-2 py-0.5 font-label-caps text-label-caps",
+          "inline-flex max-w-28 items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xxs font-semibold tracking-wider",
           isCertain
             ? "bg-tertiary-container/30 text-tertiary-fixed"
             : "bg-secondary-container/30 text-secondary",
         )}
       >
-        <Ms name={isCertain ? "verified" : "pattern"} className="size-[13px]" />
+        <Ms name={isCertain ? "verified" : "pattern"} className="size-3.25" />
         <span className="leading-tight">Linked — {isCertain ? "Certain" : link.confidence}</span>
       </div>
       {link.statusName && (
-        <div className="mt-1 font-code-audit text-[10px] text-outline">
+        <div className="mt-1 font-mono text-xxs text-outline">
           {link.statusName}
         </div>
       )}
@@ -209,15 +209,15 @@ function SettledRunway({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-code-audit text-code-audit text-on-surface-variant">
+        <span className="font-mono text-xs text-on-surface-variant">
           {formatCommitmentKind(settled.kind)} ({formatMinutes(settled.targetMinutes)} Max)
         </span>
-        <span className={cn("rounded px-1.5 py-0.5 font-label-caps text-label-caps", tone.badge)}>
+        <span className={cn("rounded px-1.5 py-0.5 font-mono text-xxs font-semibold tracking-wider", tone.badge)}>
           {tone.label}
         </span>
       </div>
-      <div className={cn("flex items-center gap-1.5 font-mono-metric-md text-mono-metric-md font-semibold", tone.text)}>
-        <Ms name={settled.status === "breached" ? "warning" : "task_alt"} className="size-[14px]" />
+      <div className={cn("flex items-center gap-1.5 font-mono text-sm font-semibold", tone.text)}>
+        <Ms name={settled.status === "breached" ? "warning" : "task_alt"} className="size-3.5" />
         <span>
           {settled.status === "breached" && overBy > 0
             ? `+${formatMinutes(Math.ceil(overBy / 60))} over`
@@ -296,13 +296,13 @@ function SlaTargetRunwayCell({ row }: { row: CaseListRow }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-code-audit text-code-audit text-on-surface-variant">
+        <span className="font-mono text-xs text-on-surface-variant">
           {formatCommitmentKind(live.kind)} ({formatMinutes(live.targetMinutes)}{" "}
           Max)
         </span>
         <span
           className={cn(
-            "rounded px-1.5 py-0.5 font-label-caps text-label-caps",
+            "rounded px-1.5 py-0.5 font-mono text-xxs font-semibold tracking-wider",
             badgeTone,
             live.status === "at_risk" && "animate-pulse",
           )}
@@ -312,7 +312,7 @@ function SlaTargetRunwayCell({ row }: { row: CaseListRow }) {
       </div>
       <div
         className={cn(
-          "flex items-center gap-1.5 font-mono-metric-md text-mono-metric-md font-semibold",
+          "flex items-center gap-1.5 font-mono text-sm font-semibold",
           statusTone,
         )}
       >
@@ -320,7 +320,7 @@ function SlaTargetRunwayCell({ row }: { row: CaseListRow }) {
             ? "warning"
             : live.status === "met"
               ? "task_alt"
-              : "timer"} className="size-[14px]" />
+              : "timer"} className="size-3.5" />
         <CountdownClock
           remainingMinutes={live.remainingMinutes}
           className="font-mono"
@@ -351,8 +351,8 @@ function LegAllocationCell({ row }: { row: CaseListRow }) {
     total > 0 ? (snap.engineeringLegMinutes / total) * 100 : 0;
 
   return (
-    <div className="flex w-[165px] flex-col gap-1">
-      <div className="flex items-center justify-between font-code-audit text-[11px] text-on-surface-variant">
+    <div className="flex w-41.25 flex-col gap-1">
+      <div className="flex items-center justify-between font-mono text-xxs text-on-surface-variant">
         <span
           className={cn(
             supportShare > engineeringShare && "text-error font-medium",
@@ -386,14 +386,14 @@ function LegAllocationCell({ row }: { row: CaseListRow }) {
           title={`Engineering leg: ${formatMinutes(snap.engineeringLegMinutes)}`}
         />
       </div>
-      <div className="flex items-center gap-1 font-mono-metric-md text-[11px]">
+      <div className="flex items-center gap-1 font-mono text-xxs">
         {!live ? (
           <span className="text-outline">
             Settled · {engineeringShare > supportShare ? "mostly Eng" : "mostly Support"}
           </span>
         ) : live.status === "breached" ? (
           <>
-            <Ms name={"hourglass_bottom"} className="size-[13px] text-error" />
+            <Ms name={"hourglass_bottom"} className="size-3.25 text-error" />
             <span className="text-error">Clock Halted / Latent</span>
           </>
         ) : (
@@ -430,7 +430,7 @@ function CurrentStateAssigneeCell({ row }: { row: CaseListRow }) {
       <div className="flex flex-wrap items-center gap-1">
         <span
           className={cn(
-            "rounded bg-surface-container-lowest px-1.5 py-0.5 font-code-audit text-[11px]",
+            "rounded bg-surface-container-lowest px-1.5 py-0.5 font-mono text-xxs",
             closed ? "text-outline" : "text-on-surface",
           )}
         >
@@ -439,7 +439,7 @@ function CurrentStateAssigneeCell({ row }: { row: CaseListRow }) {
         {row.primaryLink?.statusName && (
           <span
             className={cn(
-              "rounded bg-surface-container-lowest px-1.5 py-0.5 font-code-audit text-[11px]",
+              "rounded bg-surface-container-lowest px-1.5 py-0.5 font-mono text-xxs",
               row.primaryLink.statusName.toLowerCase().includes("resolved")
                 ? "text-tertiary"
                 : "text-primary",
@@ -449,10 +449,10 @@ function CurrentStateAssigneeCell({ row }: { row: CaseListRow }) {
           </span>
         )}
       </div>
-      <span className="mt-0.5 flex items-center gap-1 text-body-sm text-on-surface-variant">
-        <Ms name={row.assigneeName ? "account_circle" : "person_off"} className="size-[14px] text-outline" />
+      <span className="mt-0.5 flex items-center gap-1 text-xs text-on-surface-variant">
+        <Ms name={row.assigneeName ? "account_circle" : "person_off"} className="size-3.5 text-outline" />
         {row.assigneeName ? (
-          <span className="max-w-[110px] truncate">{row.assigneeName}</span>
+          <span className="max-w-27.5 truncate">{row.assigneeName}</span>
         ) : (
           <span className="italic text-error">Unassigned</span>
         )}
@@ -559,7 +559,7 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
           variant="ghost"
           size="sm"
           asChild
-          className="h-7 gap-1 rounded bg-surface-container-high px-2.5 py-1.5 font-label-caps text-label-caps text-on-surface transition-all hover:bg-primary hover:text-on-primary"
+          className="h-7 gap-1 rounded bg-surface-container-high px-2.5 py-1.5 font-mono text-xxs font-semibold tracking-wider text-on-surface transition-all hover:bg-primary hover:text-on-primary"
         >
           <Link href={`/cases/${row.original.caseId}`}>
             <span>View Case</span>

@@ -22,15 +22,15 @@ export function pickHeroCommitment(commitments: CommitmentDetail[]): CommitmentD
 }
 
 const COUNTER_CLASS: Record<string, string> = {
-  breached: "text-[var(--error)]",
-  at_risk:  "text-[var(--error)]",
-  on_track: "text-[var(--on-surface)]",
+  breached: "text-error",
+  at_risk:  "text-error",
+  on_track: "text-on-surface",
 };
 
 const DOT_CLASS: Record<string, string> = {
-  breached: "bg-[var(--error)]",
-  at_risk:  "bg-[var(--warning)]",
-  on_track: "bg-[var(--primary)]",
+  breached: "bg-error",
+  at_risk:  "bg-warning",
+  on_track: "bg-primary",
 };
 
 export function CaseRunwayHero({
@@ -60,12 +60,12 @@ export function CaseRunwayHero({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitment.effectiveDueAt, commitment.clockState]);
 
-  const dot    = DOT_CLASS[commitment.status]    ?? "bg-[var(--primary)]";
-  const counter = COUNTER_CLASS[commitment.status] ?? "text-[var(--on-surface)]";
+  const dot    = DOT_CLASS[commitment.status]    ?? "bg-primary";
+  const counter = COUNTER_CLASS[commitment.status] ?? "text-on-surface";
   const overdue = remainingSeconds < 0;
 
   return (
-    <div className="flex min-w-[280px] flex-col items-start rounded-lg bg-[var(--surface-container)] p-4 lg:items-end">
+    <div className="flex min-w-70 flex-col items-start rounded-lg bg-surface-container p-4 lg:items-end">
       {/* "Clock Active in Engineering" label with pulsing dot */}
       <div className="flex items-center gap-2">
         <span className="relative flex size-3">
@@ -79,7 +79,7 @@ export function CaseRunwayHero({
             className={cn("relative inline-flex size-3 rounded-full", dot)}
           />
         </span>
-        <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">
+        <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-primary">
           Clock Active in {formatLeg(currentLeg)}
         </span>
       </div>
@@ -88,25 +88,25 @@ export function CaseRunwayHero({
       <div className="mt-2 flex items-baseline gap-1.5">
         <span
           className={cn(
-            "font-[family-name:var(--font-mono,monospace)] text-[30px] leading-[38px] font-medium tabular-nums",
+            "font-mono text-3xl font-medium tabular-nums",
             counter,
           )}
         >
           {formatClockDigits(remainingSeconds)}
         </span>
-        <span className="text-sm text-[var(--outline)]">
+        <span className="text-sm text-outline">
           {overdue ? "overdue" : "runway remaining"}
         </span>
       </div>
 
       {/* Kind caption */}
-      <span className="mt-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline-variant)]">
+      <span className="mt-1 font-mono text-xxs text-outline-variant">
         {formatCommitmentKind(commitment.kind)}
       </span>
 
       {/* Active leg + linked issue */}
       {linkedIssueLabel && (
-        <span className="font-[family-name:var(--font-mono,monospace)] text-[12px] leading-4 text-[var(--outline-variant)]">
+        <span className="font-mono text-xs leading-4 text-outline-variant">
           Active leg: {formatLeg(currentLeg)} ({linkedIssueLabel})
         </span>
       )}

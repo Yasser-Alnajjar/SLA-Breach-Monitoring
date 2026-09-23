@@ -215,12 +215,12 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <History className="size-[22px] text-primary" />
-            <h2 className="text-[22px] leading-[30px] font-medium tracking-tight text-on-surface">
+            <History className="size-5.5 text-primary" />
+            <h2 className="text-xl font-medium tracking-tight text-on-surface">
               State Transitions
             </h2>
           </div>
-          <span className="font-mono text-[11px] text-outline">
+          <span className="font-mono text-xxs text-outline">
             {data.timeline.length} Event{data.timeline.length !== 1 ? "s" : ""}{" "}
             Recorded
           </span>
@@ -233,7 +233,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
           <ol
             ref={containerRef}
             onScroll={onScroll}
-            className="relative max-h-[36rem] overflow-y-auto pl-6 flex flex-col gap-5 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-container-high"
+            className="relative max-h-144 overflow-y-auto pl-6 flex flex-col gap-5 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-container-high"
           >
             {data.timeline.map((event, index) => {
               const isLast = index === data.timeline.length - 1;
@@ -263,7 +263,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
                     </span>
                     <span
                       className={cn(
-                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider",
+                        "rounded px-1.5 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider",
                         pillClass,
                       )}
                     >
@@ -282,7 +282,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
                   </div>
 
                   {/* Actor + provider — small meta line */}
-                  <div className="mt-1 flex items-center gap-2 text-[11px] text-outline">
+                  <div className="mt-1 flex items-center gap-2 text-xxs text-outline">
                     <span>{formatActor(event.actor)}</span>
                     <span>·</span>
                     <span>{PROVIDER_LABELS[event.system] ?? event.system}</span>
@@ -297,30 +297,30 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
       <div className="mt-4 rounded-xl bg-surface-container-low p-6 shadow-sm flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <Bell className="size-[22px] text-error" />
-            <h2 className="text-[22px] leading-[30px] font-medium tracking-tight text-on-surface">
+            <Bell className="size-5.5 text-error" />
+            <h2 className="text-xl font-medium tracking-tight text-on-surface">
               Escalation Dispatch Log
             </h2>
           </div>
-          <span className="font-mono text-[12px] leading-4 text-outline">
+          <span className="font-mono text-xs leading-4 text-outline">
             0 Dispatches
           </span>
         </div>
 
         <div className="rounded-lg bg-surface-container p-2 flex items-start justify-between gap-2">
           <div className="flex items-start gap-2">
-            <Bell className="size-[18px] text-outline mt-0.5" />
+            <Bell className="size-4.5 text-outline mt-0.5" />
             <div className="flex flex-col">
               <span className="font-mono text-sm text-on-surface">
                 No escalation dispatch records
               </span>
-              <span className="text-[12px] leading-[18px] text-outline">
+              <span className="text-xs leading-4.5 text-outline">
                 Dispatch history is not included in the current case-detail data
                 contract.
               </span>
             </div>
           </div>
-          <span className="font-mono text-[12px] leading-4 text-outline">
+          <span className="font-mono text-xs leading-4 text-outline">
             NOT AVAILABLE
           </span>
         </div>
@@ -328,7 +328,7 @@ export function ActivityTimeline({ data }: { data: CaseDetailData }) {
         <button
           type="button"
           disabled
-          className="w-full rounded py-2 px-4 bg-surface-container text-outline text-[12px] leading-[18px] font-medium flex items-center justify-center gap-1.5 opacity-60 cursor-not-allowed"
+          className="w-full rounded py-2 px-4 bg-surface-container text-outline text-xs leading-4.5 font-medium flex items-center justify-center gap-1.5 opacity-60 cursor-not-allowed"
         >
           <Bell className="size-4" />
           Re-trigger Escalation Ping to Eng On-Call

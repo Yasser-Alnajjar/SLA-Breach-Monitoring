@@ -39,7 +39,7 @@ export function AtRiskKpiTile({
       />
 
       <div className="flex items-center justify-between gap-2 pl-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-xxs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </span>
         <Icon

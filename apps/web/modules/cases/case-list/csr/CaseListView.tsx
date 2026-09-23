@@ -112,11 +112,11 @@ function MetricTile({
         ? "text-tertiary"
         : "text-on-surface-variant";
   return (
-    <div className="flex flex-col justify-between rounded bg-surface-container-low p-space-md shadow-sm">
+    <div className="flex flex-col justify-between rounded bg-surface-container-low p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <span
           className={cn(
-            "font-label-caps text-label-caps",
+            "font-mono text-xxs font-semibold tracking-wider",
             tone ? text : "text-on-surface-variant",
           )}
         >
@@ -124,7 +124,7 @@ function MetricTile({
         </span>
         <Icon
           className={cn(
-            "size-[18px]",
+            "size-4.5",
             tone === "error"
               ? "text-error"
               : tone === "tertiary"
@@ -134,16 +134,16 @@ function MetricTile({
           )}
         />
       </div>
-      <div className="mt-space-xs flex items-baseline gap-space-xs">
+      <div className="mt-1 flex items-baseline gap-1">
         <span
           className={cn(
-            "font-mono-metric-lg text-mono-metric-lg",
+            "font-mono text-2xl font-medium tracking-tight",
             tone ? text : "text-on-surface",
           )}
         >
           {value}
         </span>
-        <span className="font-code-audit text-code-audit text-on-surface-variant">
+        <span className="font-mono text-xs text-on-surface-variant">
           {caption}
         </span>
       </div>
@@ -152,10 +152,10 @@ function MetricTile({
 }
 
 const GROUP_LABEL =
-  "px-2 font-label-caps text-label-caps text-outline sm:inline";
+  "px-2 font-mono text-xxs font-semibold tracking-wider text-outline sm:inline";
 const groupBtn = (active: boolean, tone: string) =>
   cn(
-    "whitespace-nowrap rounded px-space-sm py-1 font-label-caps text-label-caps transition-colors",
+    "whitespace-nowrap rounded px-2 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
     active
       ? "bg-surface-container text-primary"
       : cn("hover:bg-surface-container", tone),
@@ -274,21 +274,21 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
   }
 
   return (
-    <div className="relative flex w-full flex-col gap-space-lg">
+    <div className="relative flex w-full flex-col gap-6">
       {/* Page header + operational ledger metadata */}
       <Reveal delay={0}>
-        <div className="flex flex-col justify-between gap-space-md lg:flex-row lg:items-center">
-          <div className="flex flex-col gap-space-xs">
-            <div className="flex items-center gap-space-sm">
-              <h1 className="font-display-hero text-display-hero tracking-tight text-on-surface">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <h1 className=" text-4xl font-semibold tracking-tight text-on-surface">
                 Cases
               </h1>
-              <span className="rounded bg-surface-container-high px-space-xs py-0.5 font-label-caps text-label-caps uppercase text-primary">
+              <span className="rounded bg-surface-container-high px-1 py-0.5 font-mono text-xxs font-semibold tracking-wider uppercase text-primary">
                 Operational Ledger
               </span>
               <span className="size-1.5 animate-pulse rounded-full bg-tertiary" />
             </div>
-            <p className="font-body-md text-body-md text-on-surface-variant">
+            <p className=" text-sm text-on-surface-variant">
               Continuous SLA ledger across Zendesk customer touches and Jira
               engineering handoffs
             </p>
@@ -297,11 +297,11 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             type="button"
             disabled={data.cases.length === 0}
             onClick={() => Utils.exportToCsv("all-cases.csv", data.cases)}
-            className="group flex shrink-0 items-center gap-space-sm rounded bg-surface-container-high px-space-md py-2 font-headline-sm text-body-md text-on-surface shadow-sm transition-all hover:bg-surface-bright disabled:opacity-50"
+            className="group flex shrink-0 items-center gap-2 rounded bg-surface-container-high px-4 py-2 text-sm text-on-surface shadow-sm transition-all hover:bg-surface-bright disabled:opacity-50"
           >
-            <Download className="size-[18px] text-primary transition-transform group-hover:scale-110" />
+            <Download className="size-4.5 text-primary transition-transform group-hover:scale-110" />
             <span>Export Full CSV</span>
-            <span className="rounded bg-surface-container-lowest px-1.5 py-0.5 font-code-audit text-code-audit text-on-surface-variant">
+            <span className="rounded bg-surface-container-lowest px-1.5 py-0.5 font-mono text-xs text-on-surface-variant">
               {data.cases.length} rec
             </span>
           </button>
@@ -310,7 +310,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
 
       {/* Metric summary tiles */}
       <Reveal delay={0.05}>
-        <div className="grid grid-cols-2 gap-space-sm md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <MetricTile
             icon={Inbox}
             label="TOTAL TRACKED CASES"
@@ -344,22 +344,22 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
 
       {/* Integrated filter bar & query console */}
       <Reveal delay={0.1}>
-        <div className="flex flex-col gap-space-md rounded bg-surface-container-low p-space-md shadow-sm">
-          <div className="flex flex-col items-stretch justify-between gap-space-md lg:flex-row lg:items-center">
-            <div className="relative min-w-[240px] flex-1">
-              <Search className="absolute left-3 top-2.5 size-[18px] text-outline" />
+        <div className="flex flex-col gap-4 rounded bg-surface-container-low p-4 shadow-sm">
+          <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
+            <div className="relative min-w-60 flex-1">
+              <Search className="absolute left-3 top-2.5 size-4.5 text-outline" />
               <input
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 placeholder="Search customer, ticket ID, or subject…"
                 aria-label="Search cases"
-                className="w-full rounded bg-surface-container-lowest py-2 pl-10 pr-24 font-body-md text-body-md text-on-surface shadow-inner placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded bg-surface-container-lowest py-2 pl-10 pr-24 text-sm text-on-surface shadow-inner placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="pointer-events-none absolute right-2.5 top-2 flex items-center gap-1">
-                <span className="rounded bg-surface-container px-1.5 py-0.5 font-code-audit text-[10px] text-on-surface-variant">
+                <span className="rounded bg-surface-container px-1.5 py-0.5 font-mono text-xxs text-on-surface-variant">
                   ZD
                 </span>
-                <span className="rounded bg-surface-container px-1.5 py-0.5 font-code-audit text-[10px] text-on-surface-variant">
+                <span className="rounded bg-surface-container px-1.5 py-0.5 font-mono text-xxs text-on-surface-variant">
                   ENG
                 </span>
               </div>
@@ -395,9 +395,9 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-space-md gap-y-space-sm pt-space-xs">
-            <div className="flex flex-wrap items-center gap-space-xs">
-              <span className="mr-space-xs font-label-caps text-label-caps uppercase tracking-wider text-outline">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-1">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-1 font-mono text-xxs font-semibold tracking-wider uppercase text-outline">
                 SLA Status:
               </span>
               {STATUS_FILTERS.map((f) => {
@@ -409,7 +409,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
                     type="button"
                     onClick={() => setStatus(f.value)}
                     className={cn(
-                      "flex items-center gap-space-xs rounded px-2.5 py-1 font-label-caps text-label-caps transition-colors",
+                      "flex items-center gap-1 rounded px-2.5 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
                       active
                         ? "bg-primary text-on-primary shadow-sm"
                         : "bg-surface-container-high text-on-surface hover:bg-surface-bright",
@@ -421,7 +421,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
                     <span className={cn(!active && f.tone)}>{f.label}</span>
                     <span
                       className={cn(
-                        "rounded px-1 font-code-audit text-[10px]",
+                        "rounded px-1 font-mono text-xxs",
                         active ? "bg-on-primary/20" : f.badge,
                       )}
                     >
@@ -450,8 +450,8 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             </div>
 
             {pollIntervalMs !== undefined && (
-              <div className="ml-auto flex shrink-0 items-center gap-space-sm">
-                <span className="font-code-audit text-code-audit text-on-surface-variant">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <span className="font-mono text-xs text-on-surface-variant">
                   Live Ledger Poll: {Math.round(pollIntervalMs / 1000)}s
                 </span>
                 <span className="size-2 rounded-full bg-tertiary" />
@@ -468,9 +468,9 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             title="Cases"
             className="p-0 lg:p-0"
             textClassName=""
-            headerClassName="border-0 bg-surface-container-lowest font-label-caps text-label-caps text-outline hover:bg-surface-container-lowest"
-            headCellClassName="h-auto whitespace-normal align-middle px-2.5 py-3 text-inherit font-[inherit] tracking-[inherit] first:ps-space-md last:pe-space-md"
-            cellClassName="px-2.5 py-3 align-top first:ps-space-md last:pe-space-md"
+            headerClassName="border-0 bg-surface-container-lowest font-mono text-xxs font-semibold tracking-wider text-outline hover:bg-surface-container-lowest"
+            headCellClassName="h-auto whitespace-normal align-middle px-2.5 py-3 text-inherit font-[inherit] tracking-[inherit] first:ps-4 last:pe-4"
+            cellClassName="px-2.5 py-3 align-top first:ps-4 last:pe-4"
             rowClassName={(_, i) =>
               cn(
                 "border-0 hover:bg-surface-container-high",

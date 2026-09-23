@@ -16,7 +16,7 @@ export function AtRiskSnapshotTable({ rows }: { rows: AtRiskRow[] }) {
   return (
     <table className="w-full text-left border-collapse">
       <thead>
-        <tr className="bg-surface-container-lowest/80 text-outline border-b border-surface-container-highest/60 font-mono text-[11px] font-semibold uppercase tracking-wider">
+        <tr className="bg-surface-container-lowest/80 text-outline border-b border-surface-container-highest/60 font-mono text-xxs font-semibold uppercase tracking-wider">
           <th className="py-3 px-4">Priority</th>
           <th className="py-3 px-4">Ticket correlation</th>
           <th className="py-3 px-4">Customer</th>
@@ -68,7 +68,7 @@ export function AtRiskSnapshotTable({ rows }: { rows: AtRiskRow[] }) {
                     {row.customerName ?? row.requesterName ?? "—"}
                   </span>
                   {row.tier && (
-                    <span className="text-outline font-mono text-[11px]">
+                    <span className="text-outline font-mono text-xxs">
                       {row.tier}
                     </span>
                   )}

@@ -79,7 +79,7 @@ export function BreachesByStageChart({ data }: { data: BreachesByStageRow[] }) {
                   {Math.round((dominant.count / total) * 100)}%
                 </span>
                 <span
-                  className="mt-0.5 font-mono text-[10px] font-medium uppercase"
+                  className="mt-0.5 font-mono text-xxs font-medium uppercase"
                   style={{ color: LEG_COLORS[dominant.leg] ?? "var(--primary)" }}
                 >
                   {formatLeg(dominant.leg)}

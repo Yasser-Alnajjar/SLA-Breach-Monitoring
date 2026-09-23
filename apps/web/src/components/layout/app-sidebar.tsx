@@ -94,7 +94,7 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter className="group-data-[collapsible=icon]:hidden">
-        <div className="text-outline flex flex-col gap-1.5 border-t border-border-subtle px-2 pt-3 font-mono text-[11px]">
+        <div className="text-outline flex flex-col gap-1.5 border-t border-border-subtle px-2 pt-3 font-mono text-xxs">
           <div className="flex items-center justify-between uppercase tracking-wider">
             <span>Tracking engine</span>
             {autoSyncSeconds !== undefined && (

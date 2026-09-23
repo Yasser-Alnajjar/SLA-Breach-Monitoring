@@ -30,19 +30,19 @@ export function formatCaseIdentity(
 const PRIORITY_CHIP: Record<string, { label: string; className: string }> = {
   urgent: {
     label: "P1 — CRITICAL",
-    className: "bg-[var(--error-container)] text-[var(--error-foreground)]",
+    className: "bg-error-container text-error-foreground",
   },
   high: {
     label: "P2 — HIGH",
-    className: "bg-[var(--error-container)] text-[var(--error-foreground)]",
+    className: "bg-error-container text-error-foreground",
   },
   normal: {
     label: "P3 — NORMAL",
-    className: "bg-surface-container-highest text-[var(--on-surface-variant)]",
+    className: "bg-surface-container-highest text-on-surface-variant",
   },
   low: {
     label: "P4 — LOW",
-    className: "bg-surface-container-highest text-[var(--on-surface-variant)]",
+    className: "bg-surface-container-highest text-on-surface-variant",
   },
 };
 
@@ -92,7 +92,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
     <Reveal delay={0.05}>
       {/* Sub-header breadcrumb bar */}
       <div className="w-full flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest px-6 py-2 rounded-xl">
-        <div className="flex items-center gap-1 font-mono text-sm leading-[18px]">
+        <div className="flex items-center gap-1 font-mono text-sm leading-4.5">
           <span className="text-outline">Cases</span>
           <span className="text-outline-variant">/</span>
           {(c.customerName ?? c.requesterName) && (
@@ -116,7 +116,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
 
         <div className="flex items-center gap-2">
           {/* LIVE TELEMETRY STREAM badge */}
-          <div className="flex items-center gap-1.5 rounded bg-surface-container-high px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-tertiary">
+          <div className="flex items-center gap-1.5 rounded bg-surface-container-high px-2.5 py-1 font-mono text-xxs font-semibold uppercase tracking-wider text-tertiary">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
               <span className="relative inline-flex size-2 rounded-full bg-tertiary" />
@@ -150,7 +150,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
       </div>
 
       {/* Case Identity & Live Clock Banner */}
-      <div className="mt-4 flex flex-col justify-between gap-6 rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm lg:flex-row lg:items-center">
+      <div className="mt-4 flex flex-col justify-between gap-6 rounded-xl bg-surface-container-low p-6 shadow-sm lg:flex-row lg:items-center">
         {/* Left: identity */}
         <div className="flex max-w-3xl flex-col gap-2">
           {/* Badge row */}
@@ -158,7 +158,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
             {priorityChip && (
               <span
                 className={cn(
-                  "rounded px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider",
+                  "rounded px-2 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider",
                   priorityChip.className,
                 )}
               >
@@ -181,7 +181,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
             )}
 
             {primaryLink && (
-              <span className="inline-flex items-center gap-1 rounded bg-tertiary-container px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
+              <span className="inline-flex items-center gap-1 rounded bg-tertiary-container px-2 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider text-on-tertiary-container">
                 <Link2 className="size-3" />
                 LINKED — {primaryLink.confidence.toUpperCase()}
               </span>
@@ -196,7 +196,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
           </div>
 
           {/* Subject h1 */}
-          <h1 className="font-semibold tracking-tight text-[28px] leading-9 text-on-surface">
+          <h1 className="font-semibold tracking-tight text-3xl leading-9 text-on-surface">
             {c.subject ?? identity}
           </h1>
 

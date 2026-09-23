@@ -310,7 +310,7 @@ export function CalendarEditorDialog({
                       // eslint-disable-next-line react/no-array-index-key
                       <div key={index} className="flex items-center gap-2 pl-1">
                         {w.fullDay ? (
-                          <span className="w-[17.5rem] text-sm text-muted-foreground">
+                          <span className="w-70 text-sm text-muted-foreground">
                             Open 24 hours
                           </span>
                         ) : (

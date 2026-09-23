@@ -60,7 +60,7 @@ export function AttributionLedgerCard({ ledger }: { ledger: AttributionLedger })
         </div>
 
         <div className="bg-surface-container-lowest/80 mt-4 flex flex-col gap-2 rounded p-2">
-          <div className="text-outline flex items-center justify-between font-mono text-[11px] font-semibold uppercase tracking-wider">
+          <div className="text-outline flex items-center justify-between font-mono text-xxs font-semibold uppercase tracking-wider">
             <span>Linking precision</span>
             <span className="text-tertiary">
               {ledger.linkingPrecisionPercent !== null
@@ -74,7 +74,7 @@ export function AttributionLedgerCard({ ledger }: { ledger: AttributionLedger })
               style={{ width: `${ledger.linkingPrecisionPercent ?? 0}%` }}
             />
           </div>
-          <div className="text-outline flex items-center justify-between font-mono text-[11px]">
+          <div className="text-outline flex items-center justify-between font-mono text-xxs">
             <span>{ledger.directMatches} direct ID matches</span>
             <span>{ledger.unlinkedOrStandalone} unlinked / standalone</span>
           </div>

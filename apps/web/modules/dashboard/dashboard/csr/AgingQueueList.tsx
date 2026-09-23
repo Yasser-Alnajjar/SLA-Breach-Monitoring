@@ -29,7 +29,7 @@ export function AgingQueueList({ rows }: { rows: AgingEscalationRow[] }) {
           >
             <div className="flex items-start gap-3">
               <div className="bg-surface-container mt-0.5 flex size-9 shrink-0 items-center justify-center rounded">
-                <CircuitBoard className="text-outline size-[18px]" />
+                <CircuitBoard className="text-outline size-4.5" />
               </div>
               <div className="flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -46,14 +46,14 @@ export function AgingQueueList({ rows }: { rows: AgingEscalationRow[] }) {
                         {row.linkedIssue.externalId}
                       </span>
                       <span
-                        className="bg-tertiary/10 text-tertiary rounded px-2 py-0.5 font-mono text-[10px]"
+                        className="bg-tertiary/10 text-tertiary rounded px-2 py-0.5 font-mono text-xxs"
                         title={formatCaseLinkMethod(row.linkedIssue.method)}
                       >
                         Linked — {row.linkedIssue.confidence === "certain" ? "Certain" : "Probable"}
                       </span>
                     </>
                   ) : (
-                    <span className="bg-surface-container-highest text-outline rounded px-2 py-0.5 font-mono text-[10px]">
+                    <span className="bg-surface-container-highest text-outline rounded px-2 py-0.5 font-mono text-xxs">
                       No engineering link yet
                     </span>
                   )}
@@ -75,7 +75,7 @@ export function AgingQueueList({ rows }: { rows: AgingEscalationRow[] }) {
             </div>
             <div className="flex items-center justify-between gap-4 pl-12 md:justify-end md:pl-0">
               <div className="flex flex-col md:items-end">
-                <span className="text-outline font-mono text-[11px] font-semibold uppercase tracking-wider">
+                <span className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider">
                   Eng leg elapsed
                 </span>
                 <span

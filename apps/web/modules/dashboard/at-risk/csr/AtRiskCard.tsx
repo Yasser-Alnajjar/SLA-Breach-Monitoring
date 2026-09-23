@@ -73,7 +73,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
             {severity && (
               <span
                 className={cn(
-                  "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  "rounded px-1.5 py-0.5 text-xxs font-semibold uppercase tracking-wider",
                   SEVERITY_BADGE_VARIANT[severity] === "destructive" &&
                     "bg-destructive/15 text-destructive",
                   SEVERITY_BADGE_VARIANT[severity] === "warning" &&
@@ -109,12 +109,12 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
               )}
             </span>
 
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-xxs font-medium uppercase tracking-wider text-muted-foreground">
               {formatCommitmentKind(row.kind)}
             </span>
 
             {row.tier && (
-              <span className="rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="rounded bg-surface-subtle px-1.5 py-0.5 text-xxs font-medium uppercase tracking-wider text-muted-foreground">
                 {row.tier}
               </span>
             )}
@@ -138,14 +138,14 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
         </div>
 
         <div className="flex shrink-0 flex-col items-start gap-1 rounded-lg bg-surface-subtle px-4 py-2.5 lg:items-end">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="text-xxs font-medium uppercase tracking-wider text-muted-foreground">
             {row.status === "breached" ? "Overdue by" : "Runway remaining"}
           </span>
           <CountdownClock
             remainingMinutes={row.remainingMinutes}
             className={cn("text-xl font-bold leading-none", CLOCK_TONE[row.status])}
           />
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xxs text-muted-foreground">
             Ceiling: {formatMinutes(row.targetMinutes)} {formatCommitmentKind(row.kind)} target
           </span>
         </div>

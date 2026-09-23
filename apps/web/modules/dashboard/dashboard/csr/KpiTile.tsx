@@ -38,10 +38,10 @@ export function KpiTile({
       />
       <div className="relative">
         <div className="text-outline flex items-center justify-between">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-wider">
+          <span className="font-mono text-xxs font-semibold uppercase tracking-wider">
             {label}
           </span>
-          {Icon && <Icon className="size-[18px]" />}
+          {Icon && <Icon className="size-4.5" />}
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span

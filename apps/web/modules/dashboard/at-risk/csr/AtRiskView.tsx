@@ -248,7 +248,7 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-panel">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="px-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="px-1.5 text-xxs font-medium uppercase tracking-wider text-muted-foreground">
                 Severity
               </span>
               {SEVERITY_FILTERS.map((f) => (
@@ -269,7 +269,7 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
 
               <span className="mx-1 hidden h-5 w-px bg-border md:block" />
 
-              <span className="px-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="px-1.5 text-xxs font-medium uppercase tracking-wider text-muted-foreground">
                 Locus
               </span>
               {LEG_FILTERS.map((f) => (
@@ -308,7 +308,7 @@ export const AtRiskView = ({ data }: { data: AtRiskRowData[] }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle pt-3">
-            <span className="px-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="px-1.5 text-xxs font-medium uppercase tracking-wider text-muted-foreground">
               Status
             </span>
             {STATUS_FILTERS.map((f) => (

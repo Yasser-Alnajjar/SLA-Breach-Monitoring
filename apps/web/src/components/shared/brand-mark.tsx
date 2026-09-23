@@ -11,9 +11,13 @@ export function BrandMark({
   hasTitle?: boolean;
 }) {
   return (
-    <div className={cn("flex items-center", className)}>
+    <div className={cn("flex items-center gap-2.5", className)}>
       <BrandLogo className={cn(logoClassName)} />
-      {hasTitle && <span className="font-display font-semibold">apsed</span>}
+      {hasTitle && (
+        <span className="font-display font-medium leading-none tracking-tight">
+          Elapsed
+        </span>
+      )}
     </div>
   );
 }

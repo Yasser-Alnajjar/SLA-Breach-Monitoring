@@ -56,7 +56,7 @@ export function TimeAllocationBar({
         />
       </div>
 
-      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xxs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full bg-leg-support")} />
           Support: <span className="font-mono tabular-nums">{formatMinutes(supportLegMinutes)}</span>{" "}

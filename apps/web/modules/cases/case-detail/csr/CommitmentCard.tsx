@@ -25,35 +25,35 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
-  met: "bg-[var(--tertiary)]/15 text-[var(--tertiary)]",
-  at_risk: "bg-[var(--error)]/15 text-[var(--error)]",
-  breached: "bg-[var(--error)]/15 text-[var(--error)]",
-  on_track: "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]",
-  cancelled: "bg-[var(--surface-container-highest)] text-[var(--on-surface-variant)]",
+  met: "bg-tertiary/15 text-tertiary",
+  at_risk: "bg-error/15 text-error",
+  breached: "bg-error/15 text-error",
+  on_track: "bg-surface-container-highest text-on-surface-variant",
+  cancelled: "bg-surface-container-highest text-on-surface-variant",
 };
 
 const STATUS_COUNTER_CLASS: Record<string, string> = {
-  met: "text-[var(--on-surface)]",
-  at_risk: "text-[var(--error)]",
-  breached: "text-[var(--error)]",
-  on_track: "text-[var(--on-surface)]",
-  cancelled: "text-[var(--on-surface-variant)]",
+  met: "text-on-surface",
+  at_risk: "text-error",
+  breached: "text-error",
+  on_track: "text-on-surface",
+  cancelled: "text-on-surface-variant",
 };
 
 const STATUS_BAR_CLASS: Record<string, string> = {
-  met: "bg-[var(--tertiary)]",
-  at_risk: "bg-[var(--error)]",
-  breached: "bg-[var(--error)]",
-  on_track: "bg-[var(--primary)]",
-  cancelled: "bg-[var(--on-surface-variant)]",
+  met: "bg-tertiary",
+  at_risk: "bg-error",
+  breached: "bg-error",
+  on_track: "bg-primary",
+  cancelled: "bg-on-surface-variant",
 };
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
-  met: <CheckCircle2 className="size-5 text-[var(--tertiary)]" />,
-  at_risk: <AlertTriangle className="size-5 text-[var(--error)]" />,
-  breached: <AlertTriangle className="size-5 text-[var(--error)]" />,
-  on_track: <CheckCircle2 className="size-5 text-[var(--tertiary)]" />,
-  cancelled: <CheckCircle2 className="size-5 text-[var(--outline)]" />,
+  met: <CheckCircle2 className="size-5 text-tertiary" />,
+  at_risk: <AlertTriangle className="size-5 text-error" />,
+  breached: <AlertTriangle className="size-5 text-error" />,
+  on_track: <CheckCircle2 className="size-5 text-tertiary" />,
+  cancelled: <CheckCircle2 className="size-5 text-outline" />,
 };
 
 export const CommitmentCard = ({
@@ -92,31 +92,31 @@ export const CommitmentCard = ({
   }`;
   const clockChip =
     !isClosed && commitment.clockState === "paused"
-      ? { label: "Paused", className: "bg-[var(--warning)]/15 text-[var(--warning)]" }
+      ? { label: "Paused", className: "bg-warning/15 text-warning" }
       : !isClosed && commitment.clockState === "running"
-        ? { label: "Running", className: "bg-[var(--primary)]/15 text-[var(--primary)]" }
+        ? { label: "Running", className: "bg-primary/15 text-primary" }
         : null;
 
   return (
-    <div className="rounded-xl bg-[var(--surface-container-low)] p-4 shadow-sm">
+    <div className="rounded-xl bg-surface-container-low p-4 shadow-sm">
       <div className="flex items-center justify-between pb-2">
         <div className="flex items-center gap-1">
           {STATUS_ICON[status]}
-          <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--outline)]">
+          <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-outline">
             Commitment {commitment.kind === "first_response" ? "A" : "B"} • {kindLabel}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
         {clockChip && (
           <span className={cn(
-            "rounded px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+            "rounded px-2 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider",
             clockChip.className,
           )}>
             {clockChip.label}
           </span>
         )}
         <span className={cn(
-          "rounded px-2 py-0.5 font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+          "rounded px-2 py-0.5 font-mono text-xxs font-semibold uppercase tracking-wider",
           STATUS_BADGE_CLASS[status] ?? STATUS_BADGE_CLASS.on_track,
         )}>
           {STATUS_LABEL[status] ?? status}
@@ -127,41 +127,41 @@ export const CommitmentCard = ({
       <div className="flex items-end justify-between py-2">
         <div>
           <span className={cn(
-            "font-[family-name:var(--font-mono,monospace)] text-2xl font-medium tabular-nums leading-none",
-            STATUS_COUNTER_CLASS[status] ?? "text-[var(--on-surface)]",
+            "font-mono text-2xl font-medium tabular-nums leading-none",
+            STATUS_COUNTER_CLASS[status] ?? "text-on-surface",
           )}>
             {isClosed ? `${formatSeconds(commitment.elapsedSeconds)} achieved` : `${formatSeconds(Math.max(0, remainingSeconds))} remaining`}
           </span>
         </div>
         <div className="text-right">
-          <span className="block font-[family-name:var(--font-mono,monospace)] text-[11px] uppercase tracking-wider text-[var(--outline)]">
+          <span className="block font-mono text-xxs uppercase tracking-wider text-outline">
             TARGET THRESHOLD
           </span>
-          <span className="font-[family-name:var(--font-mono,monospace)] text-sm text-[var(--on-surface)]">
+          <span className="font-mono text-sm text-on-surface">
             {formatSeconds(targetSeconds)}
           </span>
         </div>
       </div>
 
-      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--surface-container)]">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-container">
         <div
           className={cn("h-full rounded-full transition-all", STATUS_BAR_CLASS[status] ?? STATUS_BAR_CLASS.on_track)}
           style={{ width: `${percentConsumed}%` }}
         />
       </div>
 
-      <div className="mt-2 flex items-center justify-between font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+      <div className="mt-2 flex items-center justify-between font-mono text-xxs text-outline">
         <span>
           {isClosed
             ? formatCommitmentDeadline(commitment)
             : `Elapsed Net: ${formatSeconds(liveElapsedSeconds)} (${percentConsumed.toFixed(1)}% consumed)`}
         </span>
-        <span className={headroomSeconds >= 0 ? "text-[var(--tertiary)]" : "text-[var(--error)]"}>
+        <span className={headroomSeconds >= 0 ? "text-tertiary" : "text-error"}>
           {headroomSeconds >= 0 ? `+${formatSeconds(headroomSeconds)} headroom` : `Breached by ${formatSeconds(-headroomSeconds)}`}
         </span>
       </div>
       {!isClosed && (
-        <p className="mt-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline-variant)]">
+        <p className="mt-1 font-mono text-xxs text-outline-variant">
           {formatCommitmentDeadline(commitment)}
         </p>
       )}

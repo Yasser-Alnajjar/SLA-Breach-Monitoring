@@ -10,41 +10,41 @@ import { cn } from "@/lib/utils";
 /* ─── Stitch token mappings for each leg ─────────────────────── */
 
 const LEG_BAR_CLASS: Record<string, string> = {
-  support:          "bg-[var(--primary-container,#38bdf8)]",
-  engineering:      "bg-[var(--leg-engineering,#6366f1)]",
-  waiting_customer: "bg-[var(--leg-waiting,#f59e0b)]",
-  unknown:          "bg-[var(--leg-unknown,#6b7280)]",
+  support:          "bg-primary-container",
+  engineering:      "bg-leg-engineering",
+  waiting_customer: "bg-leg-waiting",
+  unknown:          "bg-leg-unknown",
 };
 
 const LEG_TEXT_CLASS: Record<string, string> = {
-  support:          "text-[var(--on-primary,#fff)]",
+  support:          "text-on-primary",
   engineering:      "text-white",
-  waiting_customer: "text-[var(--warning-foreground,#fff)]",
+  waiting_customer: "text-warning-foreground",
   unknown:          "text-white",
 };
 
 const LEG_PCT_CLASS: Record<string, string> = {
-  support:          "text-[var(--primary)]",
-  engineering:      "text-[var(--secondary-foreground)]",
-  waiting_customer: "text-[var(--outline)]",
-  unknown:          "text-[var(--tertiary)]",
+  support:          "text-primary",
+  engineering:      "text-secondary-foreground",
+  waiting_customer: "text-outline",
+  unknown:          "text-tertiary",
 };
 
 const LEG_METRIC_CLASS: Record<string, string> = {
-  support:          "text-[var(--on-surface)]",
-  engineering:      "text-[var(--error)]",
-  waiting_customer: "text-[var(--on-surface-variant)]",
-  unknown:          "text-[var(--tertiary)]",
+  support:          "text-on-surface",
+  engineering:      "text-error",
+  waiting_customer: "text-on-surface-variant",
+  unknown:          "text-tertiary",
 };
 
 /** Fixed order — 4-metric grid always shows all 4 cells. */
 const LEG_ORDER = ["support", "engineering", "waiting_customer", "unknown"] as const;
 
 const LEG_HEADER_CLASS: Record<string, string> = {
-  support:          "text-[var(--outline)]",
-  engineering:      "text-[var(--secondary-foreground)]",
-  waiting_customer: "text-[var(--outline)]",
-  unknown:          "text-[var(--outline)]",
+  support:          "text-outline",
+  engineering:      "text-secondary-foreground",
+  waiting_customer: "text-outline",
+  unknown:          "text-outline",
 };
 
 const LEG_DESCRIPTIONS: Record<(typeof LEG_ORDER)[number], string> = {
@@ -194,35 +194,35 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
 
   if (legSegments.length === 0) {
     return (
-      <div className="rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm">
-        <p className="text-sm text-[var(--on-surface-variant)]">No journey data yet.</p>
+      <div className="rounded-xl bg-surface-container-low p-6 shadow-sm">
+        <p className="text-sm text-on-surface-variant">No journey data yet.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-col gap-4 rounded-xl bg-[var(--surface-container-low)] p-6 shadow-sm">
+    <div className="flex w-full flex-col gap-4 rounded-xl bg-surface-container-low p-6 shadow-sm">
       {/* Title row + legend */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <span className="font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">
+          <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-primary">
             Deterministic Time Split
           </span>
-          <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--on-surface)]">
+          <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-on-surface">
             Segmented Case Journey &amp; Queue Attribution
           </h2>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[var(--outline)]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-outline">
           <span className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded bg-[var(--primary-container,#38bdf8)]" />
+            <span className="size-2.5 rounded bg-primary-container" />
             Support Leg
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded bg-[var(--leg-engineering,#6366f1)]" />
+            <span className="size-2.5 rounded bg-leg-engineering" />
             Engineering Leg
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded bg-[var(--surface-variant,#374151)]" />
+            <span className="size-2.5 rounded bg-surface-variant" />
             Maintenance (Excluded)
           </span>
         </div>
@@ -230,7 +230,7 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
 
       {/* ── Flagship segmented bar ── */}
       <div className="flex flex-col gap-2">
-        <div className="relative h-8 w-full overflow-hidden rounded-lg bg-[var(--surface-container)] p-1 flex gap-1">
+        <div className="relative h-8 w-full overflow-hidden rounded-lg bg-surface-container p-1 flex gap-1">
           {legSegments.map(({ span, start, end }, index) => {
             const isCurrent  = isOpen && index === currentStageIndex;
             const visualEnd  = isCurrent ? Math.max(end ?? now, now) : (end ?? start);
@@ -244,14 +244,14 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
                   <div
                     className={cn(
                       "absolute inset-y-1 flex items-center overflow-hidden whitespace-nowrap rounded px-2 transition-[filter] hover:brightness-110 cursor-pointer",
-                      LEG_BAR_CLASS[span.leg] ?? "bg-[var(--outline)]",
+                      LEG_BAR_CLASS[span.leg] ?? "bg-outline",
                     )}
                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                   >
                     {showLabel && (
                       <span
                         className={cn(
-                          "font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold truncate",
+                          "font-mono text-xxs font-semibold truncate",
                           LEG_TEXT_CLASS[span.leg] ?? "text-white",
                         )}
                       >
@@ -279,14 +279,14 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
         </div>
 
         {/* Axis captions */}
-        <div className="flex items-center justify-between px-1 font-[family-name:var(--font-mono,monospace)] text-[11px] text-[var(--outline)]">
+        <div className="flex items-center justify-between px-1 font-mono text-xxs text-outline">
           <span>{formatDateTime(data.case.openedAt)} · Clock Start</span>
           {firstHandoffAt && (
-            <span className="text-[var(--primary)]">
+            <span className="text-primary">
               {formatDateTime(new Date(firstHandoffAt).toISOString())} · Handoff
             </span>
           )}
-          <span className={cn(isOpen && !firstHandoffAt ? "text-[var(--error)] font-medium" : "")}>
+          <span className={cn(isOpen && !firstHandoffAt ? "text-error font-medium" : "")}>
             {isOpen ? "Now" : formatDateTime(data.case.closedAt ?? data.asOf)}
           </span>
         </div>
@@ -302,24 +302,24 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
           return (
             <div
               key={leg}
-              className="flex flex-col rounded-lg bg-[var(--surface-container)] p-3"
+              className="flex flex-col rounded-lg bg-surface-container p-3"
             >
               <div className="flex items-center justify-between">
                 <span
                   className={cn(
-                    "font-[family-name:var(--font-mono,monospace)] text-[11px] font-semibold uppercase tracking-wider",
+                    "font-mono text-xxs font-semibold uppercase tracking-wider",
                     LEG_HEADER_CLASS[leg],
                   )}
                 >
                   {formatLeg(leg)}
                 </span>
                 {isCurr && (
-                  <span className="size-2 animate-pulse rounded-full bg-[var(--error)]" />
+                  <span className="size-2 animate-pulse rounded-full bg-error" />
                 )}
               </div>
               <span
                 className={cn(
-                  "mt-1 font-[family-name:var(--font-mono,monospace)] text-lg font-semibold tabular-nums",
+                  "mt-1 font-mono text-lg font-semibold tabular-nums",
                   LEG_METRIC_CLASS[leg],
                 )}
               >
@@ -327,13 +327,13 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
               </span>
               <span
                 className={cn(
-                  "font-[family-name:var(--font-mono,monospace)] text-[11px] mt-1",
+                  "font-mono text-xxs mt-1",
                   LEG_PCT_CLASS[leg],
                 )}
               >
                 {pct.toFixed(1)}% of Net Elapsed
               </span>
-              <span className="mt-1 text-[11px] text-[var(--outline)]">
+              <span className="mt-1 text-xxs text-outline">
                 {LEG_DESCRIPTIONS[leg]}
               </span>
             </div>
@@ -343,15 +343,15 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
 
       {/* ── Attribution finding ── */}
       {dominantLeg && dominantLeg.minutes > 0 && (
-        <div className="flex items-start gap-3 rounded-lg bg-[var(--surface-container-high)] p-3 text-sm text-[var(--on-surface)]">
-          <span className="mt-0.5 text-[var(--primary)] text-base">ℹ</span>
+        <div className="flex items-start gap-3 rounded-lg bg-surface-container-high p-3 text-sm text-on-surface">
+          <span className="mt-0.5 text-primary text-base">ℹ</span>
           <p>
-            <strong className="font-medium text-[var(--primary)]">Attribution Finding: </strong>
+            <strong className="font-medium text-primary">Attribution Finding: </strong>
             {((dominantLeg.minutes / totalLegMinutes) * 100).toFixed(1)}% of this case&apos;s
             total elapsed SLA window has accrued while under{" "}
-            <strong className="text-[var(--on-surface)]">{formatLeg(dominantLeg.leg)}</strong>{" "}
+            <strong className="text-on-surface">{formatLeg(dominantLeg.leg)}</strong>{" "}
             care. SLA clock has been running for{" "}
-            <strong className="text-[var(--on-surface)]">
+            <strong className="text-on-surface">
               {formatLiveDuration(liveSlaSeconds)}
             </strong>{" "}
             net.
@@ -360,25 +360,25 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
       )}
 
       {/* ── SLA clock bar ── */}
-      <div className="border-t border-[var(--border)] pt-4">
+      <div className="border-t border-border pt-4">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-[var(--on-surface)]">SLA clock</span>
-            <span className="font-[family-name:var(--font-mono,monospace)] tabular-nums text-[var(--on-surface)]">
+            <span className="font-medium text-on-surface">SLA clock</span>
+            <span className="font-mono tabular-nums text-on-surface">
               {formatLiveDuration(liveSlaSeconds)}
             </span>
           </div>
-          <div className="flex items-center gap-4 text-[var(--outline)]">
+          <div className="flex items-center gap-4 text-outline">
             <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[var(--clock-running)]" /> Running
+              <span className="size-2 rounded-full bg-clock-running" /> Running
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[var(--clock-paused)]" /> Paused
+              <span className="size-2 rounded-full bg-clock-paused" /> Paused
             </span>
           </div>
         </div>
 
-        <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--surface-container)]">
+        <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-container">
           {data.runningIntervals.map((interval, i) => {
             const start     = toMs(interval.start);
             if (start === null) return null;
@@ -388,7 +388,7 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
             return (
               <div
                 key={`r-${i}`}
-                className="absolute inset-y-0 bg-[var(--clock-running)]"
+                className="absolute inset-y-0 bg-clock-running"
                 style={segStyle(start, vEnd, openedAt, timelineSpan)}
               />
             );
@@ -403,7 +403,7 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
             return (
               <div
                 key={`p-${i}`}
-                className="absolute inset-y-0 bg-[var(--clock-paused)]"
+                className="absolute inset-y-0 bg-clock-paused"
                 style={segStyle(start, vEnd, openedAt, timelineSpan)}
               />
             );

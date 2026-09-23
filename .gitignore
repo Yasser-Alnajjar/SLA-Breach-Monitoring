@@ -20,3 +20,5 @@ backups/
 
 # Prospect CSV exports and concierge findings (apps/concierge/README.md)
 apps/concierge/data/
+
+apps/web/stitch_elapsed

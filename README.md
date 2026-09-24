@@ -88,7 +88,7 @@ Requires Node 22, pnpm 10, and Docker (for Postgres).
    pnpm worker:dev
    ```
 
-6. Open <http://localhost:5465/sign-up> and create an account. Each sign-up
+6. Open <http://localhost:3000/sign-up> and create an account. Each sign-up
    creates its own organization. Before connecting a provider, save that
    provider's OAuth client ID and secret on **Settings → Integrations**
    (see [Bringing your own OAuth app](docs/customer-guide.md#5-integrations)).

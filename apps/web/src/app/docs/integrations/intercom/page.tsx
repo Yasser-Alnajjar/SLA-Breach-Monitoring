@@ -163,7 +163,7 @@ export default function IntercomIntegrationPage() {
                 by the application:
                 <pre className="mt-2 overflow-x-auto rounded bg-muted px-3 py-2 text-xs">
                   <code>
-                    http://localhost:5465/api/integrations/intercom/callback
+                    http://localhost:3000/api/integrations/intercom/callback
                   </code>
                 </pre>
               </>,

@@ -277,7 +277,7 @@ describe.skipIf(!TEST_DATABASE_URL)(
         organizationId,
         evaluated.notificationCandidates,
         {
-          appUrl: "http://localhost:5465",
+          appUrl: "http://localhost:3000",
         },
       );
       return { created, reResolved, cycles, evaluated, sent };

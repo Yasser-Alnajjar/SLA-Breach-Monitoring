@@ -35,7 +35,7 @@ jobs:
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
       TEST_DATABASE_URL: "postgresql://ci:ci@localhost:5432/sla_test?schema=public"
       NEXTAUTH_SECRET: "ci-nextauth-secret"
-      NEXTAUTH_URL: "http://localhost:5465"
+      NEXTAUTH_URL: "http://localhost:3000"
       INTEGRATION_CONFIG_ENCRYPTION_KEY: "ci-integration-config-encryption-key"
       SMTP_ENCRYPTION_KEY: "ci-smtp-encryption-key"
     steps:

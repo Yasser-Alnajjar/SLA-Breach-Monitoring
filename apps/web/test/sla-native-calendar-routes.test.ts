@@ -125,7 +125,7 @@ describe.skipIf(!TEST_DATABASE_URL)(
       await prisma?.$disconnect();
     });
 
-    const listUrl = "http://localhost:5465/api/settings/calendars";
+    const listUrl = "http://localhost:3000/api/settings/calendars";
 
     it("creates a native calendar and expands a recurring holiday into concrete dates", async () => {
       const response = await createRoute.POST(

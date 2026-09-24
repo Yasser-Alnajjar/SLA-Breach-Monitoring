@@ -447,7 +447,7 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
   });
 
   describe("writes naming another organization's rows are rejected and change nothing", () => {
-    const url = "http://localhost:5465/api";
+    const url = "http://localhost:3000/api";
 
     it("customer calendar: another org's customer, or another org's calendar", async () => {
       const foreignCustomer = await routes.customerCalendars.POST(

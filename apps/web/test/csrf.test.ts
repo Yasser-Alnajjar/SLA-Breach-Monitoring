@@ -103,18 +103,18 @@ describe("isSameOriginRequest", () => {
   it("accepts an Origin matching the addressed host (dev over a LAN IP / tunnel)", () => {
     const req = request("/x", {
       headers: {
-        origin: "http://192.168.1.46:5465",
-        host: "192.168.1.46:5465",
+        origin: "http://192.168.1.46:3000",
+        host: "192.168.1.46:3000",
       },
     });
-    expect(isSameOriginRequest(req, "http://localhost:5465")).toBe(true);
+    expect(isSameOriginRequest(req, "http://localhost:3000")).toBe(true);
   });
 
   it("prefers X-Forwarded-Host over Host behind the reverse proxy", () => {
     const req = request("/x", {
       headers: {
         origin: "https://sla.customer.io",
-        host: "web:5465",
+        host: "web:3000",
         "x-forwarded-host": "sla.customer.io",
       },
     });

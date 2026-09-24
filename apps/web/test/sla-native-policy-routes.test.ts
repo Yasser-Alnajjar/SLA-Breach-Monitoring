@@ -132,7 +132,7 @@ describe.skipIf(!TEST_DATABASE_URL)(
       await prisma?.$disconnect();
     });
 
-    const listUrl = "http://localhost:5465/api/settings/sla-policies";
+    const listUrl = "http://localhost:3000/api/settings/sla-policies";
 
     it("creates a native policy with source native and a first version", async () => {
       const response = await createRoute.POST(

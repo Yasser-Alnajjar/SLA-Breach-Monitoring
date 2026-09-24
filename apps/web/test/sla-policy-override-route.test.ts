@@ -143,7 +143,7 @@ describe.skipIf(!TEST_DATABASE_URL)(
       await prisma?.$disconnect();
     });
 
-    const url = "http://localhost:5465/api/settings/sla-policies/override";
+    const url = "http://localhost:3000/api/settings/sla-policies/override";
 
     it("accepts a next_reply target and persists it as a new override version", async () => {
       const response = await route.POST(

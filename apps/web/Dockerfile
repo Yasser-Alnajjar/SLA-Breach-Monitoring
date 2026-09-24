@@ -45,4 +45,4 @@ EXPOSE 3000
 # apps/web/src/app/api/health/route.ts.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
-CMD ["node", "apps/web/server.js", '--port', '3000']
+CMD ["node", "apps/web/server.js"]

@@ -20,8 +20,8 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build \
     NEXTAUTH_SECRET=build-nextauth-secret \
     NEXTAUTH_URL=http://localhost:5465 \
     INTEGRATION_CONFIG_ENCRYPTION_KEY=build-integration-config-encryption-key \
-    SMTP_ENCRYPTION_KEY=build-smtp-encryption-key
-
+    SMTP_ENCRYPTION_KEY=build-smtp-encryption-key \
+    NEXT_TELEMETRY_DEBUG=1
 RUN pnpm --filter @sla/db generate
 RUN pnpm --filter @sla/web build
 

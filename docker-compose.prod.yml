@@ -2,8 +2,6 @@
 # containers built from apps/web/Dockerfile and apps/worker/Dockerfile.
 # See docs/deployment.md for the full walkthrough, including the one-off
 # `prisma migrate deploy` step this file intentionally does not run for you.
-#
-# Usage: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 name: SLA
 services:
   postgres:
@@ -25,8 +23,8 @@ services:
     container_name: web
     depends_on:
       - postgres
-    ports:
-      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-5465}:5465"
+    expose:
+      - "3000"
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
@@ -89,12 +87,23 @@ services:
       DEPLOYMENT_SMTP_USER: ${DEPLOYMENT_SMTP_USER:-}
       DEPLOYMENT_SMTP_PASSWORD: ${DEPLOYMENT_SMTP_PASSWORD:-}
       DEPLOYMENT_SMTP_FROM: ${DEPLOYMENT_SMTP_FROM:-}
-
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    container_name: nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 volumes:
   postgres-data:
+
 # docker volume ls | grep postgres-data
 # docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # docker compose -f docker-compose.prod.yml --env-file .env.prod \
 #   run --rm --user root worker \
 #   pnpm --filter @sla/db exec prisma migrate deploy
 # local     sla-breach-monitoring_postgres-data
+

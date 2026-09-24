@@ -8,7 +8,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PrismaClient } from "@sla/db";
 import { describe, expect, it } from "vitest";
-import { CommitmentCard } from "../modules/cases/case-detail/csr/CommitmentCard";
+import { CommitmentCard } from "@modules/cases/case-detail/csr/CommitmentCard";
 import { getCaseDetailData } from "@/lib/case-detail-data";
 import { formatDateTimeWithOffset } from "@/lib/format";
 
@@ -18,7 +18,12 @@ const PAUSED = new Date("2026-09-17T09:20:04.000Z");
 const AS_OF = new Date("2026-09-17T09:23:00.000Z");
 
 function fakePrisma(
-  events: { type: string; occurredAt: Date; fromState: string | null; toState: string }[],
+  events: {
+    type: string;
+    occurredAt: Date;
+    fromState: string | null;
+    toState: string;
+  }[],
   kind: "first_response" | "resolution" = "resolution",
 ) {
   const commitment = {
@@ -64,7 +69,9 @@ function fakePrisma(
         })),
     },
     integration: { findUnique: async () => null },
-    organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
+    organization: {
+      findUnique: async () => ({ engineeringLegTargetMinutes: null }),
+    },
     sLAPolicyVersion: {
       findMany: async () => [
         {
@@ -86,7 +93,14 @@ function fakePrisma(
     },
     businessCalendarVersion: {
       findMany: async () => [
-        { id: "cal-24-7", version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true },
+        {
+          id: "cal-24-7",
+          version: 1,
+          timezone: "UTC",
+          weekly: [],
+          holidays: [],
+          alwaysOpen: true,
+        },
       ],
     },
     commitmentPolicyChange: { findMany: async () => [] },
@@ -94,17 +108,37 @@ function fakePrisma(
   } as unknown as PrismaClient;
 }
 
-const created = { type: "case_created", occurredAt: OPENED, fromState: null, toState: "open" };
-const pending = { type: "state_changed", occurredAt: PAUSED, fromState: "open", toState: "pending_customer" };
+const created = {
+  type: "case_created",
+  occurredAt: OPENED,
+  fromState: null,
+  toState: "open",
+};
+const pending = {
+  type: "state_changed",
+  occurredAt: PAUSED,
+  fromState: "open",
+  toState: "pending_customer",
+};
 
 async function renderCommitment(
   events: (typeof created | typeof pending)[],
   kind: "first_response" | "resolution" = "resolution",
 ) {
-  const data = await getCaseDetailData(fakePrisma(events, kind), "org-1", "case-45", AS_OF);
+  const data = await getCaseDetailData(
+    fakePrisma(events, kind),
+    "org-1",
+    "case-45",
+    AS_OF,
+  );
   const commitment = data!.commitments[0]!;
-  const html = renderToStaticMarkup(createElement(CommitmentCard, { commitment }));
-  return { commitment, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
+  const html = renderToStaticMarkup(
+    createElement(CommitmentCard, { commitment }),
+  );
+  return {
+    commitment,
+    text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
+  };
 }
 
 describe("case detail commitment deadline (ticket #45)", () => {
@@ -124,31 +158,55 @@ describe("case detail commitment deadline (ticket #45)", () => {
     expect(text).toContain("On track");
     expect(text).toContain("Paused");
     expect(text).toContain("1m 26s remaining");
-    expect(text).toContain(`Paused since ${formatDateTimeWithOffset(PAUSED.toISOString())}`);
+    expect(text).toContain(
+      `Paused since ${formatDateTimeWithOffset(PAUSED.toISOString())}`,
+    );
     expect(text).not.toContain("Due ");
-    expect(text).not.toContain(formatDateTimeWithOffset(NOMINAL_DUE.toISOString()));
+    expect(text).not.toContain(
+      formatDateTimeWithOffset(NOMINAL_DUE.toISOString()),
+    );
   });
 
   it("a running commitment shows Running and its pause-aware due time", async () => {
     const asOfBeforeDue = new Date("2026-09-17T09:20:00.000Z");
-    const data = await getCaseDetailData(fakePrisma([created]), "org-1", "case-45", asOfBeforeDue);
+    const data = await getCaseDetailData(
+      fakePrisma([created]),
+      "org-1",
+      "case-45",
+      asOfBeforeDue,
+    );
     const commitment = data!.commitments[0]!;
-    const text = renderToStaticMarkup(createElement(CommitmentCard, { commitment })).replace(/<[^>]+>/g, " ");
+    const text = renderToStaticMarkup(
+      createElement(CommitmentCard, { commitment }),
+    ).replace(/<[^>]+>/g, " ");
 
-    expect(commitment).toMatchObject({ clockState: "running", effectiveDueAt: NOMINAL_DUE.toISOString() });
+    expect(commitment).toMatchObject({
+      clockState: "running",
+      effectiveDueAt: NOMINAL_DUE.toISOString(),
+    });
     expect(text).toContain("Running");
     expect(text).toContain("1m 30s remaining");
-    expect(text).toContain(`Due ${formatDateTimeWithOffset(NOMINAL_DUE.toISOString())}`);
+    expect(text).toContain(
+      `Due ${formatDateTimeWithOffset(NOMINAL_DUE.toISOString())}`,
+    );
   });
 
   it("shows each commitment's own pause states, not the policy's", async () => {
     const resolution = await renderCommitment([created, pending], "resolution");
     // D3: resolution also pauses on `resolved` (a solve-to-reopen interval
     // never counts), on top of the policy's own pause states.
-    expect(resolution.commitment.pauseOnStates).toEqual(["pending_customer", "resolved"]);
-    expect(resolution.commitment.policyVersion).not.toHaveProperty("pauseOnStates");
+    expect(resolution.commitment.pauseOnStates).toEqual([
+      "pending_customer",
+      "resolved",
+    ]);
+    expect(resolution.commitment.policyVersion).not.toHaveProperty(
+      "pauseOnStates",
+    );
 
-    const firstResponse = await renderCommitment([created, pending], "first_response");
+    const firstResponse = await renderCommitment(
+      [created, pending],
+      "first_response",
+    );
     expect(firstResponse.commitment).toMatchObject({
       pauseOnStates: [],
       status: "breached",
@@ -161,12 +219,26 @@ describe("case detail commitment deadline (ticket #45)", () => {
   });
 
   it("shades the timeline with the shading commitment's own pause states", async () => {
-    const firstResponseOnly = await getCaseDetailData(fakePrisma([created, pending], "first_response"), "org-1", "case-45", AS_OF);
+    const firstResponseOnly = await getCaseDetailData(
+      fakePrisma([created, pending], "first_response"),
+      "org-1",
+      "case-45",
+      AS_OF,
+    );
     expect(firstResponseOnly!.pausedIntervals).toEqual([]);
 
-    const resolution = await getCaseDetailData(fakePrisma([created, pending], "resolution"), "org-1", "case-45", AS_OF);
+    const resolution = await getCaseDetailData(
+      fakePrisma([created, pending], "resolution"),
+      "org-1",
+      "case-45",
+      AS_OF,
+    );
     expect(resolution!.pausedIntervals).toEqual([
-      { start: PAUSED.toISOString(), end: AS_OF.toISOString(), cause: "pending_customer" },
+      {
+        start: PAUSED.toISOString(),
+        end: AS_OF.toISOString(),
+        cause: "pending_customer",
+      },
     ]);
   });
 });

@@ -18,7 +18,7 @@ RUN pnpm install --frozen-lockfile
 # sets for the same reason.
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build \
     NEXTAUTH_SECRET=build-nextauth-secret \
-    NEXTAUTH_URL=http://localhost:3000 \
+    NEXTAUTH_URL=http://localhost:5465 \
     INTEGRATION_CONFIG_ENCRYPTION_KEY=build-integration-config-encryption-key \
     SMTP_ENCRYPTION_KEY=build-smtp-encryption-key
 
@@ -32,7 +32,7 @@ RUN pnpm --filter @sla/web build
 # needs none of the pnpm workspace or devDependencies.
 FROM base AS runner
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=5465
 ENV HOSTNAME=0.0.0.0
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
@@ -40,9 +40,9 @@ COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
-EXPOSE 3000
+EXPOSE 5465
 # GET /api/health (roadmap step 29) checks DB connectivity only — see
 # apps/web/src/app/api/health/route.ts.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
-CMD ["node", "apps/web/server.js"]
+  CMD wget -qO- http://localhost:5465/api/health || exit 1
+CMD ["node", "apps/web/server.js", '--port', '5465']

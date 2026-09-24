@@ -9,9 +9,13 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ActivityTimeline } from "../modules/cases/case-detail/csr/ActivityTimeline";
-import { ConversationThread } from "../modules/cases/case-detail/csr/ConversationThread";
-import type { CaseDetailData, ConversationMessageDetail, TimelineEventDetail } from "@/lib/types/cases";
+import { ActivityTimeline } from "@modules/cases/case-detail/csr/ActivityTimeline";
+import { ConversationThread } from "@modules/cases/case-detail/csr/ConversationThread";
+import type {
+  CaseDetailData,
+  ConversationMessageDetail,
+  TimelineEventDetail,
+} from "@/lib/types/cases";
 
 function caseDetailData(overrides: {
   timeline?: TimelineEventDetail[];
@@ -127,7 +131,9 @@ const conversation: ConversationMessageDetail[] = [
 describe("Activity Timeline / Conversation separation (3.8)", () => {
   it("Activity Timeline never renders Conversation message bodies", () => {
     const html = renderToStaticMarkup(
-      createElement(ActivityTimeline, { data: caseDetailData({ timeline, conversation }) }),
+      createElement(ActivityTimeline, {
+        data: caseDetailData({ timeline, conversation }),
+      }),
     );
     expect(html).not.toContain("SECRET_CUSTOMER_MESSAGE_ONE");
     expect(html).not.toContain("SECRET_AGENT_MESSAGE_TWO");
@@ -135,7 +141,9 @@ describe("Activity Timeline / Conversation separation (3.8)", () => {
 
   it("Conversation never renders Activity Timeline / SLA lifecycle content", () => {
     const html = renderToStaticMarkup(
-      createElement(ConversationThread, { data: caseDetailData({ timeline, conversation }) }),
+      createElement(ConversationThread, {
+        data: caseDetailData({ timeline, conversation }),
+      }),
     );
     expect(html).not.toContain("Policy re-matched");
     expect(html).not.toContain("Commitment started");
@@ -150,7 +158,13 @@ describe("Activity Timeline / Conversation separation (3.8)", () => {
     const html = renderToStaticMarkup(
       createElement(ActivityTimeline, { data: caseDetailData({ timeline }) }),
     );
-    const markers = ["Opened as", "Commitment started", "Policy re-matched", "At risk", "Breached"];
+    const markers = [
+      "Opened as",
+      "Commitment started",
+      "Policy re-matched",
+      "At risk",
+      "Breached",
+    ];
     const positions = markers.map((marker) => html.indexOf(marker));
     expect(positions.every((p) => p !== -1)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -158,7 +172,9 @@ describe("Activity Timeline / Conversation separation (3.8)", () => {
 
   it("Conversation renders its messages in chronological order", () => {
     const html = renderToStaticMarkup(
-      createElement(ConversationThread, { data: caseDetailData({ conversation }) }),
+      createElement(ConversationThread, {
+        data: caseDetailData({ conversation }),
+      }),
     );
     expect(html.indexOf("SECRET_CUSTOMER_MESSAGE_ONE")).toBeLessThan(
       html.indexOf("SECRET_AGENT_MESSAGE_TWO"),
@@ -189,7 +205,11 @@ describe("Activity Timeline / Conversation separation (3.8)", () => {
 
   it("renders an empty state for both components with no data, without crashing", () => {
     const data = caseDetailData({});
-    expect(() => renderToStaticMarkup(createElement(ActivityTimeline, { data }))).not.toThrow();
-    expect(() => renderToStaticMarkup(createElement(ConversationThread, { data }))).not.toThrow();
+    expect(() =>
+      renderToStaticMarkup(createElement(ActivityTimeline, { data })),
+    ).not.toThrow();
+    expect(() =>
+      renderToStaticMarkup(createElement(ConversationThread, { data })),
+    ).not.toThrow();
   });
 });

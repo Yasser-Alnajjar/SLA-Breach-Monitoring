@@ -17,13 +17,23 @@
  */
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@sla/db";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 const auth = vi.hoisted(() => ({ session: null as Session | null }));
 
-vi.mock("next-auth", () => ({ getServerSession: vi.fn(async () => auth.session) }));
+vi.mock("next-auth", () => ({
+  getServerSession: vi.fn(async () => auth.session),
+}));
 // The real options module pulls in bcrypt and the credentials provider;
 // routes only pass it through to the mocked getServerSession.
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
@@ -54,23 +64,39 @@ interface SeededOrg {
   webhookSecret: string;
 }
 
-async function seedOrg(prisma: PrismaClient, label: string, now: Date): Promise<SeededOrg> {
+async function seedOrg(
+  prisma: PrismaClient,
+  label: string,
+  now: Date,
+): Promise<SeededOrg> {
   const openedAt = new Date(now.getTime() - 2 * 3_600_000);
   const lower = label.toLowerCase();
   const webhookSecret = `${lower}-webhook-secret-0123456789abcdef`;
 
-  const organization = await prisma.organization.create({ data: { name: `${label} Org` } });
+  const organization = await prisma.organization.create({
+    data: { name: `${label} Org` },
+  });
   const organizationId = organization.id;
 
   const user = await prisma.user.create({
-    data: { organizationId, email: `${lower}@example.test`, passwordHash: "unused", role: "owner" },
+    data: {
+      organizationId,
+      email: `${lower}@example.test`,
+      passwordHash: "unused",
+      role: "owner",
+    },
   });
 
   const zendesk = await prisma.integration.create({
     data: {
       organizationId,
       provider: "zendesk",
-      credentials: { subdomain: `${lower}-helpdesk`, accessToken: `${label}-zendesk-token`, tokenType: "bearer", scope: "read" },
+      credentials: {
+        subdomain: `${lower}-helpdesk`,
+        accessToken: `${label}-zendesk-token`,
+        tokenType: "bearer",
+        scope: "read",
+      },
       webhookSecret,
     },
   });
@@ -78,19 +104,37 @@ async function seedOrg(prisma: PrismaClient, label: string, now: Date): Promise<
     data: {
       organizationId,
       provider: "jira",
-      credentials: { cloudId: `${label}-cloud`, siteUrl: `https://${lower}.atlassian.net`, accessToken: `${label}-jira-token`, tokenType: "bearer" },
+      credentials: {
+        cloudId: `${label}-cloud`,
+        siteUrl: `https://${lower}.atlassian.net`,
+        accessToken: `${label}-jira-token`,
+        tokenType: "bearer",
+      },
     },
   });
 
   const rawEvent = await prisma.rawEvent.create({
-    data: { integrationId: zendesk.id, providerEventId: `${label}-event-1`, sourceHash: `${label}-hash`, payload: {} },
+    data: {
+      integrationId: zendesk.id,
+      providerEventId: `${label}-event-1`,
+      sourceHash: `${label}-hash`,
+      payload: {},
+    },
   });
 
   const calendar = await prisma.businessCalendar.create({
     data: {
       organizationId,
       name: `${label} Calendar`,
-      versions: { create: { version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true } },
+      versions: {
+        create: {
+          version: 1,
+          timezone: "UTC",
+          weekly: [],
+          holidays: [],
+          alwaysOpen: true,
+        },
+      },
     },
     include: { versions: true },
   });
@@ -121,7 +165,11 @@ async function seedOrg(prisma: PrismaClient, label: string, now: Date): Promise<
   const policyVersionId = policy.versions[0]!.id;
 
   const customer = await prisma.customer.create({
-    data: { organizationId, name: `${label} Customer`, zendeskOrgId: `${label}-zd-org` },
+    data: {
+      organizationId,
+      name: `${label} Customer`,
+      zendeskOrgId: `${label}-zd-org`,
+    },
   });
 
   const caseRow = await prisma.case.create({
@@ -133,12 +181,32 @@ async function seedOrg(prisma: PrismaClient, label: string, now: Date): Promise<
       priority: "urgent",
       openedAt,
       caseLinks: {
-        create: { system: "jira", externalId: `${label}-1`, method: "remote_link", confidence: "certain" },
+        create: {
+          system: "jira",
+          externalId: `${label}-1`,
+          method: "remote_link",
+          confidence: "certain",
+        },
       },
       normalizedEvents: {
         create: [
-          { sourceRawEventId: rawEvent.id, type: "case_created", occurredAt: openedAt, actor: `${label} agent`, system: "zendesk", toState: "new" },
-          { sourceRawEventId: rawEvent.id, type: "state_changed", occurredAt: new Date(openedAt.getTime() + 60_000), actor: `${label} agent`, system: "zendesk", fromState: "new", toState: "escalated" },
+          {
+            sourceRawEventId: rawEvent.id,
+            type: "case_created",
+            occurredAt: openedAt,
+            actor: `${label} agent`,
+            system: "zendesk",
+            toState: "new",
+          },
+          {
+            sourceRawEventId: rawEvent.id,
+            type: "state_changed",
+            occurredAt: new Date(openedAt.getTime() + 60_000),
+            actor: `${label} agent`,
+            system: "zendesk",
+            fromState: "new",
+            toState: "escalated",
+          },
         ],
       },
     },
@@ -213,12 +281,18 @@ function sessionFor(org: SeededOrg, label: string): Session {
 
 /** Serializes a helper's result and checks it carries A's marker and none of B's, in any case (subdomains and emails are lowercased). */
 function expectOnlyOrgA(result: unknown) {
-  const text = (typeof result === "string" ? result : JSON.stringify(result)).toLowerCase();
+  const text = (
+    typeof result === "string" ? result : JSON.stringify(result)
+  ).toLowerCase();
   expect(text).toContain(A.toLowerCase());
   expect(text).not.toContain(B.toLowerCase());
 }
 
-function jsonRequest(url: string, body: unknown, headers: Record<string, string> = {}) {
+function jsonRequest(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return new Request(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
@@ -259,7 +333,8 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
     // override must land before anything imports it; hence dynamic imports.
     process.env.DATABASE_URL = TEST_DATABASE_URL;
     process.env.SMTP_ENCRYPTION_KEY ??= "tenant-isolation-test-smtp-key";
-    process.env.INTEGRATION_CONFIG_ENCRYPTION_KEY ??= "tenant-isolation-test-integration-key";
+    process.env.INTEGRATION_CONFIG_ENCRYPTION_KEY ??=
+      "tenant-isolation-test-integration-key";
 
     prisma = (await import("@sla/db")).getPrismaClient();
     lib = {
@@ -274,12 +349,17 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
     };
     routes = {
       reportCsv: await import("../src/app/api/reports/commitments/route"),
-      customerCalendars: await import("../src/app/api/settings/customer-calendars/route"),
-      policyOverride: await import("../src/app/api/settings/sla-policies/override/route"),
-      engineeringTarget: await import("../src/app/api/settings/engineering-target/route"),
+      customerCalendars:
+        await import("../src/app/api/settings/customer-calendars/route"),
+      policyOverride:
+        await import("../src/app/api/settings/sla-policies/override/route"),
+      engineeringTarget:
+        await import("../src/app/api/settings/engineering-target/route"),
       email: await import("../src/app/api/settings/email/route"),
-      jiraDisconnect: await import("../src/app/api/integrations/jira/disconnect/route"),
-      zendeskWebhook: await import("../src/app/api/webhooks/zendesk/[integrationId]/route"),
+      jiraDisconnect:
+        await import("../src/app/api/integrations/jira/disconnect/route"),
+      zendeskWebhook:
+        await import("../src/app/api/webhooks/zendesk/[integrationId]/route"),
     };
   });
 
@@ -302,7 +382,9 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
   describe("reads never include another organization's data", () => {
     it("dashboard", async () => {
       const data = await lib.getDashboardData(prisma, orgA.organizationId, now);
-      expect(data.atRisk.length + data.breachedThisPeriod.length).toBeGreaterThan(0);
+      expect(
+        data.atRisk.length + data.breachedThisPeriod.length,
+      ).toBeGreaterThan(0);
       expectOnlyOrgA(data);
     });
 
@@ -313,12 +395,28 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
     });
 
     it("case detail returns the org's own case and null for another org's case ID", async () => {
-      expectOnlyOrgA(await lib.getCaseDetailData(prisma, orgA.organizationId, orgA.caseId, now));
-      expect(await lib.getCaseDetailData(prisma, orgA.organizationId, orgB.caseId, now)).toBeNull();
+      expectOnlyOrgA(
+        await lib.getCaseDetailData(
+          prisma,
+          orgA.organizationId,
+          orgA.caseId,
+          now,
+        ),
+      );
+      expect(
+        await lib.getCaseDetailData(
+          prisma,
+          orgA.organizationId,
+          orgB.caseId,
+          now,
+        ),
+      ).toBeNull();
     });
 
     it("compliance report helper and CSV export route", async () => {
-      expectOnlyOrgA(await lib.getComplianceReportRows(prisma, orgA.organizationId, now));
+      expectOnlyOrgA(
+        await lib.getComplianceReportRows(prisma, orgA.organizationId, now),
+      );
 
       const response = await routes.reportCsv.GET();
       expect(response.status).toBe(200);
@@ -326,40 +424,59 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
     });
 
     it("findings", async () => {
-      expectOnlyOrgA(await lib.getFindingsData(prisma, orgA.organizationId, now));
+      expectOnlyOrgA(
+        await lib.getFindingsData(prisma, orgA.organizationId, now),
+      );
     });
 
     it("SLA configuration: policies, calendars, customers", async () => {
       expectOnlyOrgA(await lib.getSlaPolicies(prisma, orgA.organizationId));
-      expectOnlyOrgA(await lib.getBusinessCalendars(prisma, orgA.organizationId));
-      expectOnlyOrgA(await lib.getCustomerCalendarSummaries(prisma, orgA.organizationId));
+      expectOnlyOrgA(
+        await lib.getBusinessCalendars(prisma, orgA.organizationId),
+      );
+      expectOnlyOrgA(
+        await lib.getCustomerCalendarSummaries(prisma, orgA.organizationId),
+      );
     });
 
     it("integrations page", async () => {
-      expectOnlyOrgA(await lib.getIntegrationsData(prisma, orgA.organizationId));
+      expectOnlyOrgA(
+        await lib.getIntegrationsData(prisma, orgA.organizationId),
+      );
     });
   });
 
   describe("writes naming another organization's rows are rejected and change nothing", () => {
-    const url = "http://localhost:3000/api";
+    const url = "http://localhost:5465/api";
 
     it("customer calendar: another org's customer, or another org's calendar", async () => {
       const foreignCustomer = await routes.customerCalendars.POST(
-        jsonRequest(`${url}/settings/customer-calendars`, { customerId: orgB.customerId, calendarId: orgA.calendarId }),
+        jsonRequest(`${url}/settings/customer-calendars`, {
+          customerId: orgB.customerId,
+          calendarId: orgA.calendarId,
+        }),
       );
       expect(foreignCustomer.status).toBe(404);
 
       const foreignCalendar = await routes.customerCalendars.POST(
-        jsonRequest(`${url}/settings/customer-calendars`, { customerId: orgA.customerId, calendarId: orgB.calendarId }),
+        jsonRequest(`${url}/settings/customer-calendars`, {
+          customerId: orgA.customerId,
+          calendarId: orgB.calendarId,
+        }),
       );
       expect(foreignCalendar.status).toBe(404);
 
-      const customers = await prisma.customer.findMany({ where: { id: { in: [orgA.customerId, orgB.customerId] } } });
+      const customers = await prisma.customer.findMany({
+        where: { id: { in: [orgA.customerId, orgB.customerId] } },
+      });
       expect(customers.map((c) => c.calendarId)).toEqual([null, null]);
 
       // Control: the same call on the org's own rows succeeds.
       const own = await routes.customerCalendars.POST(
-        jsonRequest(`${url}/settings/customer-calendars`, { customerId: orgA.customerId, calendarId: orgA.calendarId }),
+        jsonRequest(`${url}/settings/customer-calendars`, {
+          customerId: orgA.customerId,
+          calendarId: orgA.calendarId,
+        }),
       );
       expect(own.status).toBe(200);
     });
@@ -372,7 +489,11 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
         }),
       );
       expect(response.status).toBe(404);
-      expect(await prisma.sLAPolicyVersion.count({ where: { policyId: orgB.policyId } })).toBe(1);
+      expect(
+        await prisma.sLAPolicyVersion.count({
+          where: { policyId: orgB.policyId },
+        }),
+      ).toBe(1);
 
       const own = await routes.policyOverride.POST(
         jsonRequest(`${url}/settings/sla-policies/override`, {
@@ -381,17 +502,27 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
         }),
       );
       expect(own.status).toBe(200);
-      expect(await prisma.sLAPolicyVersion.count({ where: { policyId: orgA.policyId } })).toBe(2);
+      expect(
+        await prisma.sLAPolicyVersion.count({
+          where: { policyId: orgA.policyId },
+        }),
+      ).toBe(2);
     });
 
     it("engineering-leg target only changes the session's own organization", async () => {
       const set = await routes.engineeringTarget.POST(
-        jsonRequest(`${url}/settings/engineering-target`, { targetMinutes: 120 }),
+        jsonRequest(`${url}/settings/engineering-target`, {
+          targetMinutes: 120,
+        }),
       );
       expect(set.status).toBe(200);
 
-      const orgs = await prisma.organization.findMany({ select: { id: true, engineeringLegTargetMinutes: true } });
-      const byId = new Map(orgs.map((o) => [o.id, o.engineeringLegTargetMinutes]));
+      const orgs = await prisma.organization.findMany({
+        select: { id: true, engineeringLegTargetMinutes: true },
+      });
+      const byId = new Map(
+        orgs.map((o) => [o.id, o.engineeringLegTargetMinutes]),
+      );
       expect(byId.get(orgA.organizationId)).toBe(120);
       expect(byId.get(orgB.organizationId)).toBeNull();
     });
@@ -408,7 +539,11 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
         }),
       );
       expect(saved.status).toBe(200);
-      expect(await prisma.organizationEmailSettings.count({ where: { organizationId: orgB.organizationId } })).toBe(0);
+      expect(
+        await prisma.organizationEmailSettings.count({
+          where: { organizationId: orgB.organizationId },
+        }),
+      ).toBe(0);
 
       auth.session = sessionFor(orgB, B);
       const readAsB = await routes.email.GET();
@@ -420,8 +555,12 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
       expect(response.status).toBe(200);
 
       const [jiraA, jiraB] = await Promise.all([
-        prisma.integration.findUniqueOrThrow({ where: { id: orgA.jiraIntegrationId } }),
-        prisma.integration.findUniqueOrThrow({ where: { id: orgB.jiraIntegrationId } }),
+        prisma.integration.findUniqueOrThrow({
+          where: { id: orgA.jiraIntegrationId },
+        }),
+        prisma.integration.findUniqueOrThrow({
+          where: { id: orgB.jiraIntegrationId },
+        }),
       ]);
       expect(jiraA.status).toBe("disconnected");
       expect(jiraB.status).toBe("connected");
@@ -430,13 +569,23 @@ describe.skipIf(!TEST_DATABASE_URL)("tenant isolation (real Postgres)", () => {
 
     it("a webhook for another org's integration rejects this org's secret", async () => {
       const response = await routes.zendeskWebhook.POST(
-        jsonRequest(`${url}/webhooks/zendesk/${orgB.zendeskIntegrationId}`, { ticket_id: `${B}-ticket-1` }, {
-          authorization: `Bearer ${orgA.webhookSecret}`,
-        }),
-        { params: Promise.resolve({ integrationId: orgB.zendeskIntegrationId }) },
+        jsonRequest(
+          `${url}/webhooks/zendesk/${orgB.zendeskIntegrationId}`,
+          { ticket_id: `${B}-ticket-1` },
+          {
+            authorization: `Bearer ${orgA.webhookSecret}`,
+          },
+        ),
+        {
+          params: Promise.resolve({ integrationId: orgB.zendeskIntegrationId }),
+        },
       );
       expect(response.status).toBe(401);
-      expect(await prisma.rawEvent.count({ where: { integrationId: orgB.zendeskIntegrationId } })).toBe(1);
+      expect(
+        await prisma.rawEvent.count({
+          where: { integrationId: orgB.zendeskIntegrationId },
+        }),
+      ).toBe(1);
     });
   });
 });

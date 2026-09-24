@@ -55,7 +55,10 @@ export default function IntercomIntegrationPage() {
               — it contributes conversations, customers, and support-side
               timeline events, with a few real differences from Zendesk worth
               knowing before you rely on it. This integration is in Beta — see{" "}
-              <Link href="#limitations" className="underline underline-offset-4">
+              <Link
+                href="#limitations"
+                className="underline underline-offset-4"
+              >
                 Known limitations
               </Link>
               .
@@ -159,7 +162,9 @@ export default function IntercomIntegrationPage() {
                 Under <strong>Redirect URLs</strong>, add the callback URL used
                 by the application:
                 <pre className="mt-2 overflow-x-auto rounded bg-muted px-3 py-2 text-xs">
-                  <code>http://localhost:3000/api/integrations/intercom/callback</code>
+                  <code>
+                    http://localhost:5465/api/integrations/intercom/callback
+                  </code>
                 </pre>
               </>,
               <>

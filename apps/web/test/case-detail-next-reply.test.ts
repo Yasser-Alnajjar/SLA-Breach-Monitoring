@@ -10,14 +10,21 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PrismaClient } from "@sla/db";
 import { describe, expect, it } from "vitest";
-import { CommitmentCard } from "../modules/cases/case-detail/csr/CommitmentCard";
+import { CommitmentCard } from "@modules/cases/case-detail/csr/CommitmentCard";
 import { getCaseDetailData } from "@/lib/case-detail-data";
 import { nextReplyCycleNumbers } from "@/lib/format";
 
 const OPENED = new Date("2026-09-17T09:00:00.000Z");
 const AS_OF = new Date("2026-09-17T15:00:00.000Z");
 
-const calendarRow = { id: "cal-24-7", version: 1, timezone: "UTC", weekly: [], holidays: [], alwaysOpen: true };
+const calendarRow = {
+  id: "cal-24-7",
+  version: 1,
+  timezone: "UTC",
+  weekly: [],
+  holidays: [],
+  alwaysOpen: true,
+};
 const policyRow = {
   id: "pv-1",
   policyId: "policy",
@@ -110,7 +117,9 @@ function fakePrisma(
     normalizedEvent: { findMany: async () => events },
     rawEvent: { findMany: async () => [], findFirst: async () => null },
     integration: { findUnique: async () => null },
-    organization: { findUnique: async () => ({ engineeringLegTargetMinutes: null }) },
+    organization: {
+      findUnique: async () => ({ engineeringLegTargetMinutes: null }),
+    },
     sLAPolicyVersion: { findMany: async () => [policyRow] },
     businessCalendarVersion: { findMany: async () => [calendarRow] },
     commitmentPolicyChange: { findMany: async () => [] },
@@ -120,33 +129,91 @@ function fakePrisma(
 
 describe("getCaseDetailData: Next Reply multi-cycle support", () => {
   it("passes cycleKey through for every commitment, not just next_reply", async () => {
-    const firstResponse = commitment({ id: "c-fr", kind: "first_response", cycleKey: "single" });
+    const firstResponse = commitment({
+      id: "c-fr",
+      kind: "first_response",
+      cycleKey: "single",
+    });
     const cycle1 = commitment({
       id: "c-nr-1",
       kind: "next_reply",
-      cycleKey: "next_reply:zendesk:raw-1:customer_replied:2026-09-17T10:00:00.000Z",
+      cycleKey:
+        "next_reply:zendesk:raw-1:customer_replied:2026-09-17T10:00:00.000Z",
       startedAt: new Date("2026-09-17T10:00:00.000Z"),
     });
-    const data = await getCaseDetailData(fakePrisma([firstResponse, cycle1]), "org-1", "case-1", AS_OF);
-    expect(data!.commitments.find((c) => c.id === "c-fr")!.cycleKey).toBe("single");
-    expect(data!.commitments.find((c) => c.id === "c-nr-1")!.cycleKey).toBe(cycle1.cycleKey);
+    const data = await getCaseDetailData(
+      fakePrisma([firstResponse, cycle1]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.commitments.find((c) => c.id === "c-fr")!.cycleKey).toBe(
+      "single",
+    );
+    expect(data!.commitments.find((c) => c.id === "c-nr-1")!.cycleKey).toBe(
+      cycle1.cycleKey,
+    );
   });
 
   it("keeps every next_reply commitment when a case has several simultaneously", async () => {
     const cycles = [
-      commitment({ id: "c-nr-1", kind: "next_reply", cycleKey: "cycle-1", startedAt: new Date("2026-09-17T10:00:00.000Z") }),
-      commitment({ id: "c-nr-2", kind: "next_reply", cycleKey: "cycle-2", startedAt: new Date("2026-09-17T12:00:00.000Z") }),
-      commitment({ id: "c-nr-3", kind: "next_reply", cycleKey: "cycle-3", startedAt: new Date("2026-09-17T14:00:00.000Z") }),
+      commitment({
+        id: "c-nr-1",
+        kind: "next_reply",
+        cycleKey: "cycle-1",
+        startedAt: new Date("2026-09-17T10:00:00.000Z"),
+      }),
+      commitment({
+        id: "c-nr-2",
+        kind: "next_reply",
+        cycleKey: "cycle-2",
+        startedAt: new Date("2026-09-17T12:00:00.000Z"),
+      }),
+      commitment({
+        id: "c-nr-3",
+        kind: "next_reply",
+        cycleKey: "cycle-3",
+        startedAt: new Date("2026-09-17T14:00:00.000Z"),
+      }),
     ];
-    const data = await getCaseDetailData(fakePrisma(cycles), "org-1", "case-1", AS_OF);
-    expect(data!.commitments.map((c) => c.id)).toEqual(["c-nr-1", "c-nr-2", "c-nr-3"]);
+    const data = await getCaseDetailData(
+      fakePrisma(cycles),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
+    expect(data!.commitments.map((c) => c.id)).toEqual([
+      "c-nr-1",
+      "c-nr-2",
+      "c-nr-3",
+    ]);
   });
 
   it("orders commitments deterministically — first_response, next_reply by startedAt, then resolution — never by DB fetch order", async () => {
-    const resolution = commitment({ id: "c-res", kind: "resolution", cycleKey: "single", targetMinutes: 480 });
-    const firstResponse = commitment({ id: "c-fr", kind: "first_response", cycleKey: "single", targetMinutes: 120 });
-    const cycle2 = commitment({ id: "c-nr-2", kind: "next_reply", cycleKey: "cycle-2", startedAt: new Date("2026-09-17T12:00:00.000Z") });
-    const cycle1 = commitment({ id: "c-nr-1", kind: "next_reply", cycleKey: "cycle-1", startedAt: new Date("2026-09-17T10:00:00.000Z") });
+    const resolution = commitment({
+      id: "c-res",
+      kind: "resolution",
+      cycleKey: "single",
+      targetMinutes: 480,
+    });
+    const firstResponse = commitment({
+      id: "c-fr",
+      kind: "first_response",
+      cycleKey: "single",
+      targetMinutes: 120,
+    });
+    const cycle2 = commitment({
+      id: "c-nr-2",
+      kind: "next_reply",
+      cycleKey: "cycle-2",
+      startedAt: new Date("2026-09-17T12:00:00.000Z"),
+    });
+    const cycle1 = commitment({
+      id: "c-nr-1",
+      kind: "next_reply",
+      cycleKey: "cycle-1",
+      startedAt: new Date("2026-09-17T10:00:00.000Z"),
+    });
     // Deliberately fed out of the desired display order, as an unordered DB
     // fetch might return them.
     const data = await getCaseDetailData(
@@ -155,14 +222,39 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
       "case-1",
       AS_OF,
     );
-    expect(data!.commitments.map((c) => c.id)).toEqual(["c-fr", "c-nr-1", "c-nr-2", "c-res"]);
+    expect(data!.commitments.map((c) => c.id)).toEqual([
+      "c-fr",
+      "c-nr-1",
+      "c-nr-2",
+      "c-res",
+    ]);
   });
 
   it("gives each simultaneous next_reply commitment a deterministic Cycle N presentation label, in startedAt order", async () => {
-    const cycle2 = commitment({ id: "c-nr-2", kind: "next_reply", cycleKey: "cycle-2", startedAt: new Date("2026-09-17T12:00:00.000Z") });
-    const cycle1 = commitment({ id: "c-nr-1", kind: "next_reply", cycleKey: "cycle-1", startedAt: new Date("2026-09-17T10:00:00.000Z") });
-    const cycle3 = commitment({ id: "c-nr-3", kind: "next_reply", cycleKey: "cycle-3", startedAt: new Date("2026-09-17T14:00:00.000Z") });
-    const data = await getCaseDetailData(fakePrisma([cycle2, cycle1, cycle3]), "org-1", "case-1", AS_OF);
+    const cycle2 = commitment({
+      id: "c-nr-2",
+      kind: "next_reply",
+      cycleKey: "cycle-2",
+      startedAt: new Date("2026-09-17T12:00:00.000Z"),
+    });
+    const cycle1 = commitment({
+      id: "c-nr-1",
+      kind: "next_reply",
+      cycleKey: "cycle-1",
+      startedAt: new Date("2026-09-17T10:00:00.000Z"),
+    });
+    const cycle3 = commitment({
+      id: "c-nr-3",
+      kind: "next_reply",
+      cycleKey: "cycle-3",
+      startedAt: new Date("2026-09-17T14:00:00.000Z"),
+    });
+    const data = await getCaseDetailData(
+      fakePrisma([cycle2, cycle1, cycle3]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const numbers = nextReplyCycleNumbers(data!.commitments);
     expect(numbers.get("c-nr-1")).toBe(1);
     expect(numbers.get("c-nr-2")).toBe(2);
@@ -170,14 +262,32 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
   });
 
   it("renders distinguishable Cycle labels for two simultaneous Next Reply cards", async () => {
-    const cycle1 = commitment({ id: "c-nr-1", kind: "next_reply", cycleKey: "cycle-1", startedAt: new Date("2026-09-17T10:00:00.000Z") });
-    const cycle2 = commitment({ id: "c-nr-2", kind: "next_reply", cycleKey: "cycle-2", startedAt: new Date("2026-09-17T12:00:00.000Z") });
-    const data = await getCaseDetailData(fakePrisma([cycle2, cycle1]), "org-1", "case-1", AS_OF);
+    const cycle1 = commitment({
+      id: "c-nr-1",
+      kind: "next_reply",
+      cycleKey: "cycle-1",
+      startedAt: new Date("2026-09-17T10:00:00.000Z"),
+    });
+    const cycle2 = commitment({
+      id: "c-nr-2",
+      kind: "next_reply",
+      cycleKey: "cycle-2",
+      startedAt: new Date("2026-09-17T12:00:00.000Z"),
+    });
+    const data = await getCaseDetailData(
+      fakePrisma([cycle2, cycle1]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const numbers = nextReplyCycleNumbers(data!.commitments);
 
     const renders = data!.commitments.map((c) =>
       renderToStaticMarkup(
-        createElement(CommitmentCard, { commitment: c, cycleNumber: numbers.get(c.id) }),
+        createElement(CommitmentCard, {
+          commitment: c,
+          cycleNumber: numbers.get(c.id),
+        }),
       ).replace(/<[^>]+>/g, " "),
     );
 
@@ -188,13 +298,25 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
   });
 
   it("does not label a first_response or resolution card with a cycle number", async () => {
-    const firstResponse = commitment({ id: "c-fr", kind: "first_response", cycleKey: "single" });
-    const data = await getCaseDetailData(fakePrisma([firstResponse]), "org-1", "case-1", AS_OF);
+    const firstResponse = commitment({
+      id: "c-fr",
+      kind: "first_response",
+      cycleKey: "single",
+    });
+    const data = await getCaseDetailData(
+      fakePrisma([firstResponse]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const numbers = nextReplyCycleNumbers(data!.commitments);
     expect(numbers.has("c-fr")).toBe(false);
 
     const html = renderToStaticMarkup(
-      createElement(CommitmentCard, { commitment: data!.commitments[0]!, cycleNumber: numbers.get("c-fr") }),
+      createElement(CommitmentCard, {
+        commitment: data!.commitments[0]!,
+        cycleNumber: numbers.get("c-fr"),
+      }),
     );
     expect(html).not.toContain("Cycle");
   });
@@ -213,7 +335,12 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
       status: "cancelled",
       closedAt: new Date("2026-09-17T11:00:00.000Z"),
     });
-    const data = await getCaseDetailData(fakePrisma([cancelled]), "org-1", "case-1", AS_OF);
+    const data = await getCaseDetailData(
+      fakePrisma([cancelled]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     expect(data!.commitments).toHaveLength(1);
     expect(data!.commitments[0]!.id).toBe("c-nr-cancelled");
     expect(data!.commitments[0]!.cycleKey).toBe("cycle-gone");
@@ -240,7 +367,12 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
     });
     // AS_OF is 15:00 — 6 hours after startedAt, well past the 60m target,
     // which is exactly what would make a live re-evaluation say "breached".
-    const data = await getCaseDetailData(fakePrisma([cancelled]), "org-1", "case-1", AS_OF);
+    const data = await getCaseDetailData(
+      fakePrisma([cancelled]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const detail = data!.commitments[0]!;
     expect(detail.status).toBe("cancelled");
     expect(detail.status).not.toBe("breached");
@@ -268,7 +400,12 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
       type: "agent_replied",
       occurredAt: new Date("2026-09-17T09:45:00.000Z"),
     });
-    const data = await getCaseDetailData(fakePrisma([met], [reply]), "org-1", "case-1", AS_OF);
+    const data = await getCaseDetailData(
+      fakePrisma([met], [reply]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const detail = data!.commitments[0]!;
     expect(detail.status).toBe("met");
     expect(detail.clockState).toBe("stopped");
@@ -292,7 +429,12 @@ describe("getCaseDetailData: Next Reply multi-cycle support", () => {
       type: "agent_replied",
       occurredAt: new Date("2026-09-17T11:00:00.000Z"),
     });
-    const data = await getCaseDetailData(fakePrisma([breached], [reply]), "org-1", "case-1", AS_OF);
+    const data = await getCaseDetailData(
+      fakePrisma([breached], [reply]),
+      "org-1",
+      "case-1",
+      AS_OF,
+    );
     const detail = data!.commitments[0]!;
     expect(detail.status).toBe("breached");
     expect(detail.clockState).toBe("stopped");

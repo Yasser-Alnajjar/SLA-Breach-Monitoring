@@ -1,13 +1,13 @@
 "use client";
 
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Building2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Actions } from "@/actions/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { tableHeadClass } from "./SlaSection";
 import type { BusinessCalendarOption, CustomerCalendarSummary } from "@/lib/types/sla-configuration";
 
 const DEFAULT_VALUE = "__default__";
@@ -43,15 +43,24 @@ function CustomerRow({ customer, calendars }: { customer: CustomerCalendarSummar
   }
 
   return (
-    <div className="space-y-2 border-b border-outline-variant/30 pb-4 last:border-0 last:pb-0">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-foreground">{customer.name}</p>
-        {customer.tier && <Badge variant="outline">{customer.tier}</Badge>}
-      </div>
+    <div className="hover:bg-surface-container-high/50 space-y-2 px-3 py-2.5 transition-colors">
+      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-12">
+        <div className="flex min-w-0 items-center gap-2 sm:col-span-4">
+          <Building2 className="text-outline size-4 shrink-0" />
+          <p className="text-on-surface truncate text-sm font-medium">{customer.name}</p>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+        <div className="sm:col-span-3">
+          {customer.tier && (
+            <span className="bg-surface-container-highest text-primary rounded px-1.5 py-0.5 font-mono text-xxs uppercase">
+              {customer.tier}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-5">
         <Select value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-64">
+          <SelectTrigger className="w-full sm:w-56">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -69,6 +78,7 @@ function CustomerRow({ customer, calendars }: { customer: CustomerCalendarSummar
             {saving ? "Saving…" : "Save"}
           </Button>
         )}
+        </div>
       </div>
       {error && (
         <Alert variant="destructive">
@@ -100,10 +110,17 @@ export function CustomerCalendarsCard({
   }
 
   return (
-    <div className="space-y-4">
-      {customers.map((customer) => (
-        <CustomerRow key={customer.id} customer={customer} calendars={calendars} />
-      ))}
+    <div className="bg-surface-container overflow-hidden rounded-lg">
+      <div className={`${tableHeadClass} bg-surface-container-lowest hidden grid-cols-12 gap-2 px-3 py-2 sm:grid`}>
+        <div className="col-span-4">Tenant / Customer</div>
+        <div className="col-span-3">Tier</div>
+        <div className="col-span-5">Pinned calendar</div>
+      </div>
+      <div className="divide-outline-variant/10 divide-y">
+        {customers.map((customer) => (
+          <CustomerRow key={customer.id} customer={customer} calendars={calendars} />
+        ))}
+      </div>
     </div>
   );
 }

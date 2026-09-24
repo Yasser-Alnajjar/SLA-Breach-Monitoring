@@ -9,6 +9,7 @@ import {
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Actions } from "@/actions";
 import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
+import { AlertsPopover } from "@/components/layout/alerts-popover";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Input } from "@/components/ui/input";
 
@@ -28,11 +29,23 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   // avatar are user-editable from the Profile page (@modules/settings/profile)
   // and must show up here immediately via `router.refresh()`, not just after
   // the next sign-in.
-  const [user, integrations, worker] = await Promise.all([
+  const [user, integrations, worker, atRisk] = await Promise.all([
     Actions.Profile.getData(),
     Actions.Integrations.getData(),
     Actions.WorkerSettings.getData(),
+    Actions.AtRisk.getData(),
   ]);
+
+  const alerts = atRisk
+    .filter((r) => r.status === "at_risk" || r.status === "breached")
+    .map((r) => ({
+      commitmentId: r.commitmentId,
+      caseId: r.caseId,
+      externalId: r.externalId,
+      subject: r.subject,
+      status: r.status as "at_risk" | "breached",
+      remainingMinutes: r.remainingMinutes,
+    }));
 
   // Real per-integration connection state (Elapsed reconstruction's header
   // sync pill and alert-channel indicator) — never a static "Sync Active"
@@ -117,6 +130,8 @@ export default async function AppLayout({ children }: AppLayoutProps) {
               {integrations.slack.connected ? "connected" : "not connected"}
             </span>
           </div>
+
+          <AlertsPopover items={alerts} />
 
           <UserMenu user={user} />
         </header>

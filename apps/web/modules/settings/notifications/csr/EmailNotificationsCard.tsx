@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Mail } from "lucide-react";
+import { AlertCircle, CheckCircle2, History, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { Actions } from "@/actions/client";
@@ -122,15 +122,15 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
   const anyPending = testConnection.pending || testSend.pending || saving;
 
   return (
-    <Card className="bg-surface-container-low rounded-xl border-0 shadow-sm p-6">
+    <Card className="bg-surface-container-low relative gap-0 overflow-hidden rounded-xl border-0 p-6 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 p-0">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-surface-container-highest text-primary">
-            <Mail className="size-4" />
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-highest text-primary">
+            <Mail className="size-5" />
           </span>
           <div>
-            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">Email notifications</CardTitle>
-            <p className="text-sm text-on-surface-variant">
+            <CardTitle className="text-on-surface text-lg font-medium tracking-tight">Email Notifications</CardTitle>
+            <p className="text-xs text-on-surface-variant">
               SMTP server used to email at-risk and breach alerts to everyone in this organization.
             </p>
           </div>
@@ -141,10 +141,24 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
       </CardHeader>
 
       <CardContent className="p-0 pt-5">
+        {status.configured && (
+          <div className="bg-surface-container text-tertiary mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2.5 font-mono text-xs">
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="size-4" />
+              SMTP relay configured ({status.host}:{status.port})
+            </span>
+            {status.updatedAt && (
+              <span className="text-outline flex items-center gap-1 tabular-nums">
+                <History className="size-3" />
+                Updated {new Date(status.updatedAt).toISOString().slice(11, 19)} UTC
+              </span>
+            )}
+          </div>
+        )}
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="smtp-host">SMTP Host</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-host">SMTP Host</Label>
               <Input
                 id="smtp-host"
                 value={host}
@@ -154,7 +168,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-port">SMTP Port</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-port">SMTP Port</Label>
               <Input
                 id="smtp-port"
                 type="number"
@@ -170,7 +184,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-security">Security</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-security">Security</Label>
               <Select value={security} onValueChange={(value) => setSecurity(value as EmailSecurity)}>
                 <SelectTrigger id="smtp-security" className="w-full">
                   <SelectValue />
@@ -185,7 +199,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-username">Username</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-username">Username</Label>
               <Input
                 id="smtp-username"
                 value={username}
@@ -198,7 +212,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-password">Password</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-password">Password</Label>
               <Input
                 id="smtp-password"
                 type="password"
@@ -210,7 +224,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-from-email">From Email</Label>
+              <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-from-email">From Email</Label>
               <Input
                 id="smtp-from-email"
                 type="email"
@@ -223,7 +237,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="smtp-from-name">From Name</Label>
+            <Label className="text-outline font-mono text-xxs font-semibold uppercase tracking-wider" htmlFor="smtp-from-name">From Name</Label>
             <Input
               id="smtp-from-name"
               value={fromName}
@@ -239,7 +253,7 @@ export function EmailNotificationsCard({ status }: EmailNotificationsCardProps) 
             </Alert>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="bg-surface-container -mx-6 -mb-6 mt-2 flex flex-wrap items-center justify-end gap-2 px-6 py-4">
             <Button type="button" size="sm" variant="surface" onClick={handleTestConnection} disabled={anyPending}>
               {testConnection.pending && <Loader2 className="animate-spin" />}
               {testConnection.pending ? "Testing…" : "Test Connection"}

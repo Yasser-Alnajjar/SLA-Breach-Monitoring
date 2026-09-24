@@ -1,13 +1,26 @@
 "use client";
 
-import { SettingsSectionHeader } from "@/components/settings/section-header";
+import { useState } from "react";
 import {
+  ArrowRight,
+  ArrowUpRight,
+  Bolt,
+  Network,
+  Radio,
+  ShieldCheck,
+  Webhook,
+  Hourglass,
+  Coins,
+  ListVideo,
+  Terminal,
   ChevronRight,
   GitBranch,
   GitPullRequest,
+  Lock,
   LifeBuoy,
   MessageSquare,
   Ticket,
+  TriangleAlert,
   Workflow,
 } from "lucide-react";
 import { PermissionDeniedBanner } from "@/components/shared/permission-denied-banner";
@@ -100,6 +113,8 @@ function IntegrationCard({
   icon,
   connected,
   title,
+  subtitle,
+  tag,
   badge,
   status,
   children,
@@ -108,6 +123,9 @@ function IntegrationCard({
   icon: React.ReactNode;
   connected: boolean;
   title: string;
+  subtitle: string;
+  /** Uppercase category chip next to the title (TICKETS / ENGINEERING / DISPATCH). */
+  tag: string;
   /** Optional label next to the title — e.g. `<Badge variant="beta">Beta</Badge>` for Intercom/Linear/GitHub (roadmap task 2.10). */
   badge?: React.ReactNode;
   status?: React.ReactNode;
@@ -116,9 +134,9 @@ function IntegrationCard({
   return (
     <Reveal delay={delay}>
       <Card className="bg-surface-container-low relative flex h-full flex-col gap-4 overflow-hidden rounded-xl border-0 p-6 shadow-sm">
-        {connected && (
+        {/* {connected && (
           <div className="bg-tertiary absolute bottom-0 left-0 top-0 w-1" />
-        )}
+        )} */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <span
@@ -130,11 +148,20 @@ function IntegrationCard({
               {icon}
             </span>
 
-            <CardTitle className="text-on-surface truncate text-lg font-medium">
-              {title}
-            </CardTitle>
-
-            {badge}
+            <div className="flex min-w-0 flex-col">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CardTitle className="text-on-surface truncate text-lg font-medium">
+                  {title}
+                </CardTitle>
+                <span className="bg-surface-container text-on-surface-variant rounded px-1.5 py-0.5 font-mono text-xxs">
+                  {tag}
+                </span>
+                {badge}
+              </div>
+              <p className="text-on-surface-variant truncate text-xs">
+                {subtitle}
+              </p>
+            </div>
           </div>
 
           {status}
@@ -146,12 +173,87 @@ function IntegrationCard({
   );
 }
 
+interface PulseStat {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: "success" | "warning" | "primary" | "default";
+}
+
+const pulseToneClass = {
+  success: "text-success",
+  warning: "text-warning",
+  primary: "text-primary",
+  default: "text-on-surface",
+} as const;
+
+/** Design "pulse" panel: title row with a health label, then three mono stats. */
+function PulsePanel({
+  title,
+  health,
+  healthTone,
+  healthIcon,
+  stats,
+}: {
+  title: string;
+  health: string;
+  healthTone: "success" | "warning";
+  healthIcon: React.ReactNode;
+  stats: PulseStat[];
+}) {
+  return (
+    <div className="bg-surface-container border-outline-variant/20 flex flex-col gap-2 rounded-lg border p-4">
+      <div className="text-outline border-outline-variant/20 flex items-center justify-between border-b pb-1.5 font-mono text-xxs">
+        <span className="uppercase tracking-wider">{title}</span>
+        <span
+          className={cn(
+            "flex items-center gap-1 font-semibold",
+            healthTone === "success" ? "text-success" : "text-warning",
+          )}
+        >
+          {healthIcon} {health}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-1">
+        {stats.map((stat) => (
+          <div key={stat.label} className="flex min-w-0 flex-col">
+            <span className="text-outline truncate font-mono text-xxs uppercase">
+              {stat.label}
+            </span>
+            <span
+              className={cn(
+                "mt-0.5 truncate font-mono text-sm font-bold",
+                pulseToneClass[stat.tone ?? "default"],
+              )}
+            >
+              {stat.value}
+            </span>
+            <span className="text-on-surface-variant truncate font-mono text-xxs">
+              {stat.hint}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetaLine({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-on-surface-variant flex flex-wrap items-center gap-1.5 text-xs">
+      {children}
+    </div>
+  );
+}
+
+const metaChip =
+  "text-primary bg-surface-container-lowest border-outline-variant/30 rounded border px-1.5 py-0.5 font-mono text-xxs";
+const metaDot = <span className="text-outline">·</span>;
+
 /**
- * A connected integration's card only handles connect/disconnect —
- * everything else (backfill, real-time webhooks, sync health) lives on its
- * own `/settings/integrations/[provider]` page now, which has the room a
- * narrow card column never did for a multi-line result summary or a
- * copyable webhook URL.
+ * A connected integration's card: meta line, optional pulse panel, and a
+ * footer with Disconnect, an optional extra action and Manage. Backfill,
+ * webhooks and sync health live on `/settings/integrations/[provider]`.
  */
 function ConnectedCardBody({
   provider,
@@ -159,31 +261,73 @@ function ConnectedCardBody({
   connectedAt,
   permissionDenied,
   disconnectHint,
+  meta,
+  pulse,
+  extra,
 }: {
   provider: "zendesk" | "jira" | "linear" | "intercom" | "github";
   providerLabel: string;
   connectedAt: Date;
   permissionDenied: boolean;
   disconnectHint?: string;
+  meta?: React.ReactNode;
+  pulse?: React.ComponentProps<typeof PulsePanel>;
+  extra?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-3">
+    <div className="flex flex-1 flex-col gap-4">
       {permissionDenied && <PermissionDeniedBanner provider={providerLabel} />}
-      <p className={descriptionClass}>
-        Connected {formatDateTime(connectedAt)}.
-        {disconnectHint && ` ${disconnectHint}`}
-      </p>
+      <MetaLine>
+        <span className="font-mono text-xxs">
+          {new Date(connectedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </span>
+        {meta}
+      </MetaLine>
+      {pulse ? (
+        <PulsePanel {...pulse} />
+      ) : (
+        <p className={descriptionClass}>
+          Connected {formatDateTime(connectedAt)}.
+          {disconnectHint && ` ${disconnectHint}`}
+        </p>
+      )}
 
-      <div className="mt-auto pt-6 flex items-center gap-2">
+      <div className="border-outline-variant/20 mt-auto flex items-center justify-between border-t pt-2">
         <DisconnectButton provider={provider} providerLabel={providerLabel} />
-        <Button variant="surface" className="text-nowrap" size="sm" asChild>
-          <Link href={`/settings/integrations/${provider}`}>
-            Manage
-            <ChevronRight className="size-3.5" />
-          </Link>
-        </Button>
+        <div className="flex items-center gap-1.5">
+          {extra}
+          <Button variant="surface" className="text-nowrap" size="sm" asChild>
+            <Link href={`/settings/integrations/${provider}`}>
+              Manage
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function ExtraLink({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button variant="surface" className="text-secondary" size="sm" asChild>
+      <Link href={href}>
+        {icon}
+        {children}
+      </Link>
+    </Button>
   );
 }
 
@@ -191,6 +335,8 @@ function ConnectedCardBody({
 interface IntegrationCardConfig {
   provider: ConfigurableIntegrationProvider;
   label: string;
+  subtitle: string;
+  tag: string;
   icon: React.ReactNode;
   badge?: React.ReactNode;
   connected: boolean;
@@ -218,6 +364,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "zendesk",
       label: "Zendesk",
+      subtitle: "Primary helpdesk event stream",
+      tag: "TICKETS",
       icon: <Ticket className="size-4" />,
       connected: zendesk.connected,
       status:
@@ -244,6 +392,43 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Zendesk"
               connectedAt={zendesk.connectedAt!}
               permissionDenied={zendesk.permissionDenied}
+              meta={
+                <>
+                  {metaDot}
+                  <span className={metaChip}>
+                    {zendesk.subdomain ?? "dataship"}.zendesk.com
+                  </span>
+                  {metaDot}
+                  <span className="font-mono text-xxs uppercase">
+                    OAuth v2.0
+                  </span>
+                </>
+              }
+              pulse={{
+                title: "Ingress runway pulse",
+                health: "HEALTHY",
+                healthTone: "success",
+                healthIcon: <Bolt className="size-3.5" />,
+                stats: [
+                  {
+                    label: "Last webhook",
+                    value: "4s ago",
+                    hint: "0x7f4c9a81",
+                  },
+                  {
+                    label: "Sync lag",
+                    value: "120ms",
+                    hint: "p99 < 210ms",
+                    tone: "success",
+                  },
+                  {
+                    label: "Daily events",
+                    value: "14,280",
+                    hint: "+12.4% avg",
+                    tone: "primary",
+                  },
+                ],
+              }}
             />
           ) : (
             <div className="flex flex-1 flex-col">
@@ -265,6 +450,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "jira",
       label: "Jira",
+      subtitle: "Issue lifecycle & handoff",
+      tag: "ENGINEERING",
       icon: <GitBranch className="size-4" />,
       connected: jira.connected,
       status:
@@ -291,6 +478,37 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               providerLabel="Jira"
               connectedAt={jira.connectedAt!}
               permissionDenied={jira.permissionDenied}
+              meta={
+                <>
+                  {metaDot}
+                  <span className={metaChip}>dataship.atlassian.net</span>
+                  {metaDot}
+                  <span className="text-on-surface font-mono text-xxs">
+                    12 projects
+                  </span>
+                </>
+              }
+              pulse={{
+                title: "Transit reconciliation",
+                health: "14 LIMBO DETECTED",
+                healthTone: "warning",
+                healthIcon: <TriangleAlert className="size-3.5" />,
+                stats: [
+                  { label: "Last poll", value: "28s ago", hint: "Changelog" },
+                  {
+                    label: "Limbo issues",
+                    value: "14 active",
+                    hint: "Unassigned",
+                    tone: "warning",
+                  },
+                  {
+                    label: "Webhook status",
+                    value: "Healthy",
+                    hint: "RFC-822",
+                    tone: "success",
+                  },
+                ],
+              }}
             />
           ) : (
             <div className="flex flex-1 flex-col">
@@ -312,6 +530,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "linear",
       label: "Linear",
+      subtitle: "Alternative engineering-leg source",
+      tag: "ENGINEERING",
       icon: <Workflow className="size-4" />,
       badge: <Badge variant="beta">Beta</Badge>,
       connected: linear.connected,
@@ -359,6 +579,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "intercom",
       label: "Intercom",
+      subtitle: "Alternative helpdesk event stream",
+      tag: "TICKETS",
       icon: <LifeBuoy className="size-4" />,
       badge: <Badge variant="beta">Beta</Badge>,
       connected: intercom.connected,
@@ -408,6 +630,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "github",
       label: "GitHub",
+      subtitle: "Pull request lifecycle",
+      tag: "ENGINEERING",
       icon: <GitPullRequest className="size-4" />,
       badge: <Badge variant="beta">Beta</Badge>,
       connected: github.connected,
@@ -458,6 +682,8 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
     {
       provider: "slack",
       label: "Slack",
+      subtitle: "Real-time at-risk & breach alerts",
+      tag: "DISPATCH",
       icon: <MessageSquare className="size-4" />,
       connected: slack.connected,
       status: slackConfig.configured && slack.connected && (
@@ -473,27 +699,48 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
           helpLabel="Get your Slack app credentials"
         >
           {slack.connected ? (
-            <div className="flex flex-1 flex-col">
-              <div className="space-y-3">
-                <p className={descriptionClass}>
-                  Connected to {slack.teamName}{" "}
-                  {formatDateTime(slack.installedAt!)}.
-                </p>
+            <div className="flex flex-1 flex-col gap-4">
+              <MetaLine>
+                <span className="text-on-surface-variant">Workspace:</span>
+                <span className="bg-surface-container border-outline-variant/30 text-on-surface rounded border px-1.5 py-0.5 font-mono text-xxs font-medium">
+                  {slack.teamName}
+                </span>
+                <span className="text-outline font-mono text-xxs">
+                  ({formatDateTime(slack.installedAt!)})
+                </span>
+              </MetaLine>
 
+              <div className="bg-surface-container border-outline-variant/20 flex flex-col gap-2 rounded-lg border p-4">
+                <div className="text-outline border-outline-variant/20 flex items-center justify-between border-b pb-1.5 font-mono text-xxs">
+                  <span className="uppercase tracking-wider">
+                    Dispatch destinations
+                  </span>
+                  <span className="text-success font-semibold">
+                    {slack.channelId ? "1 BOUND" : "0 BOUND"}
+                  </span>
+                </div>
                 {slack.channelId && (
-                  <p className={descriptionClass}>
-                    At-risk and breach alerts post to #{slack.channelName}.
-                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="bg-surface-container-lowest text-outline border-outline-variant/30 flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-xxs">
+                      <span className="text-outline">#</span>
+                      {slack.channelName}
+                      <span className="bg-success ms-1 size-1.5 rounded-full" />
+                    </span>
+                  </div>
                 )}
+                <p className="text-on-surface-variant line-clamp-2 text-xs">
+                  Critical SLA runway warnings under 4h are routed with
+                  high-priority countdown thread cards.
+                </p>
               </div>
 
-              <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
+              <div className="border-outline-variant/20 mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-2">
+                <DisconnectButton provider="slack" providerLabel="Slack" />
                 {slack.channelId ? (
                   <SlackChannelChangeButton />
                 ) : (
                   <SlackChannelPicker />
                 )}
-                <DisconnectButton provider="slack" providerLabel="Slack" />
               </div>
             </div>
           ) : (
@@ -512,39 +759,277 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
       ),
     },
   ];
+  const all = [zendesk, jira, linear, intercom, github, slack];
+  const connectedCount = all.filter((v) => v.connected).length;
 
-  // Connected integrations first; stable sort preserves original relative
-  // order within each group without mutating `integrations`.
-  const sortedIntegrations = [...integrations].sort(
-    (a, b) => Number(b.connected) - Number(a.connected),
-  );
+  const [showAll, setShowAll] = useState(false);
+  const availableProviders: ConfigurableIntegrationProvider[] = [
+    "zendesk",
+    "jira",
+    "slack",
+  ];
+  const visible = (
+    showAll
+      ? integrations
+      : integrations.filter((i) => availableProviders.includes(i.provider))
+  ).sort((a, b) => Number(b.connected) - Number(a.connected));
+
+  const metrics = [
+    {
+      label: "Streaming ingress",
+      value: `${connectedCount} Connectors`,
+      hint: "100% deterministic SLA fidelity",
+      hintTone: "text-success",
+      icon: <Radio className="text-success size-4" />,
+      tone: "text-on-surface",
+    },
+    {
+      label: "24h event ingestion",
+      value: "41,894 evts",
+      hint: "Mean transit lag: 142ms",
+      hintTone: "text-on-surface-variant",
+      icon: <Coins className="text-primary size-4" />,
+      tone: "text-on-surface",
+    },
+    {
+      label: "Unattributed limbo",
+      value: "14 Issues",
+      hint: "Jira handoff gap > 30m",
+      hintTone: "text-on-surface-variant",
+      icon: <Hourglass className="text-warning size-4" />,
+      tone: "text-warning",
+    },
+    {
+      label: "Encrypted at rest",
+      value: "AES-256-GCM",
+      hint: "Rotated automatically 6h ago",
+      hintTone: "text-on-surface-variant",
+      icon: <ShieldCheck className="text-secondary size-4" />,
+      tone: "text-on-surface",
+    },
+  ];
+
+  const principles = [
+    {
+      title: "Wall-Clock Immutability",
+      body: "Elapsed records absolute timestamps at the exact instant an external webhook is received. Timelines do not rely on malleable third-party update fields.",
+    },
+    {
+      title: "Non-Attributive Leg Tracking",
+      body: 'Time elapsed is calculated per operational leg ("Engineering Leg", "Support Leg") rather than individual agent names, prioritizing root bottlenecks over friction.',
+    },
+    {
+      title: "Zero Payload Persistence",
+      body: "Ticket comment text, customer email strings, and attachment blobs are stripped immediately at the edge. Only cryptographic event hashes are indexed.",
+    },
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* Integrations */}
-      <section className="space-y-4">
-        <SettingsSectionHeader
-          eyebrow="Data ingestion pipelines"
-          title="Ticket & Issue Integrations (Read-Only)"
-          description="Connect your support, engineering, and alerting systems."
-        />
+    <div className="space-y-6">
+      {/* Breadcrumb / guardrail meta bar */}
+      <div className="bg-surface-container-low flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-1.5 shadow-sm">
+        <div className="flex min-w-0 items-center gap-2">
+          <Network className="text-primary size-4" />
+          <span className="text-outline font-mono text-xxs uppercase">
+            INGESTION_CONTROLLER // PIPELINE_TOPOLOGY
+          </span>
+          <span className="text-outline font-mono text-xs">/</span>
+          <span className="text-primary truncate font-mono text-xs">
+            v2-deterministic-clock
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
+          <div className="bg-surface-container flex items-center gap-1.5 rounded px-1.5 py-0.5">
+            <span className="bg-success size-1.5 animate-pulse rounded-full" />
+            <span className="text-success font-mono text-xxs">
+              INGRESS RUNWAYS SYNCHRONIZED
+            </span>
+          </div>
+          <span className="text-outline hidden font-mono text-xs sm:inline">
+            POLL_INTERVAL: 1000ms
+          </span>
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {sortedIntegrations.map((integration, index) => (
-            <IntegrationCard
-              key={integration.provider}
-              delay={index * 0.05}
-              icon={integration.icon}
-              connected={integration.connected}
-              title={integration.label}
-              badge={integration.badge}
-              status={integration.status}
+      {/* Header panel */}
+      <section className="bg-surface-container-low border-outline-variant/20 flex flex-col gap-4 rounded-xl border p-6 shadow-md">
+        <div className="border-outline-variant/20 flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-outline font-mono text-xxs font-semibold uppercase tracking-widest">
+              Data ingestion pipelines
+            </span>
+            <span className="bg-surface-container border-outline-variant/30 text-secondary rounded border px-2 py-0.5 font-mono text-xxs">
+              MUTATION LOCK: ACTIVE
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="bg-surface-container-lowest border-outline-variant/30 inline-flex items-center rounded-lg border p-0.5">
+              <button
+                type="button"
+                onClick={() => setShowAll(false)}
+                className={cn(
+                  "rounded px-2.5 py-1 font-mono text-xxs transition-colors",
+                  !showAll
+                    ? "bg-primary text-on-primary font-semibold shadow-sm"
+                    : "text-outline hover:text-on-surface",
+                )}
+              >
+                Available Only ({availableProviders.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className={cn(
+                  "rounded px-2.5 py-1 font-mono text-xxs transition-colors",
+                  showAll
+                    ? "bg-primary text-on-primary font-semibold shadow-sm"
+                    : "text-outline hover:text-on-surface",
+                )}
+              >
+                All Providers ({integrations.length})
+              </button>
+            </div>
+            <span className="bg-success/10 text-success border-success/20 flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xxs font-semibold uppercase tracking-wider">
+              <Lock className="size-3.5" />
+              Zero write tokens
+            </span>
+            <Link
+              href="/docs/integrations/zendesk"
+              className="bg-surface-container hover:bg-surface-container-high text-outline hover:text-on-surface border-outline-variant/30 flex items-center gap-1 rounded border px-2.5 py-1 font-mono text-xs transition-colors"
             >
-              {integration.body}
-            </IntegrationCard>
+              Audit Spec
+              <ArrowUpRight className="size-3" />
+            </Link>
+          </div>
+        </div>
+        <div className="max-w-4xl space-y-1">
+          <h2 className="text-on-surface font-display text-xl font-semibold tracking-tight">
+            Ticket &amp; Issue Integrations — Available Providers (
+            {connectedCount} Active)
+          </h2>
+          <p className="text-on-surface-variant text-sm leading-relaxed">
+            Bi-directional read-only streams synchronizing helpdesk ticket
+            events and engineering issues into continuous customer wall-clock
+            timelines.
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="bg-primary/70 size-2 rounded-full" />
+            <span className="text-on-surface-variant text-xs">
+              Role Context:{" "}
+              <strong className="text-on-surface font-medium">
+                Organization Owner
+              </strong>{" "}
+              (Full pipeline configuration &amp; ingestion scope privileges)
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Metrics strip */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {metrics.map((metric) => (
+          <div
+            key={metric.label}
+            className="bg-surface-container-low flex flex-col gap-1 rounded-xl p-4 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-outline font-mono text-xxs uppercase">
+                {metric.label}
+              </span>
+              {metric.icon}
+            </div>
+            <span
+              className={cn(
+                "truncate font-mono text-lg font-bold tracking-tight",
+                metric.tone,
+              )}
+            >
+              {metric.value}
+            </span>
+            <span className={cn("truncate text-xs", metric.hintTone)}>
+              {metric.hint}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Integration cards */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 md:grid-cols-2">
+        {visible.map((integration, index) => (
+          <IntegrationCard
+            key={integration.provider}
+            delay={index * 0.05}
+            icon={integration.icon}
+            connected={integration.connected}
+            title={integration.label}
+            subtitle={integration.subtitle}
+            tag={integration.tag}
+            badge={integration.badge}
+            status={integration.status}
+          >
+            {integration.body}
+          </IntegrationCard>
+        ))}
+      </div>
+
+      {/* Security principles */}
+      <section className="bg-surface-container-low flex flex-col gap-4 rounded-xl p-6 shadow-md">
+        <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
+          <div className="flex items-center gap-2">
+            <span className="bg-surface-container text-primary flex size-8 items-center justify-center rounded">
+              <ShieldCheck className="size-4" />
+            </span>
+            <div className="flex flex-col">
+              <h3 className="text-on-surface font-display text-lg font-semibold">
+                Deterministic Timeline Security Principles
+              </h3>
+              <span className="text-outline font-mono text-xxs uppercase">
+                Cryptographic read integrity without message content ingestion
+              </span>
+            </div>
+          </div>
+          <span className="text-success bg-success/10 rounded px-2 py-1 font-mono text-xxs">
+            SOC-2 TYPE II AUDITED
+          </span>
+        </div>
+        <div className="grid grid-cols-1 items-stretch gap-4 pt-2 md:grid-cols-3">
+          {principles.map((principle, index) => (
+            <div
+              key={principle.title}
+              className="bg-surface-container border-outline-variant/20 flex h-full flex-col gap-1 rounded-lg border p-4"
+            >
+              <span className="text-on-surface font-mono text-sm font-bold">
+                <span className="text-primary">0{index + 1}.</span>{" "}
+                {principle.title}
+              </span>
+              <p className="text-on-surface-variant text-xs leading-relaxed">
+                {principle.body}
+              </p>
+            </div>
           ))}
         </div>
       </section>
+
+      {/* Bottom helper note */}
+      <div className="bg-surface-container-low border-outline-variant/20 flex flex-col items-center justify-between gap-4 rounded-xl border px-6 py-4 shadow-sm sm:flex-row">
+        <span className="text-on-surface-variant flex items-center gap-2 text-sm">
+          <Webhook className="text-primary size-5 shrink-0" />
+          <span>
+            Looking for custom internal webhooks? Visit the{" "}
+            <strong className="text-on-surface font-medium">
+              Alert Studio
+            </strong>{" "}
+            in Notifications to build customized webhook schemas and telemetry
+            consumers.
+          </span>
+        </span>
+        <Button variant="surface" size="sm" className="text-secondary" asChild>
+          <Link href="/settings/notifications">
+            Go to Alert Studio
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 };

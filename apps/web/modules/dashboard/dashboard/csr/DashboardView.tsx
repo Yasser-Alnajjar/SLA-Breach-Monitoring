@@ -13,6 +13,7 @@ import {
   Network,
   RefreshCw,
   X,
+  Activity,
 } from "lucide-react";
 import { Reveal } from "@/components/shared/reveal";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -303,6 +304,7 @@ export const DashboardView = ({
           <KpiTile
             label="SLA Compliance Rate"
             cornerFrom="from-primary/15"
+            icon={Activity}
             value={
               data.compliance.current === null
                 ? "—"

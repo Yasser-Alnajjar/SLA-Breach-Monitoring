@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, History, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Actions } from "@/actions/client";
@@ -10,7 +10,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   formatCommitmentKind,
@@ -22,16 +21,31 @@ import type {
   CustomerCalendarSummary,
   SlaPolicySummary,
 } from "@/lib/types/sla-configuration";
+import { SlaSection, formatTargetClock } from "./SlaSection";
 import { NativePolicyDialog } from "./NativePolicyDialog";
 import { PolicyOverrideDialog } from "./PolicyOverrideDialog";
 
-function formatTargets(targets: SlaPolicySummary["targets"]): string {
-  return targets
-    .map(
-      (target) =>
-        `${formatCommitmentKind(target.kind)}: ${formatMinutes(target.minutes)}`,
-    )
-    .join(" · ");
+const chip = "bg-surface-container-highest rounded px-1.5 py-0.5 font-mono text-xxs";
+
+function TargetGrid({ targets, baseline }: { targets: SlaPolicySummary["targets"]; baseline?: SlaPolicySummary["targets"] }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {targets.map((target) => {
+        const original = baseline?.find((b) => b.kind === target.kind);
+        const changed = original && original.minutes !== target.minutes;
+
+        return (
+          <div key={target.kind} className="bg-surface-container-lowest flex flex-col gap-0.5 rounded-lg p-2.5">
+            <span className="text-outline font-mono text-xxs uppercase">{formatCommitmentKind(target.kind)}</span>
+            <span className="text-primary font-mono text-base font-bold">{formatTargetClock(target.minutes)}</span>
+            {changed && (
+              <span className="text-outline font-mono text-xxs line-through">{formatTargetClock(original.minutes)}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function PolicyRow({
@@ -65,40 +79,40 @@ function PolicyRow({
 
   return (
     <>
-      <div className="space-y-3 border-b border-outline-variant/30 pb-4 last:border-0 last:pb-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium text-foreground">
-                {policy.name}
-              </p>
+      <div className="bg-surface-container hover:bg-surface-container-high/50 flex flex-col gap-3 rounded-lg p-4 transition-colors">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-on-surface text-base font-semibold">{policy.name}</p>
 
-              <span className="text-xs text-on-surface-variant">
-                v{policy.version}
+            <span className={`${chip} text-on-surface-variant`}>v{policy.version}</span>
+
+            <span className={`${chip} ${policy.source === "imported" ? "text-secondary" : "text-primary"}`}>
+              {policy.source === "imported" ? "Imported (Zendesk)" : "Native"}
+            </span>
+
+            {policy.overridden && <span className={`${chip} text-warning font-semibold`}>▲ Overridden</span>}
+
+            {policy.active ? (
+              <span className={`${chip} text-success flex items-center gap-1`}>
+                <span className="bg-success size-1.5 rounded-full" />
+                Active
               </span>
-
-              {policy.source === "imported" ? (
-                <Badge variant="outline">
-                  {policy.overridden ? "Overridden" : "Imported"}
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Native</Badge>
-              )}
-
-              {!policy.active && <Badge variant="warning">Inactive</Badge>}
-            </div>
-
-            <p className="mt-1 text-xs text-on-surface-variant">
-              {formatPolicyMatch(policy.match)}
-            </p>
+            ) : (
+              <span className={`${chip} text-warning`}>Inactive</span>
+            )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button type="button" size="sm" variant="ghost" className="text-primary" onClick={() => setDialogOpen(true)}>
+              {policy.source === "native" || policy.overridden ? "Edit" : "Override targets"}
+            </Button>
+
             {policy.source === "native" && (
               <Button
                 type="button"
                 size="sm"
-                variant="surface"
+                variant="ghost"
+                className={policy.active ? "text-destructive" : "text-success"}
                 onClick={handleToggleActive}
                 disabled={togglingActive}
               >
@@ -106,36 +120,15 @@ function PolicyRow({
                 {policy.active ? "Deactivate" : "Reactivate"}
               </Button>
             )}
-
-            <Button
-              type="button"
-              size="sm"
-              variant="surface"
-              onClick={() => setDialogOpen(true)}
-            >
-              {policy.source === "native"
-                ? "Edit"
-                : policy.overridden
-                  ? "Edit"
-                  : "Override"}
-            </Button>
           </div>
         </div>
 
-        <div className="rounded-lg bg-surface-container px-3 py-2.5">
-          <p className="text-xs text-on-surface-variant">Current targets</p>
-
-          <p className="mt-1 text-sm text-foreground">
-            {formatTargets(policy.targets)}
-          </p>
-
-          {policy.overridden && (
-            <p className="mt-1 text-xs text-on-surface-variant">
-              {policy.source === "imported" ? "Imported" : "Original"}:{" "}
-              {formatTargets(policy.importedTargets)}
-            </p>
-          )}
+        <div className="bg-surface-container-lowest flex items-center gap-2 overflow-x-auto rounded px-2.5 py-1.5">
+          <span className="text-outline shrink-0 font-mono text-xxs">MATCH RULE:</span>
+          <code className="text-secondary truncate font-mono text-xs">{formatPolicyMatch(policy.match)}</code>
         </div>
+
+        <TargetGrid targets={policy.targets} baseline={policy.overridden ? policy.importedTargets : undefined} />
       </div>
 
       {policy.source === "imported" ? (
@@ -185,37 +178,35 @@ export function SlaPoliciesCard({
   const archivedPolicies = policies.filter((policy) => !policy.active);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="max-w-3xl text-xs text-on-surface-variant">
-          Imported policies come from Zendesk and are matched first. Native
-          policies are matched only when no imported policy matches (D12).
-        </p>
-
+    <SlaSection
+      delay={0.05}
+      icon={<SlidersHorizontal className="size-5" />}
+      title="SLA Policies & Metric Matrix"
+      meta={`${activePolicies.length} published`}
+      metaClassName="text-success"
+      subtitle="Imported (Zendesk) policies are matched first; native policies only when none match (D12). Every edit creates a new version."
+      action={
         <Button
           type="button"
           size="sm"
           onClick={() => setCreateOpen(true)}
           disabled={businessCalendars.length === 0}
-          title={
-            businessCalendars.length === 0
-              ? "No business calendar available yet"
-              : undefined
-          }
+          title={businessCalendars.length === 0 ? "No business calendar available yet" : undefined}
         >
-          Create policy
+          <Plus />
+          New native policy
         </Button>
-      </div>
-
+      }
+    >
       {policies.length === 0 ? (
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-on-surface-variant text-sm">
           No SLA policies yet — import from Zendesk or create a native policy.
         </p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Active policies */}
           {activePolicies.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {activePolicies.map((policy) => (
                 <PolicyRow
                   key={policy.id}
@@ -231,18 +222,23 @@ export function SlaPoliciesCard({
 
           {/* Archived policies */}
           {archivedPolicies.length > 0 && (
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="archived">
-                <AccordionTrigger className="hover:no-underline">
+            <Accordion type="single" collapsible className="bg-surface-container overflow-hidden rounded-lg">
+              <AccordionItem value="archived" className="border-0">
+                <AccordionTrigger className="px-4 hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Archived</span>
-
-                    <Badge variant="outline">{archivedPolicies.length}</Badge>
+                    <History className="text-outline size-4" />
+                    <span className="text-sm font-medium">Archived &amp; superseded policies ({archivedPolicies.length})</span>
+                    <span className={`${chip} text-secondary`}>IMMUTABLE LOG</span>
                   </div>
                 </AccordionTrigger>
 
-                <AccordionContent>
-                  <div className="space-y-4 pt-2">
+                <AccordionContent className="px-4">
+                  <div className="space-y-3 pt-2">
+                    <div className="bg-surface-container-lowest text-on-surface-variant flex items-start gap-2 rounded p-3 text-xs">
+                      <ShieldCheck className="text-secondary mt-0.5 size-4 shrink-0" />
+                      Every edit creates an immutable new policy version. Existing commitments stay tied to the version
+                      they were created under.
+                    </div>
                     {archivedPolicies.map((policy) => (
                       <PolicyRow
                         key={policy.id}
@@ -273,6 +269,6 @@ export function SlaPoliciesCard({
           router.refresh();
         }}
       />
-    </div>
+    </SlaSection>
   );
 }

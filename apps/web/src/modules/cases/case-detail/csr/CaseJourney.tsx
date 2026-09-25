@@ -2,56 +2,66 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDateTime, formatLeg, formatMinutes } from "@/lib/format";
 import type { CaseDetailData } from "@/lib/types/cases";
 import { cn } from "@/lib/utils";
+import { CircleAlert } from "lucide-react";
 
 /* ─── Stitch token mappings for each leg ─────────────────────── */
 
 const LEG_BAR_CLASS: Record<string, string> = {
-  support:          "bg-primary-container",
-  engineering:      "bg-leg-engineering",
+  support: "bg-primary-container",
+  engineering: "bg-leg-engineering",
   waiting_customer: "bg-leg-waiting",
-  unknown:          "bg-leg-unknown",
+  unknown: "bg-leg-unknown",
 };
 
 const LEG_TEXT_CLASS: Record<string, string> = {
-  support:          "text-on-primary",
-  engineering:      "text-white",
+  support: "text-on-primary",
+  engineering: "text-white",
   waiting_customer: "text-warning-foreground",
-  unknown:          "text-white",
+  unknown: "text-white",
 };
 
 const LEG_PCT_CLASS: Record<string, string> = {
-  support:          "text-primary",
-  engineering:      "text-secondary-foreground",
+  support: "text-primary",
+  engineering: "text-secondary-foreground",
   waiting_customer: "text-outline",
-  unknown:          "text-tertiary",
+  unknown: "text-tertiary",
 };
 
 const LEG_METRIC_CLASS: Record<string, string> = {
-  support:          "text-on-surface",
-  engineering:      "text-error",
+  support: "text-on-surface",
+  engineering: "text-error",
   waiting_customer: "text-on-surface-variant",
-  unknown:          "text-tertiary",
+  unknown: "text-tertiary",
 };
 
 /** Fixed order — 4-metric grid always shows all 4 cells. */
-const LEG_ORDER = ["support", "engineering", "waiting_customer", "unknown"] as const;
+const LEG_ORDER = [
+  "support",
+  "engineering",
+  "waiting_customer",
+  "unknown",
+] as const;
 
 const LEG_HEADER_CLASS: Record<string, string> = {
-  support:          "text-outline",
-  engineering:      "text-secondary-foreground",
+  support: "text-outline",
+  engineering: "text-secondary-foreground",
   waiting_customer: "text-outline",
-  unknown:          "text-outline",
+  unknown: "text-outline",
 };
 
 const LEG_DESCRIPTIONS: Record<(typeof LEG_ORDER)[number], string> = {
-  support:          "Triage, reproduction, and Jira sync dispatch.",
-  engineering:      "Currently in engineering queue backlog.",
+  support: "Triage, reproduction, and Jira sync dispatch.",
+  engineering: "Currently in engineering queue backlog.",
   waiting_customer: "No pending customer queries or blockers.",
-  unknown:          "Zero unmapped interval gaps across sync.",
+  unknown: "Zero unmapped interval gaps across sync.",
 };
 
 /* ─── Geometry helpers ───────────────────────────────────────── */
@@ -74,21 +84,30 @@ function toMs(v: string | number | Date | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
+function clamp(v: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, v));
+}
 
 function segmentGeometry(
-  start: number, end: number,
-  domainStart: number, domainSpan: number,
+  start: number,
+  end: number,
+  domainStart: number,
+  domainSpan: number,
   minW = 0.5,
 ): { leftPct: number; widthPct: number } {
-  const left  = clamp(((start - domainStart) / domainSpan) * 100, 0, 100);
-  const right = clamp(((end   - domainStart) / domainSpan) * 100, 0, 100);
-  return { leftPct: left, widthPct: Math.min(100 - left, Math.max(minW, right - left)) };
+  const left = clamp(((start - domainStart) / domainSpan) * 100, 0, 100);
+  const right = clamp(((end - domainStart) / domainSpan) * 100, 0, 100);
+  return {
+    leftPct: left,
+    widthPct: Math.min(100 - left, Math.max(minW, right - left)),
+  };
 }
 
 function segStyle(
-  start: number, end: number,
-  ds: number, dspan: number,
+  start: number,
+  end: number,
+  ds: number,
+  dspan: number,
 ): CSSProperties {
   const { leftPct, widthPct } = segmentGeometry(start, end, ds, dspan);
   return { left: `${leftPct}%`, width: `${widthPct}%` };
@@ -108,11 +127,11 @@ function useNow(enabled: boolean, fallback: number) {
 /* ─── Component ──────────────────────────────────────────────── */
 
 export function CaseJourney({ data }: { data: CaseDetailData }) {
-  const isOpen    = !data.case.closedAt;
-  const openedAt  = toMs(data.case.openedAt) ?? 0;
-  const closedAt  = toMs(data.case.closedAt);
+  const isOpen = !data.case.closedAt;
+  const openedAt = toMs(data.case.openedAt) ?? 0;
+  const closedAt = toMs(data.case.closedAt);
   const snapshotAt = toMs(data.asOf) ?? openedAt;
-  const now       = useNow(isOpen, snapshotAt);
+  const now = useNow(isOpen, snapshotAt);
 
   /* sorted leg segments */
   const legSegments = useMemo(
@@ -148,7 +167,9 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
     [openedAt, legSegments, data.runningIntervals, data.pausedIntervals],
   );
 
-  const timelineEnd  = isOpen ? Math.max(now, latestStoredEnd) : Math.max(closedAt ?? latestStoredEnd, latestStoredEnd);
+  const timelineEnd = isOpen
+    ? Math.max(now, latestStoredEnd)
+    : Math.max(closedAt ?? latestStoredEnd, latestStoredEnd);
   const timelineSpan = Math.max(1, timelineEnd - openedAt);
 
   /* live leg totals */
@@ -172,11 +193,14 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
   const liveSlaSeconds = useMemo(
     () =>
       data.runningIntervals.reduce((total, interval, i) => {
-        const start     = toMs(interval.start);
+        const start = toMs(interval.start);
         if (start === null) return total;
         const storedEnd = toMs(interval.end);
-        const isLast    = i === data.runningIntervals.length - 1;
-        const end       = isOpen && isLast ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+        const isLast = i === data.runningIntervals.length - 1;
+        const end =
+          isOpen && isLast
+            ? Math.max(storedEnd ?? now, now)
+            : (storedEnd ?? start);
         if (end <= start) return total;
         return total + (end - start) / 1000;
       }, 0),
@@ -232,11 +256,18 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
       <div className="flex flex-col gap-2">
         <div className="relative h-8 w-full overflow-hidden rounded-lg bg-surface-container p-1 flex gap-1">
           {legSegments.map(({ span, start, end }, index) => {
-            const isCurrent  = isOpen && index === currentStageIndex;
-            const visualEnd  = isCurrent ? Math.max(end ?? now, now) : (end ?? start);
-            const { leftPct, widthPct } = segmentGeometry(start, visualEnd, openedAt, timelineSpan);
+            const isCurrent = isOpen && index === currentStageIndex;
+            const visualEnd = isCurrent
+              ? Math.max(end ?? now, now)
+              : (end ?? start);
+            const { leftPct, widthPct } = segmentGeometry(
+              start,
+              visualEnd,
+              openedAt,
+              timelineSpan,
+            );
             const segMinutes = Math.max(0, (visualEnd - start) / 60_000);
-            const showLabel  = widthPct >= 12;
+            const showLabel = widthPct >= 12;
 
             return (
               <Tooltip key={`${span.leg}-${index}`}>
@@ -255,8 +286,7 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
                           LEG_TEXT_CLASS[span.leg] ?? "text-white",
                         )}
                       >
-                        {formatLeg(span.leg)}{" "}
-                        {formatMinutes(segMinutes)}
+                        {formatLeg(span.leg)} {formatMinutes(segMinutes)}
                         {totalLegMinutes > 0 &&
                           ` (${((segMinutes / totalLegMinutes) * 100).toFixed(1)}%)`}
                         {isCurrent && (
@@ -271,7 +301,11 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
                 </TooltipTrigger>
                 <TooltipContent>
                   {formatLeg(span.leg)} · {formatDateTime(span.startedAt)} –{" "}
-                  {isCurrent ? "Now" : end !== null ? formatDateTime(span.endedAt) : "Now"}
+                  {isCurrent
+                    ? "Now"
+                    : end !== null
+                      ? formatDateTime(span.endedAt)
+                      : "Now"}
                 </TooltipContent>
               </Tooltip>
             );
@@ -286,7 +320,11 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
               {formatDateTime(new Date(firstHandoffAt).toISOString())} · Handoff
             </span>
           )}
-          <span className={cn(isOpen && !firstHandoffAt ? "text-error font-medium" : "")}>
+          <span
+            className={cn(
+              isOpen && !firstHandoffAt ? "text-error font-medium" : "",
+            )}
+          >
             {isOpen ? "Now" : formatDateTime(data.case.closedAt ?? data.asOf)}
           </span>
         </div>
@@ -296,8 +334,9 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {LEG_ORDER.map((leg) => {
           const minutes = minutesByLeg.get(leg) ?? 0;
-          const pct     = totalLegMinutes > 0 ? (minutes / totalLegMinutes) * 100 : 0;
-          const isCurr  = isOpen && leg === data.currentLeg;
+          const pct =
+            totalLegMinutes > 0 ? (minutes / totalLegMinutes) * 100 : 0;
+          const isCurr = isOpen && leg === data.currentLeg;
 
           return (
             <div
@@ -326,10 +365,7 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
                 {formatLiveDuration(minutes * 60)}
               </span>
               <span
-                className={cn(
-                  "font-mono text-xxs mt-1",
-                  LEG_PCT_CLASS[leg],
-                )}
+                className={cn("font-mono text-xxs mt-1", LEG_PCT_CLASS[leg])}
               >
                 {pct.toFixed(1)}% of Net Elapsed
               </span>
@@ -343,13 +379,21 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
 
       {/* ── Attribution finding ── */}
       {dominantLeg && dominantLeg.minutes > 0 && (
-        <div className="flex items-start gap-3 rounded-lg bg-surface-container-high p-3 text-sm text-on-surface">
-          <span className="mt-0.5 text-primary text-base">ℹ</span>
+        <div className="flex items-start md:items-center gap-3 rounded-lg bg-surface-container-high p-3 text-sm text-on-surface">
+          {/* <span className="mt-0.5 text-primary text-base">ℹ</span> */}
+          <CircleAlert
+            size="14"
+            className="mt-1 md:mt-0 text-primary text-base shrink-0"
+          />
           <p>
-            <strong className="font-medium text-primary">Attribution Finding: </strong>
-            {((dominantLeg.minutes / totalLegMinutes) * 100).toFixed(1)}% of this case&apos;s
-            total elapsed SLA window has accrued while under{" "}
-            <strong className="text-on-surface">{formatLeg(dominantLeg.leg)}</strong>{" "}
+            <strong className="font-medium text-primary">
+              Attribution Finding:{" "}
+            </strong>
+            {((dominantLeg.minutes / totalLegMinutes) * 100).toFixed(1)}% of
+            this case&apos;s total elapsed SLA window has accrued while under{" "}
+            <strong className="text-on-surface">
+              {formatLeg(dominantLeg.leg)}
+            </strong>{" "}
             care. SLA clock has been running for{" "}
             <strong className="text-on-surface">
               {formatLiveDuration(liveSlaSeconds)}
@@ -380,11 +424,14 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
 
         <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-container">
           {data.runningIntervals.map((interval, i) => {
-            const start     = toMs(interval.start);
+            const start = toMs(interval.start);
             if (start === null) return null;
             const storedEnd = toMs(interval.end);
-            const isLast    = i === data.runningIntervals.length - 1;
-            const vEnd      = isOpen && isLast ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+            const isLast = i === data.runningIntervals.length - 1;
+            const vEnd =
+              isOpen && isLast
+                ? Math.max(storedEnd ?? now, now)
+                : (storedEnd ?? start);
             return (
               <div
                 key={`r-${i}`}
@@ -394,12 +441,15 @@ export function CaseJourney({ data }: { data: CaseDetailData }) {
             );
           })}
           {data.pausedIntervals.map((interval, i) => {
-            const start     = toMs(interval.start);
+            const start = toMs(interval.start);
             const storedEnd = toMs(interval.end);
             if (start === null) return null;
-            const isLast    = i === data.pausedIntervals.length - 1;
-            const isCurrPause = isOpen && isLast && data.currentLeg === "waiting_customer";
-            const vEnd = isCurrPause ? Math.max(storedEnd ?? now, now) : (storedEnd ?? start);
+            const isLast = i === data.pausedIntervals.length - 1;
+            const isCurrPause =
+              isOpen && isLast && data.currentLeg === "waiting_customer";
+            const vEnd = isCurrPause
+              ? Math.max(storedEnd ?? now, now)
+              : (storedEnd ?? start);
             return (
               <div
                 key={`p-${i}`}

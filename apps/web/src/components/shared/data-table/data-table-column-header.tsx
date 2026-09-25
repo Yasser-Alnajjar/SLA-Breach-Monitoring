@@ -48,7 +48,7 @@ export function DataTableColumnHeader<TData, TValue>({
               ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" className="w-32">
             <DropdownMenuItem onClick={() => column.toggleSorting(false)}>
               <ArrowUp className="me-2 h-3.5 w-3.5 text-muted-foreground/70" />
               Asc

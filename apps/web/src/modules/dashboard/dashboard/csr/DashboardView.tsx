@@ -133,11 +133,11 @@ export const DashboardView = ({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-start lg:self-auto">
+          <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
             <a
               href="/api/reports/commitments"
               download
-              className="bg-surface-container hover:bg-surface-container-high text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-sm transition-colors"
+              className="cursor-pointer bg-surface-container hover:bg-surface-container-high text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-xs md:text-sm transition-colors"
             >
               <Download className="text-primary size-4" />
               Export Full CSV ({data.periodDays} Days)
@@ -145,7 +145,7 @@ export const DashboardView = ({
             <button
               type="button"
               onClick={handleRefresh}
-              className="cursor-pointer bg-surface-container-high hover:bg-surface-active text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-sm transition-colors"
+              className="cursor-pointer bg-surface-container-high hover:bg-surface-active text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-xs md:text-sm transition-colors"
             >
               <RefreshCw
                 className={`text-tertiary size-4 ${refreshing ? "animate-spin" : ""}`}
@@ -411,7 +411,7 @@ export const DashboardView = ({
         >
           <div className="bg-surface-container/60 border-surface-container-highest/60 flex flex-col items-start justify-between gap-2 border-b p-4 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
-              <span className="bg-warning size-3 animate-ping rounded-full" />
+              <span className="bg-warning size-3 animate-ping rounded-full shrink-0" />
               <div>
                 <h2 className="text-on-surface text-base font-medium">
                   At Risk Right Now
@@ -456,7 +456,7 @@ export const DashboardView = ({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Reveal delay={0.27} className="xl:col-span-8">
           <div className="bg-surface-container-low shadow-soft flex flex-col overflow-hidden rounded-xl">
-            <div className="bg-surface-container/60 border-surface-container-highest/60 flex items-center justify-between border-b p-4">
+            <div className="bg-surface-container/60 border-surface-container-highest/60 flex items-center justify-between border-b p-4 flex-wrap">
               <div>
                 <h3 className="text-on-surface text-base font-medium">
                   Aging in Engineering Queue

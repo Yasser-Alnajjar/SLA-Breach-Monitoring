@@ -41,7 +41,7 @@ export function BreachesOverTimeChart({
 
   return (
     <div className="bg-surface-container-low shadow-soft flex h-full flex-col justify-between rounded-xl p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between flex-wrap">
         <div>
           <h3 className="text-on-surface text-base font-medium">
             Breaches Over Time

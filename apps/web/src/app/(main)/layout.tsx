@@ -55,7 +55,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   const anySynced = ticketSourceConnected || engineeringSourceConnected;
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <AppSidebar
         autoSyncSeconds={Math.round(worker.activePollIntervalMs / 1000)}
       />

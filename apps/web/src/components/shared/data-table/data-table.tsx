@@ -46,7 +46,7 @@ interface DataTableProps<TData, TValue> {
   /** Extra classes for every `<th>` / `<td>`. */
   headCellClassName?: string;
   cellClassName?: string;
-  rowClassName?: (row: TData, index: number) => string;
+  rowClassName?: string;
   globalFilter?: string;
   setGlobalFilter?: (value: string) => void;
   onDoubleClick?: (row: TData) => void;
@@ -286,7 +286,10 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header, index) => (
                   <TableHead
                     key={header.id}
-                    className={cn("relative cursor-move select-none whitespace-nowrap", headCellClassName)}
+                    className={cn(
+                      "relative cursor-move select-none whitespace-nowrap",
+                      headCellClassName,
+                    )}
                     draggable
                     onDragStart={(e) => handleDragStart(e, header.id)}
                     onDragOver={handleDragOver}
@@ -316,10 +319,10 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row, rowIndex) => (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={cn("hover:bg-muted/30", rowClassName?.(row.original, rowIndex))}
+                  className={cn("hover:bg-muted/30", rowClassName)}
                 >
                   {row.getVisibleCells().map((cell, index) => (
                     <TableCell

@@ -77,7 +77,7 @@ export function SlaComplianceTrendChart({
   return (
     <div className="bg-surface-container-low shadow-soft flex h-full min-h-0 flex-col overflow-hidden rounded-xl p-4">
       {/* Header */}
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <h3 className="text-on-surface text-base font-medium">
             SLA Compliance Trend

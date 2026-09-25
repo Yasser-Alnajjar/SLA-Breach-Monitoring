@@ -145,7 +145,7 @@ export const DashboardView = ({
             <button
               type="button"
               onClick={handleRefresh}
-              className="bg-surface-container-high hover:bg-surface-active text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-sm transition-colors"
+              className="cursor-pointer bg-surface-container-high hover:bg-surface-active text-on-surface shadow-soft flex items-center gap-2 rounded px-3.5 py-2 text-sm transition-colors"
             >
               <RefreshCw
                 className={`text-tertiary size-4 ${refreshing ? "animate-spin" : ""}`}

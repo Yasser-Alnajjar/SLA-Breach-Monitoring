@@ -1,9 +1,20 @@
 "use client";
 
-import { ArrowRight, Bell, BellRing, CircleAlert, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  BellRing,
+  CircleAlert,
+  SlidersHorizontal,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 export interface AlertItem {
@@ -49,7 +60,10 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
         >
           <Bell className="size-4" />
           {items.length > 0 && (
-            <span className="bg-error absolute right-1.5 top-1.5 size-2 rounded-full" aria-hidden />
+            <span
+              className="bg-error absolute right-1.5 top-1.5 size-2 rounded-full"
+              aria-hidden
+            />
           )}
         </button>
       </PopoverTrigger>
@@ -57,11 +71,13 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="bg-surface-container-low w-[384px] overflow-hidden rounded-xl border-0 p-0 shadow-xl"
+        className="bg-surface-container-low w-full max-w-sm overflow-hidden rounded-xl border-0 p-0 shadow-xl"
       >
         <div className="bg-surface-container flex items-center gap-2 px-4 py-3">
           <BellRing className="text-primary size-4" />
-          <span className="text-on-surface text-sm font-semibold tracking-tight">Notifications</span>
+          <span className="text-on-surface text-sm font-semibold tracking-tight">
+            Notifications
+          </span>
           {items.length > 0 && (
             <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 font-mono text-xxs font-bold uppercase">
               {items.length} active
@@ -70,13 +86,25 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
         </div>
 
         <div className="flex items-center gap-1.5 px-4 py-2">
-          <button type="button" className={tabClass(tab === "all")} onClick={() => setTab("all")}>
+          <button
+            type="button"
+            className={tabClass(tab === "all")}
+            onClick={() => setTab("all")}
+          >
             All ({items.length})
           </button>
-          <button type="button" className={tabClass(tab === "at_risk")} onClick={() => setTab("at_risk")}>
+          <button
+            type="button"
+            className={tabClass(tab === "at_risk")}
+            onClick={() => setTab("at_risk")}
+          >
             At Risk ({atRisk.length})
           </button>
-          <button type="button" className={tabClass(tab === "breached")} onClick={() => setTab("breached")}>
+          <button
+            type="button"
+            className={tabClass(tab === "breached")}
+            onClick={() => setTab("breached")}
+          >
             Breaches ({breached.length})
           </button>
         </div>
@@ -98,23 +126,34 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
                 <span
                   className={cn(
                     "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded",
-                    breach ? "bg-error/10 text-error" : "bg-secondary/10 text-secondary",
+                    breach
+                      ? "bg-error/10 text-error"
+                      : "bg-secondary/10 text-secondary",
                   )}
                 >
-                  {breach ? <CircleAlert className="size-4" /> : <TriangleAlert className="size-4" />}
+                  {breach ? (
+                    <CircleAlert className="size-4" />
+                  ) : (
+                    <TriangleAlert className="size-4" />
+                  )}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="text-on-surface truncate font-mono text-xs font-semibold">
-                    Case #{item.externalId} {breach ? "SLA Breached" : "Runway Warning"}
+                    Case #{item.externalId}{" "}
+                    {breach ? "SLA Breached" : "Runway Warning"}
                   </span>
                   {item.subject && (
-                    <span className="text-on-surface-variant line-clamp-1 text-xs">{item.subject}</span>
+                    <span className="text-on-surface-variant line-clamp-1 text-xs">
+                      {item.subject}
+                    </span>
                   )}
                   <div className="flex items-center justify-between">
                     <span
                       className={cn(
                         "rounded px-1.5 py-0.5 font-mono text-xxs font-semibold uppercase",
-                        breach ? "bg-error/10 text-error" : "bg-secondary/10 text-secondary",
+                        breach
+                          ? "bg-error/10 text-error"
+                          : "bg-secondary/10 text-secondary",
                       )}
                     >
                       {breach
@@ -138,7 +177,10 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
           >
             <SlidersHorizontal className="size-3.5" /> Notification Preferences
           </Link>
-          <Link href="/at-risk" className="text-primary flex items-center gap-0.5 hover:underline">
+          <Link
+            href="/at-risk"
+            className="text-primary flex items-center gap-0.5 hover:underline"
+          >
             View all <ArrowRight className="size-3" />
           </Link>
         </div>

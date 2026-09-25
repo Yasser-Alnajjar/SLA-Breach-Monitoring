@@ -94,7 +94,7 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
   return (
     <Reveal delay={0.05}>
       {/* Sub-header breadcrumb bar */}
-      <div className="w-full flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest px-6 py-2 rounded-xl">
+      <div className="w-full flex flex-wrap items-center justify-between gap-4 bg-surface-container-low px-6 py-2 rounded-xl">
         <div className="flex items-center gap-1 font-mono text-sm leading-4.5">
           <span className="text-outline">Cases</span>
           <span className="text-outline-variant">/</span>
@@ -117,9 +117,9 @@ export function CaseHeader({ data }: { data: CaseDetailData }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* LIVE TELEMETRY STREAM badge */}
-          <div className="flex items-center gap-1.5 rounded bg-surface-container-high px-2.5 py-1 font-mono text-xxs font-semibold uppercase tracking-wider text-tertiary">
+          <div className="text-nowrap flex items-center gap-1.5 rounded bg-surface-container-high px-2.5 py-1 font-mono text-xxs font-semibold uppercase tracking-wider text-tertiary">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-tertiary opacity-75" />
               <span className="relative inline-flex size-2 rounded-full bg-tertiary" />

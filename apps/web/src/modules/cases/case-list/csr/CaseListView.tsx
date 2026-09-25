@@ -132,7 +132,7 @@ function MetricTile({
               : tone === "tertiary"
                 ? "text-tertiary"
                 : "text-primary",
-            spin && "animate-spin [animation-duration:9s]",
+            spin && "animate-spin animation-duration-[9s]",
           )}
         />
       </div>
@@ -484,7 +484,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             title="Cases"
             className="p-0 lg:p-0"
             textClassName=""
-            headerClassName="border-0 bg-surface-container-lowest font-mono text-xxs font-semibold tracking-wider text-outline hover:bg-surface-container-lowest"
+            headerClassName=" border-0 bg-surface-container-lowest font-mono text-xxs font-semibold tracking-wider text-outline hover:bg-surface-container-lowest"
             headCellClassName="h-auto whitespace-normal align-middle px-2.5 py-3 text-inherit font-[inherit] tracking-[inherit] first:ps-4 last:pe-4"
             cellClassName="px-2.5 py-3 align-top first:ps-4 last:pe-4"
             rowClassName={(_, i) =>

@@ -2,7 +2,6 @@ import { Actions } from "@/actions";
 
 import { SlaAutoRefreshProvider } from "@/components/shared/SlaAutoRefreshProvider";
 import { AtRiskView } from "../csr/AtRiskView";
-import { AT_RISK_DUMMY_DATA } from "./at-risk.mock";
 
 /**
  * `AppShell` is itself an async server component (it reads the session
@@ -16,7 +15,7 @@ export const AtRisk = async () => {
 
   return (
     <>
-      <AtRiskView data={AT_RISK_DUMMY_DATA} />
+      <AtRiskView data={data} />
       <SlaAutoRefreshProvider
         initInterval={worker.activePollIntervalMs - 2000}
       />

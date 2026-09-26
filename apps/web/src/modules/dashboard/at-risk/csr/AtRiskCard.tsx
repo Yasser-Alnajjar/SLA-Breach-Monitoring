@@ -4,7 +4,6 @@ import { ChevronRight, CircleAlert, Flame, Timer } from "lucide-react";
 import Link from "next/link";
 
 import { CountdownClock } from "@/components/shared/countdown-clock";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { TimeAllocationBar } from "@/components/shared/time-allocation-bar";
 import { caseCommitmentHref } from "@/lib/case-links";
 import {
@@ -57,6 +56,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
   const severity = formatPriorityTier(row.priority);
 
   const elapsedMinutes = row.elapsedSeconds / 60;
+
   const elapsedPercent =
     row.targetMinutes > 0
       ? Math.min((elapsedMinutes / row.targetMinutes) * 100, 100)
@@ -72,13 +72,18 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
       ? Math.min((row.engineeringLegMinutes / elapsedMinutes) * 100, 100)
       : 0;
 
+  const waitingCustomerPercent =
+    elapsedMinutes > 0
+      ? Math.min((row.waitingCustomerLegMinutes / elapsedMinutes) * 100, 100)
+      : 0;
+
   const currentLegTone = LEG_TONE[row.currentLeg] ?? LEG_TONE.unknown;
   const currentLegDot = LEG_DOT[row.currentLeg] ?? LEG_DOT.unknown;
 
   const isCritical = row.status === "breached" || row.status === "at_risk";
 
   return (
-    <article className="flex flex-col font-mono gap-4 rounded bg-surface-container-low p-4 transition-colors hover:bg-surface-container sm:p-5">
+    <article className="flex flex-col gap-4 rounded bg-surface-container-low p-4 font-mono transition-colors hover:bg-surface-container sm:p-5">
       {/* Identification + Countdown */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3 lg:items-center">
@@ -156,7 +161,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
         </div>
 
         {/* Countdown Locus Panel */}
-        <div className="flex shrink-0  flex-col gap-1 rounded bg-surface-container-lowest p-3 lg:items-end">
+        <div className="flex shrink-0 flex-col gap-1 rounded bg-surface-container-lowest p-3 lg:items-end">
           <div
             className={cn(
               "flex items-center gap-1.5 text-xxs font-medium uppercase tracking-wider",
@@ -201,7 +206,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
       </div>
 
       {/* Time Allocation */}
-      <div className="flex flex-col font-mono gap-2 rounded bg-surface-container-lowest/80 p-3">
+      <div className="flex flex-col gap-2 rounded bg-surface-container-lowest/80 p-3 font-mono">
         <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-1.5 text-xxs font-medium uppercase tracking-wider">
             {isCritical ? (
@@ -247,6 +252,21 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
             </span>
 
             <span>
+              Pending Customer:{" "}
+              <strong
+                className={cn(
+                  "font-mono",
+                  row.currentLeg === "waiting_customer"
+                    ? currentLegTone
+                    : "text-foreground",
+                )}
+              >
+                {formatMinutes(row.waitingCustomerLegMinutes)}
+              </strong>{" "}
+              ({waitingCustomerPercent.toFixed(1)}%)
+            </span>
+
+            <span>
               Runway:{" "}
               <strong
                 className={cn(
@@ -269,6 +289,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
           remainingMinutes={row.remainingMinutes}
           supportLegMinutes={row.supportLegMinutes}
           engineeringLegMinutes={row.engineeringLegMinutes}
+          waitingCustomerLegMinutes={row.waitingCustomerLegMinutes}
         />
 
         {/* Locus */}

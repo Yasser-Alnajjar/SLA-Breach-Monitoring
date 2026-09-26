@@ -37,6 +37,8 @@ export interface AtRiskRowData {
   supportLegMinutes: number;
   /** Cumulative minutes this case has spent in the engineering leg so far, via `sumLegMinutes`. */
   engineeringLegMinutes: number;
+  /** Cumulative minutes this case has spent waiting for the customer, via `sumLegMinutes`. */
+  waitingCustomerLegMinutes: number;
   /** The case's support-side assignee (`Case.assigneeName`), or null when unassigned. */
   supportAssigneeName: string | null;
   /** This case's active Jira/Linear/GitHub correlation, or null when none exists yet. */

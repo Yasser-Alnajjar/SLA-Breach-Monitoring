@@ -25,6 +25,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "ENG-4821",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -51,6 +52,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "LIN-928",
       confidence: "probable",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -73,6 +75,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 74,
     supportAssigneeName: "Mina George",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -99,6 +102,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "GH-7712",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -121,6 +125,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 54,
     supportAssigneeName: "Mahmoud Ali",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -147,6 +152,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "ENG-4763",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -169,6 +175,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: "Sara Mohamed",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -195,6 +202,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "LIN-901",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -217,6 +225,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: null,
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -239,6 +248,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: "Heba Ali",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -265,6 +275,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "GH-7621",
       confidence: "probable",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -291,6 +302,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "ENG-4618",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -313,6 +325,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: null,
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -339,6 +352,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "ENG-4590",
       confidence: "certain",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -361,6 +375,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: "Hossam Adel",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -387,6 +402,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
       externalId: "LIN-874",
       confidence: "probable",
     },
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -409,6 +425,7 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: "Ahmed Khaled",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 
   {
@@ -431,5 +448,6 @@ export const AT_RISK_DUMMY_DATA: AtRiskRowData[] = [
     engineeringLegMinutes: 0,
     supportAssigneeName: "Nour Hassan",
     linkedIssue: null,
+    waitingCustomerLegMinutes: 0,
   },
 ];

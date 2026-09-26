@@ -868,7 +868,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 type="button"
                 onClick={() => setShowAll(false)}
                 className={cn(
-                  "rounded px-2.5 py-1 font-mono text-xxs transition-colors",
+                  "cursor-pointer rounded px-2.5 py-1 font-mono text-xxs transition-colors",
                   !showAll
                     ? "bg-primary text-on-primary font-semibold shadow-sm"
                     : "text-outline hover:text-on-surface",
@@ -880,7 +880,7 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
                 type="button"
                 onClick={() => setShowAll(true)}
                 className={cn(
-                  "rounded px-2.5 py-1 font-mono text-xxs transition-colors",
+                  "cursor-pointer rounded px-2.5 py-1 font-mono text-xxs transition-colors",
                   showAll
                     ? "bg-primary text-on-primary font-semibold shadow-sm"
                     : "text-outline hover:text-on-surface",

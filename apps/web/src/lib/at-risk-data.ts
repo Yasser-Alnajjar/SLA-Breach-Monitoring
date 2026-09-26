@@ -29,7 +29,8 @@ function preferredLink(
 ): AtRiskLinkedIssue | null {
   const trackerLinks = links.filter((l) => ISSUE_TRACKER_SYSTEMS.has(l.system));
   if (trackerLinks.length === 0) return null;
-  const best = trackerLinks.find((l) => l.confidence === "certain") ?? trackerLinks[0]!;
+  const best =
+    trackerLinks.find((l) => l.confidence === "certain") ?? trackerLinks[0]!;
   return {
     system: best.system as AtRiskLinkedIssue["system"],
     externalId: best.externalId,
@@ -259,6 +260,7 @@ export async function getAtRiskData(
       elapsedSeconds: evaluation.elapsedSeconds,
       supportLegMinutes: sumLegMinutes(spans, "support", asOf),
       engineeringLegMinutes: sumLegMinutes(spans, "engineering", asOf),
+      waitingCustomerLegMinutes: sumLegMinutes(spans, "waiting_customer", asOf),
       supportAssigneeName: row.case.assigneeName ?? null,
       linkedIssue: linkedIssueFor(row.caseId),
     });

@@ -37,7 +37,7 @@ function formatSpan(totalMinutes: number): string {
 
 const tabClass = (active: boolean) =>
   cn(
-    "rounded px-2.5 py-1 font-mono text-xxs font-semibold transition-colors",
+    "rounded cursor-pointer px-2.5 py-1 font-mono text-xxs font-semibold transition-colors",
     active
       ? "bg-primary text-on-primary"
       : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high",
@@ -56,7 +56,7 @@ export function AlertsPopover({ items }: { items: AlertItem[] }) {
         <button
           type="button"
           aria-label={`Alerts (${items.length})`}
-          className="text-on-surface-variant hover:bg-surface-container relative flex size-9 items-center justify-center rounded-md transition-colors"
+          className="cursor-pointer text-on-surface-variant hover:bg-surface-container relative flex size-9 items-center justify-center rounded-md transition-colors"
         >
           <Bell className="size-4" />
           {items.length > 0 && (

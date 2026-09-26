@@ -25,43 +25,50 @@ export function AtRiskKpiTile({
   detail?: ReactNode;
   tone?: "default" | "destructive" | "warning" | "success";
 }) {
+  const toneBGClass = {
+    destructive: "bg-destructive",
+    warning: "bg-warning",
+    success: "bg-success",
+    default: "bg-muted-foreground",
+  };
+  const toneTextClass = {
+    destructive: "text-destructive",
+    warning: "text-warning",
+    success: "text-success",
+    default: "text-muted-foreground",
+  };
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4">
+    <div className="relative overflow-hidden rounded border border-border bg-card p-4">
       <div
         aria-hidden
-        className={cn(
-          "absolute inset-y-0 left-0 w-1",
-          tone === "destructive" && "bg-destructive",
-          tone === "warning" && "bg-warning",
-          tone === "success" && "bg-success",
-          tone === "default" && "bg-border-strong",
-        )}
+        className={cn("absolute inset-y-0 inset-s-0 w-1", toneBGClass[tone])}
       />
 
       <div className="flex items-center justify-between gap-2 pl-2">
-        <span className="text-xxs font-medium uppercase tracking-wider text-muted-foreground">
+        <span
+          className={
+            "text-xxs font-medium uppercase tracking-wider text-muted-foreground"
+          }
+        >
           {label}
         </span>
-        <Icon
-          className={cn(
-            "size-3.5 shrink-0",
-            tone === "destructive" && "text-destructive",
-            tone === "warning" && "text-warning",
-            tone === "success" && "text-success",
-            tone === "default" && "text-muted-foreground",
-          )}
-        />
+        <Icon className={cn("size-3.5 shrink-0", toneTextClass[tone])} />
       </div>
 
-      <p className="mt-1.5 pl-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
-        {value}{" "}
-        {qualifier && (
-          <span className="text-xs font-medium text-muted-foreground">{qualifier}</span>
+      <p
+        className={cn(
+          "mt-1.5 pl-2 font-mono text-2xl font-semibold tabular-nums ",
+          toneTextClass[tone],
         )}
+      >
+        <span>{value}</span>{" "}
+        {qualifier && <span className="text-xs font-medium">{qualifier}</span>}
       </p>
 
       {detail && (
-        <p className="mt-1 truncate pl-2 text-xs text-muted-foreground">{detail}</p>
+        <p className="mt-1 truncate pl-2 text-xs text-muted-foreground">
+          {detail}
+        </p>
       )}
     </div>
   );

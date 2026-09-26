@@ -36,9 +36,17 @@ export async function getIntegrationDetailData(
   const credentials = integration.credentials as {
     reauthRequired?: boolean;
     subdomain?: string;
+    siteUrl?: string;
     owner?: string;
     repo?: string;
   };
+
+  const subdomain =
+    credentials.subdomain ??
+    (credentials.siteUrl
+      ? new URL(credentials.siteUrl).hostname.split(".")[0]
+      : undefined);
+
   const cursor = integration.cursor as {
     backfillCompletedAt?: Date | null;
   } | null;
@@ -53,7 +61,7 @@ export async function getIntegrationDetailData(
     lastSyncError: integration.lastSyncError,
     backfillCompletedAt: cursor?.backfillCompletedAt ?? null,
     webhookSecret: integration.webhookSecret,
-    subdomain: provider === "zendesk" ? credentials.subdomain : undefined,
+    subdomain,
     repo:
       provider === "github" && credentials.owner && credentials.repo
         ? `${credentials.owner}/${credentials.repo}`

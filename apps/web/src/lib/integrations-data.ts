@@ -13,11 +13,17 @@ type IntegrationRow = {
   status: string;
 } | null;
 
-const ROW_SELECT = { connectedAt: true, disconnectedAt: true, credentials: true, status: true } as const;
+const ROW_SELECT = {
+  connectedAt: true,
+  disconnectedAt: true,
+  credentials: true,
+  status: true,
+} as const;
 
 /** Never return `credentials`/the row itself — only these display-only scalars. */
 function toConnectionView(
   integration: IntegrationRow,
+  subdomain: string | null = null,
 ): IntegrationConnectionView {
   if (!integration) {
     return {
@@ -26,17 +32,21 @@ function toConnectionView(
       permissionDenied: false,
       connectedAt: null,
       disconnectedAt: null,
+      subdomain: null,
     };
   }
+
   const credentials = integration.credentials as {
     reauthRequired?: boolean;
   } | null;
+
   return {
     connected: credentials !== null,
     reauthRequired: credentials?.reauthRequired === true,
     permissionDenied: integration.status === "permission_denied",
     connectedAt: integration.connectedAt,
     disconnectedAt: integration.disconnectedAt,
+    subdomain,
   };
 }
 
@@ -107,12 +117,21 @@ export async function getIntegrationsData(
   const zendeskCredentials =
     (zendeskIntegration?.credentials as ZendeskCredentials | null) ?? null;
 
+  const jiraCredentials =
+    (jiraIntegration?.credentials as { siteUrl?: string } | null) ?? null;
+
+  const jiraSubdomain = jiraCredentials?.siteUrl
+    ? new URL(jiraCredentials.siteUrl).hostname.split(".")[0]
+    : null;
   return {
     zendesk: {
       ...toConnectionView(zendeskIntegration),
       subdomain: zendeskCredentials?.subdomain ?? null,
     },
-    jira: toConnectionView(jiraIntegration),
+    jira: {
+      ...toConnectionView(jiraIntegration),
+      subdomain: jiraSubdomain ?? null,
+    },
     linear: toConnectionView(linearIntegration),
     intercom: toConnectionView(intercomIntegration),
     github: toConnectionView(githubIntegration),

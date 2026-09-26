@@ -78,7 +78,9 @@ function StatusPill({
         text,
       )}
     >
-      <span className={cn("size-2 rounded-full", dot, pulse && "animate-pulse")} />
+      <span
+        className={cn("size-2 rounded-full", dot, pulse && "animate-pulse")}
+      />
       {children}
     </span>
   );
@@ -204,7 +206,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
   /** Where an admin manages this provider's OAuth app / developer account — shown always, not just while unconfigured, so it's easy to find again later. */
   const PROVIDER_APP_URLS: Record<IntegrationDetailData["provider"], string> = {
     zendesk: `https://${subdomain}.zendesk.com`,
-    jira: "https://www.atlassian.com/software/jira?referer=jira.com",
+    jira: `https://${subdomain}.atlassian.net/jira`,
     linear: "https://linear.app",
     intercom: "https://intercom.com",
     github: repo ? `https://github.com/${repo}` : "https://github.com",
@@ -219,7 +221,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+      <div className="w-full flex flex-wrap items-center justify-between gap-4 bg-surface-container-low px-6 py-2 rounded-xl">
         <Link
           href="/settings/integrations"
           className="inline-flex items-center gap-1.5 font-mono text-xs text-primary transition-colors hover:text-primary-fixed"
@@ -239,17 +241,6 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
       <Reveal>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "size-1.5 animate-pulse rounded-full",
-                  unhealthy ? "bg-error" : "bg-tertiary",
-                )}
-              />
-              <span className="font-mono text-xxs font-semibold uppercase tracking-wider text-primary">
-                Data ingestion pipelines // provider instance
-              </span>
-            </div>
             <div className="flex items-center gap-3">
               <span className={iconWrapper}>{PROVIDER_ICONS[provider]}</span>
               <h1 className="font-display text-on-surface text-3xl font-semibold tracking-tight">
@@ -320,7 +311,9 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
             <Stat
               label="Last sync result"
               value={!lastSyncAt ? "—" : lastSyncError ? "Failed" : "Succeeded"}
-              tone={!lastSyncAt ? undefined : lastSyncError ? "warning" : "success"}
+              tone={
+                !lastSyncAt ? undefined : lastSyncError ? "warning" : "success"
+              }
             />
             <Stat
               label="90-day backfill"
@@ -341,8 +334,78 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           </div>
         </Card>
       </Reveal>
-
       <Reveal delay={0.05}>
+        <SectionCard
+          icon={<History className="size-4" />}
+          title="Historical backfill & calibration"
+          description="Import the last 90 days of data"
+          badge={
+            <SectionBadge
+              tone={backfillCompletedAt ? "success" : "primary"}
+              icon={
+                backfillCompletedAt ? (
+                  <CheckCircle2 className="size-3.5" />
+                ) : undefined
+              }
+            >
+              {backfillCompletedAt ? "Completed" : "Pending"}
+            </SectionBadge>
+          }
+        >
+          {backfillCompletedAt && (
+            <div className={panelClass}>
+              <span className={labelClass}>Baseline ingestion cycle</span>
+              <span className="text-on-surface font-mono text-sm font-semibold">
+                Finished {Utils.formatDateTimeV2(backfillCompletedAt)}
+              </span>
+            </div>
+          )}
+
+          <div className="bg-surface-container flex flex-col gap-4 rounded-lg p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex max-w-3xl items-start gap-3">
+              <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+              <p className="text-xs text-on-surface-variant">
+                <strong className="text-on-surface font-medium">
+                  Backfill data is immutable.
+                </strong>{" "}
+                Re-running evaluates any unlinked records without modifying the
+                established baseline.
+              </p>
+            </div>
+
+            <div className="min-w-0 shrink-0">
+              {provider === "zendesk" && (
+                <ZendeskBackfillButton
+                  subdomain={subdomain ?? ""}
+                  initialReauthRequired={reauthRequired}
+                />
+              )}
+
+              {provider === "jira" && (
+                <JiraBackfillButton initialReauthRequired={reauthRequired} />
+              )}
+
+              {provider === "linear" && (
+                <LinearBackfillButton initialReauthRequired={reauthRequired} />
+              )}
+
+              {provider === "intercom" && (
+                <IntercomBackfillButton
+                  initialReauthRequired={reauthRequired}
+                />
+              )}
+
+              {provider === "github" && (
+                <GithubBackfillButton
+                  repo={repo ?? ""}
+                  initialReauthRequired={reauthRequired}
+                />
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      </Reveal>
+      <Reveal delay={0.1}>
         <SectionCard
           icon={<ArrowRightLeft className="size-4" />}
           title="Sync health & connection state"
@@ -427,78 +490,6 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
         </SectionCard>
       </Reveal>
 
-      <Reveal delay={0.1}>
-        <SectionCard
-          icon={<History className="size-4" />}
-          title="Historical backfill & calibration"
-          description="Import the last 90 days of data"
-          badge={
-            <SectionBadge
-              tone={backfillCompletedAt ? "success" : "primary"}
-              icon={
-                backfillCompletedAt ? (
-                  <CheckCircle2 className="size-3.5" />
-                ) : undefined
-              }
-            >
-              {backfillCompletedAt ? "Completed" : "Pending"}
-            </SectionBadge>
-          }
-        >
-          {backfillCompletedAt && (
-            <div className={panelClass}>
-              <span className={labelClass}>Baseline ingestion cycle</span>
-              <span className="text-on-surface font-mono text-sm font-semibold">
-                Finished {Utils.formatDateTimeV2(backfillCompletedAt)}
-              </span>
-            </div>
-          )}
-
-          <div className="bg-surface-container flex flex-col gap-4 rounded-lg p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex max-w-3xl items-start gap-3">
-              <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-xs text-on-surface-variant">
-                <strong className="text-on-surface font-medium">
-                  Backfill data is immutable.
-                </strong>{" "}
-                Re-running evaluates any unlinked records without modifying the
-                established baseline.
-              </p>
-            </div>
-
-            <div className="min-w-0 shrink-0">
-              {provider === "zendesk" && (
-                <ZendeskBackfillButton
-                  subdomain={subdomain ?? ""}
-                  initialReauthRequired={reauthRequired}
-                />
-              )}
-
-              {provider === "jira" && (
-                <JiraBackfillButton initialReauthRequired={reauthRequired} />
-              )}
-
-              {provider === "linear" && (
-                <LinearBackfillButton initialReauthRequired={reauthRequired} />
-              )}
-
-              {provider === "intercom" && (
-                <IntercomBackfillButton
-                  initialReauthRequired={reauthRequired}
-                />
-              )}
-
-              {provider === "github" && (
-                <GithubBackfillButton
-                  repo={repo ?? ""}
-                  initialReauthRequired={reauthRequired}
-                />
-              )}
-            </div>
-          </div>
-        </SectionCard>
-      </Reveal>
-
       {hasWebhook && (
         <Reveal delay={0.15}>
           <SectionCard
@@ -512,7 +503,12 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
                   ? "Download issues and their status history from Jira's changelog as CSVs."
                   : "Download tickets and their status changes from Zendesk's ticket audits as CSVs."}
               </p>
-              <Button variant="surface" size="sm" className="text-nowrap" asChild>
+              <Button
+                variant="surface"
+                size="sm"
+                className="text-nowrap"
+                asChild
+              >
                 <Link href={CONCIERGE_PROVIDER_COPY[provider].exportHref}>
                   Open export
                   <ChevronRight className="size-3.5" />
@@ -556,7 +552,10 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
           title="Provider app & governance"
           description={`${label} integration settings and mutation safety covenant`}
           badge={
-            <SectionBadge tone="primary" icon={<ShieldCheck className="size-3.5" />}>
+            <SectionBadge
+              tone="primary"
+              icon={<ShieldCheck className="size-3.5" />}
+            >
               External registered
             </SectionBadge>
           }
@@ -580,7 +579,7 @@ export function IntegrationDetailView({ data }: IntegrationDetailViewProps) {
             </Button>
           </div>
 
-          <div className="bg-surface-container-highest flex items-start gap-3 rounded-lg p-4">
+          <div className="bg-surface-container flex items-start gap-3 rounded-lg p-4">
             <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-tertiary/10 text-tertiary">
               <ShieldCheck className="size-5" />
             </span>

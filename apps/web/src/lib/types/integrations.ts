@@ -27,11 +27,12 @@ export interface IntegrationConnectionView {
   permissionDenied: boolean;
   connectedAt: Date | null;
   disconnectedAt: Date | null;
-}
-
-export interface ZendeskConnectionView extends IntegrationConnectionView {
   subdomain: string | null;
 }
+
+// export interface ZendeskConnectionView extends IntegrationConnectionView {
+//   subdomain: string | null;
+// }
 
 /** Narrow, display-only view of `SlackIntegration` — never the row itself (it carries a bot access token). */
 export interface SlackConnectionView {
@@ -43,7 +44,7 @@ export interface SlackConnectionView {
 }
 
 export interface IntegrationsPageData {
-  zendesk: ZendeskConnectionView;
+  zendesk: IntegrationConnectionView;
   jira: IntegrationConnectionView;
   linear: IntegrationConnectionView;
   linearConfig: IntegrationConfigStatus;
@@ -64,9 +65,20 @@ export interface ZendeskSyncResult {
   normalization: NormalizationResult;
 }
 
-export type { SlackChannel, GithubBackfillResult, IntercomBackfillResult, JiraBackfillResult, LinearBackfillResult };
+export type {
+  SlackChannel,
+  GithubBackfillResult,
+  IntercomBackfillResult,
+  JiraBackfillResult,
+  LinearBackfillResult,
+};
 
-export type IntegrationProvider = "zendesk" | "jira" | "linear" | "intercom" | "github";
+export type IntegrationProvider =
+  | "zendesk"
+  | "jira"
+  | "linear"
+  | "intercom"
+  | "github";
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   "zendesk",

@@ -47,6 +47,7 @@ import {
 import { DisconnectButton } from "./DisconnectButton";
 import { IntegrationConfigGate } from "./IntegrationConfigGate";
 import Link from "next/link";
+import { log } from "node:console";
 
 interface IntegrationsViewProps {
   data: IntegrationsPageData;
@@ -481,7 +482,10 @@ export const IntegrationsView = ({ data }: IntegrationsViewProps) => {
               meta={
                 <>
                   {metaDot}
-                  <span className={metaChip}>dataship.atlassian.net</span>
+                  <span className={metaChip}>
+                    {jira.subdomain ?? "dataship"}.atlassian.net
+                  </span>
+
                   {metaDot}
                   <span className="text-on-surface font-mono text-xxs">
                     12 projects

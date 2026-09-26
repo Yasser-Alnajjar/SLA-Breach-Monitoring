@@ -185,7 +185,7 @@ export function ProfileInformationCard({ user }: ProfileInformationCardProps) {
                 JPG, PNG, WEBP or GIF. Up to 8MB.
               </p>
               {avatarError && (
-                <p className="text-xs text-destructive">{avatarError}</p>
+                <p className="text-xs text-error">{avatarError}</p>
               )}
             </div> */}
           </div>

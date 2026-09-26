@@ -37,17 +37,8 @@ interface CaseListFiltersProps {
   statusCounts: Record<StatusFilter, number>;
   openCounts: Record<OpenFilter, number>;
   linkCounts: Record<LinkFilter, number>;
-
-  pollIntervalMs?: number;
+  severityCounts: Record<SeverityFilter, number>;
 }
-
-const groupBtn = (active: boolean, tone: string) =>
-  cn(
-    "rounded px-2 py-1 font-mono text-xxs font-semibold tracking-wider",
-    active
-      ? "bg-surface-container text-primary"
-      : cn("hover:bg-surface-container", tone),
-  );
 
 export function CaseListFilters({
   globalFilter,
@@ -63,11 +54,11 @@ export function CaseListFilters({
   statusCounts,
   openCounts,
   linkCounts,
-  pollIntervalMs,
+  severityCounts,
 }: CaseListFiltersProps) {
   return (
     <div className="flex flex-col gap-4 rounded bg-surface-container-low p-4 shadow-sm">
-      <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
+      <div className="flex flex-col items-stretch gap-2 lg:flex-row lg:items-center flex-wrap">
         <div className="relative min-w-60 flex-1">
           <Search className="absolute left-3 top-2.5 size-4.5 text-outline" />
 
@@ -94,7 +85,7 @@ export function CaseListFilters({
           label="SEVERITY:"
           options={SEVERITY_FILTERS}
           value={severity}
-          counts={undefined}
+          counts={severityCounts}
           onChange={setSeverity}
         />
 
@@ -105,127 +96,94 @@ export function CaseListFilters({
           counts={linkCounts}
           onChange={setLinkState}
         />
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-1">
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 font-mono text-xxs font-semibold tracking-wider uppercase text-outline">
-            SLA Status:
-          </span>
+        <FilterGroup
+          label="SLA STATUS:"
+          options={STATUS_FILTERS}
+          value={status}
+          counts={statusCounts}
+          onChange={setStatus}
+        />
 
-          {STATUS_FILTERS.map((filter) => {
-            const active = status === filter.value;
-            const isAll = filter.value === "all";
-
-            return (
-              <Button
-                key={filter.value}
-                type="button"
-                variant="bare"
-                size="sm"
-                aria-pressed={active}
-                onClick={() => setStatus(filter.value)}
-                className={cn(
-                  "gap-1 rounded px-2.5 py-1 font-mono text-xxs font-semibold tracking-wider transition-colors",
-                  active
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "bg-surface-container-high text-on-surface hover:bg-surface-bright",
-                )}
-              >
-                {!isAll && (
-                  <span className={cn("size-1.5 rounded-full", filter.dot)} />
-                )}
-
-                <span className={cn(!active && filter.tone)}>
-                  {filter.label}
-                </span>
-
-                <span
-                  className={cn(
-                    "rounded px-1 font-mono text-xxs",
-                    active ? "bg-on-primary/20" : filter.badge,
-                  )}
-                >
-                  {statusCounts[filter.value]}
-                </span>
-              </Button>
-            );
-          })}
-
-          <span className="mx-1 hidden h-5 w-px bg-border md:block" />
-
-          {OPEN_FILTERS.map((filter) => (
-            <Button
-              key={filter.value}
-              type="button"
-              variant="bare"
-              size="sm"
-              aria-pressed={openState === filter.value}
-              onClick={() => setOpenState(filter.value)}
-              className={groupBtn(
-                openState === filter.value,
-                "text-on-surface-variant",
-              )}
-            >
-              {filter.value === "all" ? "Any state" : filter.label} (
-              {openCounts[filter.value]})
-            </Button>
-          ))}
-        </div>
-
-        {pollIntervalMs !== undefined && (
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="font-mono text-xs text-on-surface-variant">
-              Live Ledger Poll: {Math.round(pollIntervalMs / 1000)}s
-            </span>
-
-            <span className="size-2 rounded-full bg-tertiary" />
-          </div>
-        )}
+        <FilterGroup
+          label="OPEN:"
+          options={OPEN_FILTERS}
+          value={openState}
+          counts={openCounts}
+          onChange={setOpenState}
+        />
       </div>
     </div>
   );
 }
 
-interface FilterGroupProps {
+type FilterOption<T extends string> = {
+  value: T;
   label: string;
-  options: readonly {
-    value: string;
-    label: string;
-    tone: string;
-  }[];
-  value: string;
-  counts?: Record<string, number>;
-  onChange: (value: never) => void;
-}
+  tone?: string;
+  dot?: string;
+  badge?: string;
+};
 
-function FilterGroup({
+interface FilterGroupProps<T extends string> {
+  label: string;
+  options: readonly FilterOption<T>[];
+  value: T;
+  counts?: Partial<Record<T, number>>;
+  onChange: (value: T) => void;
+  variant?: "default" | "status";
+}
+function FilterGroup<T extends string>({
   label,
   options,
   value,
   counts,
   onChange,
-}: FilterGroupProps) {
+}: FilterGroupProps<T>) {
   return (
     <div className="flex shrink-0 items-center gap-1 self-start rounded bg-surface-container-lowest p-1 lg:self-auto">
       <span className={GROUP_LABEL}>{label}</span>
 
-      {options.map((filter) => (
-        <Button
-          key={filter.value}
-          type="button"
-          variant="bare"
-          size="sm"
-          aria-pressed={value === filter.value}
-          onClick={() => onChange(filter.value as never)}
-          className={groupBtn(value === filter.value, filter.tone)}
-        >
-          {filter.label}
-          {counts && filter.value !== "all"
-            ? ` (${counts[filter.value]})`
-            : null}
-        </Button>
-      ))}
+      {options.map((filter) => {
+        const active = value === filter.value;
+        const count = counts?.[filter.value];
+
+        return (
+          <Button
+            key={filter.value}
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={active}
+            onClick={() => onChange(filter.value)}
+            className={cn(
+              "gap-1 rounded px-2.5 py-1 font-mono text-xxs font-semibold tracking-wider",
+              "transition-colors duration-150",
+              filter.tone,
+              active
+                ? cn("bg-current/10", "hover:bg-current/15")
+                : cn("hover:bg-current/10"),
+            )}
+          >
+            {filter.dot && (
+              <span className={cn("size-1.5 rounded-full", filter.dot)} />
+            )}
+
+            <span>{filter.label}</span>
+
+            {count !== undefined && (
+              <span
+                className={cn(
+                  "rounded px-1 font-mono text-xxs",
+                  active ? "bg-current/15" : filter.badge,
+                )}
+              >
+                {count}
+              </span>
+            )}
+          </Button>
+        );
+      })}
     </div>
   );
 }

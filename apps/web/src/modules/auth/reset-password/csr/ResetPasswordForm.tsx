@@ -157,7 +157,7 @@ export const ResetPasswordForm = () => {
               </Field>
 
               {touched.password && errors.password && (
-                <p id="password-error" className="text-sm text-destructive">
+                <p id="password-error" className="text-sm text-error">
                   {errors.password}
                 </p>
               )}

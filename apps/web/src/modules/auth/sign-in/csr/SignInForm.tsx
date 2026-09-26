@@ -147,7 +147,7 @@ export const SignInForm = () => {
               </Field>
 
               {touched.email && errors.email && (
-                <p id="email-error" className="text-sm text-destructive">
+                <p id="email-error" className="text-sm text-error">
                   {errors.email}
                 </p>
               )}
@@ -193,7 +193,7 @@ export const SignInForm = () => {
               </Field>
 
               {touched.password && errors.password && (
-                <p id="password-error" className="text-sm text-destructive">
+                <p id="password-error" className="text-sm text-error">
                   {errors.password}
                 </p>
               )}

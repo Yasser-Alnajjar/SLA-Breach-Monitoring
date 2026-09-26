@@ -44,19 +44,16 @@
   --accent-foreground: oklch(0.32 0.08 255);
 
   /* ─────────────────────────────────────────────
-   * Destructive / Error
+   * Error
    * ───────────────────────────────────────────── */
 
-  --destructive: oklch(0.63 0.22 20);
-  --destructive-foreground: oklch(1 0 0);
-
-  --error: var(--destructive);
+  --error: oklch(0.63 0.22 20);
   --error-container: color-mix(
     in oklch,
-    var(--destructive) 14%,
+    oklch(0.63 0.22 20) 14%,
     var(--surface)
   );
-  --error-foreground: var(--destructive-foreground);
+  --error-foreground: oklch(1 0 0);
 
   /* ─────────────────────────────────────────────
    * Borders / Inputs
@@ -215,15 +212,12 @@
   --accent-foreground: #7dd3fc;
 
   /* ─────────────────────────────────────────────
-   * Destructive / Error
+   * Error
    * ───────────────────────────────────────────── */
 
-  --destructive: #f43f5e;
-  --destructive-foreground: #ffffff;
-
-  --error: #ffb4ab;
+  --error: #f43f5e;
   --error-container: #93000a;
-  --error-foreground: #ffdad6;
+  --error-foreground: #ffffff;
 
   /* ─────────────────────────────────────────────
    * Borders / Inputs
@@ -400,11 +394,8 @@
   --color-accent-foreground: var(--accent-foreground);
 
   /* ─────────────────────────────────────────────
-   * Destructive / Error
+   * Error
    * ───────────────────────────────────────────── */
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
 
   --color-error: var(--error);
   --color-error-container: var(--error-container);

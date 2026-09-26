@@ -119,10 +119,7 @@ export const SignUpForm = () => {
               </Field>
 
               {touched.organizationName && errors.organizationName && (
-                <p
-                  id="organization-name-error"
-                  className="text-sm text-destructive"
-                >
+                <p id="organization-name-error" className="text-sm text-error">
                   {errors.organizationName}
                 </p>
               )}
@@ -157,7 +154,7 @@ export const SignUpForm = () => {
               </Field>
 
               {touched.email && errors.email && (
-                <p id="email-error" className="text-sm text-destructive">
+                <p id="email-error" className="text-sm text-error">
                   {errors.email}
                 </p>
               )}
@@ -194,7 +191,7 @@ export const SignUpForm = () => {
               </Field>
 
               {touched.password && errors.password && (
-                <p id="password-error" className="text-sm text-destructive">
+                <p id="password-error" className="text-sm text-error">
                   {errors.password}
                 </p>
               )}

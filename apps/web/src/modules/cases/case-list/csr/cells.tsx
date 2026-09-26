@@ -60,8 +60,8 @@ const LINKED_SYSTEM_LABEL: Record<string, string> = {
 };
 
 const SEVERITY_TONE: Record<string, string> = {
-  P1: "bg-error-container text-error",
-  P2: "bg-error-container/80 text-error",
+  P1: "bg-error-container/30 text-error",
+  P2: "bg-warning/10 text-warning",
   P3: "bg-surface-container-highest text-on-surface-variant",
   P4: "bg-surface-subtle text-muted-foreground",
 };
@@ -80,7 +80,7 @@ export function PriorityDualKeyCell({ row }: { row: CaseListRow }) {
             SEVERITY_TONE[severity],
           )}
         >
-          {severity}
+          {severity} - {row.priority}
         </span>
       )}
       <div className="flex flex-col">
@@ -183,13 +183,13 @@ const SETTLED_TONE: Record<
   breached: {
     text: "text-error",
     bar: "bg-error",
-    badge: "bg-error-container text-error font-bold",
+    badge: "bg-error-container/20 text-error font-bold",
     label: "BREACHED",
   },
   at_risk: {
-    text: "text-error",
-    bar: "bg-error",
-    badge: "bg-error-container text-error",
+    text: "text-warning",
+    bar: "bg-warning",
+    badge: "bg-error-container text-warning",
     label: "AT RISK",
   },
   on_track: {
@@ -382,7 +382,7 @@ export function LegAllocationCell({ row }: { row: CaseListRow }) {
     total > 0 ? (snap.engineeringLegMinutes / total) * 100 : 0;
 
   return (
-    <div className="flex w-41.25 flex-col gap-1">
+    <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between font-mono text-xxs text-on-surface-variant">
         <span
           className={cn(
@@ -399,7 +399,7 @@ export function LegAllocationCell({ row }: { row: CaseListRow }) {
           Eng: {formatMinutes(snap.engineeringLegMinutes)}
         </span>
       </div>
-      <div className="flex h-2 w-full overflow-hidden rounded bg-surface-container-lowest">
+      <div className="flex h-1.5 w-full overflow-hidden rounded bg-surface-container-lowest">
         <div
           className={cn(
             "h-full",

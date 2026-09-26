@@ -21,8 +21,7 @@ import {
 } from "./constants";
 import { CaseListFilters } from "./filters";
 import { CaseListMetrics } from "./metrics";
-import { FilterFn } from "@tanstack/react-table";
-
+import type { FilterFn } from "@tanstack/react-table";
 interface CaseListViewProps {
   data: CaseListData;
   pollIntervalMs?: number;
@@ -108,67 +107,66 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
     }),
     [data.cases, linkedCases.length],
   );
-  const casesGlobalFilterFn: FilterFn<CaseListRow> = (
-    row,
-    _columnId,
-    filterValue,
-  ) => {
-    const search = String(filterValue ?? "")
-      .trim()
-      .toLowerCase();
-
-    if (!search) {
-      return true;
-    }
-
-    const values = [
-      row.original.customerName,
-      row.original.subject,
-      row.original.tier,
-      row.original.externalId,
-    ];
-
-    return values.some((value) =>
-      String(value ?? "")
-        .toLowerCase()
-        .includes(search),
-    );
-  };
-  const filtered = useMemo(
-    () =>
-      data.cases.filter((caseItem) => {
-        if (status !== "all" && caseItem.worstCommitmentStatus !== status) {
-          return false;
-        }
-
-        if (openState === "open" && caseItem.closedAt) {
-          return false;
-        }
-
-        if (openState === "closed" && !caseItem.closedAt) {
-          return false;
-        }
-
-        if (linkState === "linked" && !caseItem.primaryLink) {
-          return false;
-        }
-
-        if (linkState === "unlinked" && caseItem.primaryLink) {
-          return false;
-        }
-
-        if (
-          severity !== "all" &&
-          formatPriorityTier(caseItem.priority) !== severity
-        ) {
-          return false;
-        }
-
-        return true;
-      }),
-    [data.cases, status, openState, linkState, severity],
+  const severityCounts = useMemo(
+    () => ({
+      all: data.cases.length,
+      P1: data.cases.filter(
+        (caseItem) => formatPriorityTier(caseItem.priority) === "P1",
+      ).length,
+      P2: data.cases.filter(
+        (caseItem) => formatPriorityTier(caseItem.priority) === "P2",
+      ).length,
+      P3: data.cases.filter(
+        (caseItem) => formatPriorityTier(caseItem.priority) === "P3",
+      ).length,
+      P4: data.cases.filter(
+        (caseItem) => formatPriorityTier(caseItem.priority) === "P4",
+      ).length,
+    }),
+    [data.cases],
   );
+  const filtered = useMemo(() => {
+    const search = globalFilter.trim().toLowerCase();
 
+    return data.cases.filter((caseItem) => {
+      if (search) {
+        const searchableText = JSON.stringify(caseItem).toLowerCase();
+
+        if (!searchableText.includes(search)) {
+          return false;
+        }
+      }
+
+      if (status !== "all" && caseItem.worstCommitmentStatus !== status) {
+        return false;
+      }
+
+      if (openState === "open" && caseItem.closedAt) {
+        return false;
+      }
+
+      if (openState === "closed" && !caseItem.closedAt) {
+        return false;
+      }
+
+      if (linkState === "linked" && !caseItem.primaryLink) {
+        return false;
+      }
+
+      if (linkState === "unlinked" && caseItem.primaryLink) {
+        return false;
+      }
+
+      if (
+        severity !== "all" &&
+        formatPriorityTier(caseItem.priority) !== severity
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data.cases, globalFilter, status, openState, linkState, severity]);
   if (data.cases.length === 0) {
     return (
       <EmptyState
@@ -244,7 +242,7 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
           statusCounts={statusCounts}
           openCounts={openCounts}
           linkCounts={linkCounts}
-          pollIntervalMs={pollIntervalMs}
+          severityCounts={severityCounts}
         />
       </Reveal>
 
@@ -259,8 +257,6 @@ export const CaseListView = ({ data, pollIntervalMs }: CaseListViewProps) => {
             rowClassName="border-0 hover:bg-surface-container-high odd:bg-surface-container-low even:bg-surface-container"
             columns={columns}
             data={filtered}
-            globalFilter={globalFilter}
-            setGlobalFilter={setGlobalFilter}
             empty={
               <EmptyState
                 icon={Search}

@@ -118,7 +118,7 @@ export const ForgotPasswordForm = () => {
               </Field>
 
               {touched.email && errors.email && (
-                <p id="email-error" className="text-sm text-destructive">
+                <p id="email-error" className="text-sm text-error">
                   {errors.email}
                 </p>
               )}

@@ -25,18 +25,20 @@ export function StatTile({
         aria-hidden
         className={cn(
           "pointer-events-none absolute right-0 top-0 size-24 rounded-bl-full bg-gradient-to-bl to-transparent",
-          tone === "destructive" && "from-destructive/15",
+          tone === "destructive" && "from-error/15",
           tone === "success" && "from-success/15",
           tone === "warning" && "from-warning/15",
           tone === "default" && "from-primary/10",
         )}
       />
       <div className="relative flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
         <span
           className={cn(
             "flex size-8 items-center justify-center rounded-md border border-border-subtle",
-            tone === "destructive" && "bg-destructive/10 text-destructive",
+            tone === "destructive" && "bg-error/10 text-error",
             tone === "success" && "bg-success/10 text-success",
             tone === "warning" && "bg-warning/10 text-warning",
             tone === "default" && "bg-interactive text-muted-foreground",
@@ -46,7 +48,9 @@ export function StatTile({
         </span>
       </div>
       <div className="relative mt-3 flex items-baseline gap-2">
-        <p className="font-mono text-3xl font-bold leading-none tracking-tight tabular-nums">{value}</p>
+        <p className="font-mono text-3xl font-bold leading-none tracking-tight tabular-nums">
+          {value}
+        </p>
         {trend}
       </div>
       {detail && (

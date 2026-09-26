@@ -27,7 +27,7 @@ export const AtRiskHeader = ({
           </h1>
 
           <Badge variant="destructive">
-            <span className="size-2 animate-ping rounded-full bg-destructive" />
+            <span className="size-2 animate-ping rounded-full bg-error" />
             {totalCount} Active At-Risk Case
             {totalCount !== 1 ? "s" : ""}
           </Badge>

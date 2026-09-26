@@ -17,7 +17,7 @@ const buttonVariants = cva(
         secondary: `${SHINE} bg-secondary text-secondary-foreground shadow-soft hover:brightness-105 active:brightness-95`,
         outline: `${SHINE} border border-border bg-transparent text-foreground hover:bg-interactive/60 active:bg-interactive`,
         ghost: `${SHINE} text-foreground hover:bg-interactive/60 active:bg-interactive`,
-        destructive: `${SHINE} bg-destructive text-destructive-foreground shadow-soft hover:brightness-110 active:brightness-95`,
+        destructive: `${SHINE} bg-error text-error-foreground shadow-soft hover:brightness-110 active:brightness-95`,
         link: `${SHINE} text-primary underline-offset-4 hover:underline`,
         /** Raised tonal action on the dashboard surface scale. */
         surface:

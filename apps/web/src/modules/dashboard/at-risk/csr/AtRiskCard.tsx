@@ -17,7 +17,7 @@ import type { AtRiskRowData } from "@/lib/types/at-risk";
 import { cn } from "@/lib/utils";
 
 const STATUS_EDGE: Record<string, string> = {
-  breached: "bg-destructive",
+  breached: "bg-error",
   at_risk: "bg-warning",
   on_track: "bg-outline",
   met: "bg-success",
@@ -25,7 +25,7 @@ const STATUS_EDGE: Record<string, string> = {
 };
 
 const CLOCK_TONE: Record<string, string> = {
-  breached: "text-destructive",
+  breached: "text-error",
   at_risk: "text-warning",
   on_track: "text-outline",
   met: "text-success",
@@ -96,7 +96,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
                 <span
                   className={cn(
                     "rounded px-2 py-0.5 text-xxs font-semibold uppercase tracking-wider",
-                    severity === "P1" && "bg-destructive/15 text-destructive",
+                    severity === "P1" && "bg-error/15 text-error",
                     severity === "P2" &&
                       "bg-surface-container-high text-warning",
                     severity === "P3" && "bg-tertiary/15 text-tertiary",
@@ -168,7 +168,7 @@ export function AtRiskCard({ row }: { row: AtRiskRowData }) {
                 aria-hidden
                 className={cn(
                   "size-2 rounded-full",
-                  STATUS_EDGE[row.status] ?? "bg-destructive",
+                  STATUS_EDGE[row.status] ?? "bg-error",
                   row.status === "breached" && "animate-ping",
                 )}
               />

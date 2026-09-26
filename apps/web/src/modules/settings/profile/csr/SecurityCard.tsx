@@ -23,7 +23,8 @@ export function SecurityCard() {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<SaveResult | null>(null);
 
-  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const mismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
   const canSubmit =
     currentPassword.length > 0 &&
     newPassword.length >= 8 &&
@@ -44,7 +45,10 @@ export function SecurityCard() {
     setSaving(false);
 
     if (!ok) {
-      setResult({ ok: false, error: body.error ?? "Failed to change password" });
+      setResult({
+        ok: false,
+        error: body.error ?? "Failed to change password",
+      });
       return;
     }
 
@@ -69,7 +73,9 @@ export function SecurityCard() {
             <KeyRound className="size-4" />
           </span>
           <div>
-            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">Security</CardTitle>
+            <CardTitle className="text-on-surface text-xl font-semibold tracking-tight">
+              Security
+            </CardTitle>
             <p className="mt-1 text-xs text-on-surface-variant">
               Change the password used to sign in to this account.
             </p>
@@ -120,7 +126,7 @@ export function SecurityCard() {
           </div>
 
           {mismatch && (
-            <p className="text-xs text-destructive">Passwords don&apos;t match.</p>
+            <p className="text-xs text-error">Passwords don&apos;t match.</p>
           )}
 
           {result && (

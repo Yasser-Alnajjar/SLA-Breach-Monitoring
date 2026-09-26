@@ -89,7 +89,6 @@ export const useCaseListColumns = (): ColumnDef<CaseListRow>[] => [
   {
     id: "legAllocation",
     minSize: 180,
-    maxSize: 220,
     accessorFn: (row) =>
       row.liveCommitment
         ? row.liveCommitment.engineeringLegMinutes /

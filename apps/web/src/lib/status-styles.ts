@@ -2,7 +2,7 @@ export const STATUS_BORDER_CLASS: Record<string, string> = {
   on_track: "border-l-muted-foreground/50",
   at_risk: "border-l-warning",
   met: "border-l-success",
-  breached: "border-l-destructive",
+  breached: "border-l-error",
   cancelled: "border-l-muted-foreground/20",
 };
 

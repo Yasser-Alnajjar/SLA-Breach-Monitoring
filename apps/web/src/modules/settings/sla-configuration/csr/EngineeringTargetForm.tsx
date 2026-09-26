@@ -10,11 +10,17 @@ import { Input } from "@/components/ui/input";
 import { formatTargetClock, InfoNote, tableHeadClass } from "./SlaSection";
 
 /** Set/clear form for the org-wide engineering-leg OLA target (roadmap step 16). */
-export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetMinutes: number | null }) {
+export function EngineeringTargetForm({
+  initialTargetMinutes,
+}: {
+  initialTargetMinutes: number | null;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(initialTargetMinutes === null);
   const [hours, setHours] = useState(
-    initialTargetMinutes !== null ? String(Math.round(initialTargetMinutes / 60)) : "",
+    initialTargetMinutes !== null
+      ? String(Math.round(initialTargetMinutes / 60))
+      : "",
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +35,9 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
     setSaving(true);
     setError(null);
 
-    const { ok, body } = await Actions.SlaConfiguration.setEngineeringTarget(Math.round(parsedHours * 60));
+    const { ok, body } = await Actions.SlaConfiguration.setEngineeringTarget(
+      Math.round(parsedHours * 60),
+    );
     setSaving(false);
 
     if (!ok) {
@@ -89,12 +97,22 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
                 className="w-24 font-mono"
               />
               <span className="text-on-surface-variant text-sm">hours</span>
-              <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+              >
                 {saving && <Loader2 className="animate-spin" />}
                 {saving ? "Saving…" : "Set target"}
               </Button>
               {hasTarget && (
-                <Button type="button" size="sm" variant="surface" onClick={() => setEditing(false)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="surface"
+                  onClick={() => setEditing(false)}
+                >
                   Cancel
                 </Button>
               )}
@@ -104,12 +122,15 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
               <span className="text-primary font-mono text-3xl font-bold tabular-nums tracking-tight">
                 {formatTargetClock(initialTargetMinutes!)}
               </span>
-              <span className="text-outline font-mono text-xxs">wall-clock cap</span>
+              <span className="text-outline font-mono text-xxs">
+                wall-clock cap
+              </span>
             </div>
           )}
 
           <p className="text-on-surface-variant text-xs">
-            Cases exceeding this duration in the engineering leg are marked at-risk or breached.
+            Cases exceeding this duration in the engineering leg are marked
+            at-risk or breached.
           </p>
         </div>
 
@@ -121,8 +142,9 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
         )}
 
         <InfoNote icon={<Info className="size-4" />}>
-          One target for the whole team — not a policy builder. The engineering leg runs from the moment support hands a
-          case to engineering until it is resolved.
+          One target for the whole team — not a policy builder. The engineering
+          leg runs from the moment support hands a case to engineering until it
+          is resolved.
         </InfoNote>
       </div>
 
@@ -132,14 +154,19 @@ export function EngineeringTargetForm({ initialTargetMinutes }: { initialTargetM
             type="button"
             size="sm"
             variant="ghost"
-            className="text-destructive"
+            className="text-error"
             onClick={handleClear}
             disabled={saving}
           >
             {saving && <Loader2 className="animate-spin" />}
             Clear
           </Button>
-          <Button type="button" size="sm" variant="surface" onClick={() => setEditing(true)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="surface"
+            onClick={() => setEditing(true)}
+          >
             Change target
           </Button>
         </div>

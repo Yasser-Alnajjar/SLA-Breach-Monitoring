@@ -12,7 +12,7 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary/20 text-secondary",
         success: "border-transparent bg-success/15 text-success",
         warning: "border-transparent bg-warning/15 text-warning",
-        destructive: "border-transparent bg-destructive/15 text-destructive",
+        destructive: "border-transparent bg-error/15 text-error",
         outline: "border-border text-muted-foreground",
         tertiary: "border-transparent bg-tertiary/15 text-tertiary",
         /** Muted/neutral tone, deliberately distinct from every semantic color above — labels a feature as Beta (roadmap task 2.10), not a status. */

@@ -97,7 +97,7 @@ export function InviteMemberForm({ onInvited }: InviteMemberFormProps) {
             />
 
             {formik.touched.email && formik.errors.email && (
-              <p className="text-sm text-destructive">{formik.errors.email}</p>
+              <p className="text-sm text-error">{formik.errors.email}</p>
             )}
           </div>
 

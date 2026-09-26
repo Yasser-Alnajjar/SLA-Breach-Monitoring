@@ -26,13 +26,13 @@ export function AtRiskKpiTile({
   tone?: "default" | "destructive" | "warning" | "success";
 }) {
   const toneBGClass = {
-    destructive: "bg-destructive",
+    destructive: "bg-error",
     warning: "bg-warning",
     success: "bg-success",
     default: "bg-muted-foreground",
   };
   const toneTextClass = {
-    destructive: "text-destructive",
+    destructive: "text-error",
     warning: "text-warning",
     success: "text-success",
     default: "text-muted-foreground",

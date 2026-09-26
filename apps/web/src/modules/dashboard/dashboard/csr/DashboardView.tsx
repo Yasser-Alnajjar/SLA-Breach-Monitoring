@@ -265,7 +265,7 @@ export const DashboardView = ({
             label="Breached Cases"
             icon={AlarmClockOff}
             value={data.breachedThisPeriod.length}
-            cornerFrom="from-destructive/15"
+            cornerFrom="from-error/15"
             qualifier={
               breachTrend !== null && (
                 <span

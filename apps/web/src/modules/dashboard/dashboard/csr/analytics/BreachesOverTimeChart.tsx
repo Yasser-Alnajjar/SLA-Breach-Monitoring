@@ -118,7 +118,7 @@ export function BreachesOverTimeChart({
                 dataKey="engineeringCount"
                 name="Engineering"
                 stackId="leg"
-                fill="var(--destructive)"
+                fill="var(--error)"
                 radius={[2, 2, 2, 2]}
               />
             </BarChart>
